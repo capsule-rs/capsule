@@ -20,15 +20,18 @@ use std::fmt;
 use std::net::Ipv6Addr;
 use packets::ethernet::MacAddr;
 
-/// ndp option types
 const OPT_SOURCE_LINK_LAYER_ADDR: u8 = 1;
-const OPT_TARGET_LINK_LAYER_ADDR: u8 = 1;
+const OPT_TARGET_LINK_LAYER_ADDR: u8 = 2;
 const OPT_PREFIX_INFORMATION: u8 = 3;
-const OPT_REDIRECTED_HEADER: u8 = 4;
+//const OPT_REDIRECTED_HEADER: u8 = 4;
 const OPT_MTU: u8 = 5;
 
+/// Neighbor discovery message option
 pub trait NdpOption {
+    /// Returns the size of the NDP option in bytes
     fn size() -> usize;
+
+    /// Returns the type code of the NDP option
     fn option_type() -> u8;
 }
 
@@ -58,6 +61,7 @@ pub trait NdpOption {
                    operates over different link layers.
 */
 
+/// Source link-layer address option
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct SourceLinkLayerAddress {
@@ -97,7 +101,7 @@ impl fmt::Display for SourceLinkLayerAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "type: {} length: {} addr: {}",
+            "type: {}, length: {}, addr: {}",
             self.option_type,
             self.length(),
             self.addr()
@@ -117,6 +121,7 @@ impl NdpOption for SourceLinkLayerAddress {
     }
 }
 
+/// Target link-layer address option
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct TargetLinkLayerAddress {
@@ -149,6 +154,18 @@ impl Default for TargetLinkLayerAddress {
             length: 1,
             addr: Default::default()
         }
+    }
+}
+
+impl fmt::Display for TargetLinkLayerAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "type: {}, length: {}, addr: {}",
+            self.option_type,
+            self.length(),
+            self.addr()
+        )
     }
 }
 
@@ -251,6 +268,7 @@ impl NdpOption for TargetLinkLayerAddress {
                    ignore such a prefix option.
 */
 
+/// Prefix information option
 #[derive(Debug)]
 #[repr(C)]
 pub struct PrefixInformation {
@@ -356,6 +374,23 @@ impl Default for PrefixInformation {
     }
 }
 
+impl fmt::Display for PrefixInformation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "type: {}, length: {}, prefix_length: {}, on_link: {}, autonomous: {}, valid_lifetime: {}, preferred_lifetime: {}, prefix: {}",
+            self.option_type,
+            self.length(),
+            self.prefix_length(),
+            self.on_link(),
+            self.autonomous(),
+            self.valid_lifetime(),
+            self.preferred_lifetime(),
+            self.prefix()
+        )
+    }
+}
+
 impl NdpOption for PrefixInformation {
     fn size() -> usize {
         32
@@ -389,6 +424,7 @@ impl NdpOption for PrefixInformation {
                    the link.
 */
 
+/// Maximum transmission unit option
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct Mtu {
@@ -423,6 +459,18 @@ impl Default for Mtu {
     }
 }
 
+impl fmt::Display for Mtu {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "type: {}, length: {}, mtu: {}",
+            self.option_type,
+            self.length(),
+            self.mtu()
+        )
+    }
+}
+
 impl NdpOption for Mtu {
     fn size() -> usize {
         8
@@ -430,5 +478,66 @@ impl NdpOption for Mtu {
 
     fn option_type() -> u8 {
         OPT_MTU
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use packets::MacAddr;
+
+    #[test]
+    fn source_link_layer_address() {
+        let mut opt: SourceLinkLayerAddress = Default::default();
+
+        assert_eq!(1, opt.length());
+
+        let addr = MacAddr::new(1, 1, 1, 1, 1, 1);
+        opt.set_addr(addr);
+        assert_eq!(addr, opt.addr());
+    }
+
+    #[test]
+    fn target_link_layer_address() {
+        let mut opt: TargetLinkLayerAddress = Default::default();
+
+        assert_eq!(1, opt.length());
+
+        let addr = MacAddr::new(1, 1, 1, 1, 1, 1);
+        opt.set_addr(addr);
+        assert_eq!(addr, opt.addr());
+    }
+
+    #[test]
+    fn prefix_information() {
+        let mut opt: PrefixInformation = Default::default();
+
+        assert_eq!(4, opt.length());
+
+        let prefix = Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1);
+
+        opt.set_prefix_length(7);
+        opt.set_on_link();
+        opt.set_autonomous();
+        opt.set_valid_lifetime(1000);
+        opt.set_preferred_lifetime(2000);
+        opt.set_prefix(prefix);
+
+        assert_eq!(7, opt.prefix_length());
+        assert!(opt.on_link());
+        assert!(opt.autonomous());
+        assert_eq!(1000, opt.valid_lifetime());
+        assert_eq!(2000, opt.preferred_lifetime());
+        assert_eq!(prefix, opt.prefix());
+    }
+
+    #[test]
+    fn mtu() {
+        let mut opt: Mtu = Default::default();
+
+        assert_eq!(1, opt.length());
+
+        opt.set_mtu(1500);
+        assert_eq!(1500, opt.mtu());
     }
 }
