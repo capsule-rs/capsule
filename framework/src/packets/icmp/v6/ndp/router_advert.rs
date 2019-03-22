@@ -17,6 +17,7 @@
 */
 
 use std::fmt;
+use packets::ip::v6::Ipv6Packet;
 use packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, NdpPayload};
 
 /*  From (https://tools.ietf.org/html/rfc4861#section-4.2)
@@ -138,7 +139,7 @@ impl Icmpv6Payload for RouterAdvertisement {
     }
 }
 
-impl Icmpv6<RouterAdvertisement> {
+impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     #[inline]
     pub fn current_hop_limit(&self) -> u8 {
         self.payload().current_hop_limit
@@ -211,7 +212,7 @@ impl Icmpv6<RouterAdvertisement> {
     }
 }
 
-impl fmt::Display for Icmpv6<RouterAdvertisement> {
+impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, RouterAdvertisement> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -229,7 +230,7 @@ impl fmt::Display for Icmpv6<RouterAdvertisement> {
     }
 }
 
-impl Icmpv6Packet<RouterAdvertisement> for Icmpv6<RouterAdvertisement> {
+impl<E: Ipv6Packet> Icmpv6Packet<RouterAdvertisement> for Icmpv6<E, RouterAdvertisement> {
     fn payload(&self) -> &mut RouterAdvertisement {
         unsafe { &mut (*self.payload) }
     }
@@ -293,7 +294,7 @@ mod tests {
             let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
             let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-            let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+            let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
             let advert = icmpv6.downcast::<RouterAdvertisement>();
 
             assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
@@ -314,7 +315,7 @@ mod tests {
             let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
             let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-            let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+            let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
             let advert = icmpv6.downcast::<RouterAdvertisement>();
             let sll = advert.find_option::<SourceLinkLayerAddress>().unwrap();
 
@@ -329,7 +330,7 @@ mod tests {
             let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
             let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-            let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+            let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
             let advert = icmpv6.downcast::<RouterAdvertisement>();
 
             assert!(advert.find_option::<TargetLinkLayerAddress>().is_none());

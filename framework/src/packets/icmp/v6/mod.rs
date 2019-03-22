@@ -18,7 +18,7 @@
 
 use std::fmt;
 use packets::{Packet, Header};
-use packets::ip::v6::Ipv6;
+use packets::ip::v6::Ipv6Packet;
 
 pub use self::ndp::*;
 pub use self::ndp::options::*;
@@ -164,8 +164,8 @@ pub trait Icmpv6Packet<P: Icmpv6Payload>: Packet<Header=Icmpv6Header> {
 }
 
 /// ICMPv6 packet
-pub struct Icmpv6<P: Icmpv6Payload> {
-    envelope: Ipv6,
+pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
+    envelope: E,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut Icmpv6Header,
@@ -183,7 +183,7 @@ pub struct Icmpv6<P: Icmpv6Payload> {
 ///     let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
 /// }
 /// ```
-impl Icmpv6<()> {
+impl<E: Ipv6Packet> Icmpv6<E, ()> {
     /// Downcasts from unit payload to typed payload
     /// 
     /// # Example
@@ -193,12 +193,12 @@ impl Icmpv6<()> {
     ///     let advert = icmpv6.downcast::<RouterAdvertisement>();
     /// }
     /// ```
-    pub fn downcast<P: Icmpv6Payload>(self) -> Icmpv6<P> {
-        Icmpv6::<P>::from_packet(self.envelope, self.mbuf, self.offset, self.header)
+    pub fn downcast<P: Icmpv6Payload>(self) -> Icmpv6<E, P> {
+        Icmpv6::<E, P>::from_packet(self.envelope, self.mbuf, self.offset, self.header)
     }
 }
 
-impl fmt::Display for Icmpv6<()> {
+impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, ()> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -210,15 +210,15 @@ impl fmt::Display for Icmpv6<()> {
     }
 }
 
-impl Icmpv6Packet<()> for Icmpv6<()> {
+impl<E: Ipv6Packet> Icmpv6Packet<()> for Icmpv6<E, ()> {
     fn payload(&self) -> &mut () {
         unsafe { &mut (*self.payload) }
     }
 }
 
-impl<P: Icmpv6Payload> Packet for Icmpv6<P> {
+impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     type Header = Icmpv6Header;
-    type Envelope = Ipv6;
+    type Envelope = E;
 
     #[inline]
     fn from_packet(envelope: Self::Envelope,
@@ -267,6 +267,7 @@ impl<P: Icmpv6Payload> Packet for Icmpv6<P> {
 mod tests {
     use super::*;
     use packets::{RawPacket, Ethernet};
+    use packets::ip::v6::Ipv6;
     use dpdk_test;
 
     #[rustfmt::skip]
@@ -300,7 +301,7 @@ mod tests {
             let packet = RawPacket::from_bytes(&ICMPV6_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
             let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-            let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+            let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
 
             assert_eq!(Icmpv6Type::new(0x81), icmpv6.msg_type());
             assert_eq!(0, icmpv6.code());
