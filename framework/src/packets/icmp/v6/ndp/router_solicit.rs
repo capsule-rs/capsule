@@ -53,13 +53,9 @@ pub struct RouterSolicitation {
     reserved: u32
 }
 
-impl NdpPayload for RouterSolicitation {}
+impl Icmpv6Payload for RouterSolicitation {}
 
-impl Icmpv6Payload for RouterSolicitation {
-    fn size() -> usize {
-        4
-    }
-}
+impl NdpPayload for RouterSolicitation {}
 
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
@@ -90,9 +86,9 @@ impl<E: Ipv6Packet> Icmpv6Packet<RouterSolicitation> for Icmpv6<E, RouterSolicit
 #[cfg(test)]
 mod tests {
     use super::*;
-    use packets::{Packet, RawPacket, Ethernet};
+    use packets::{Fixed, Packet, RawPacket, Ethernet};
     use packets::ip::v6::Ipv6;
-    use packets::icmp::v6::{Icmpv6, Icmpv6Types};
+    use packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use dpdk_test;
 
     #[rustfmt::skip]
@@ -124,16 +120,23 @@ mod tests {
     ];
 
     #[test]
+    fn size_of_router_solicitation() {
+        assert_eq!(4, RouterSolicitation::size());
+    }
+
+    #[test]
     fn parse_router_solicitation_packet() {
         dpdk_test! {
             let packet = RawPacket::from_bytes(&ROUTER_SOLICIT_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
             let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-            let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
-            let solicit = icmpv6.downcast::<RouterSolicitation>();
 
-            assert_eq!(Icmpv6Types::RouterSolicitation, solicit.msg_type());
-            assert_eq!(0, solicit.reserved());
+            if let Ok(Icmpv6Message::RouterSolicitation(solicit)) = ipv6.parse_icmpv6() {
+                assert_eq!(Icmpv6Types::RouterSolicitation, solicit.msg_type());
+                assert_eq!(0, solicit.reserved());
+            } else {
+                panic!("bad packet");
+            }
         }
     }
 }

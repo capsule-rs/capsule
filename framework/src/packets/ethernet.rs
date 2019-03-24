@@ -17,7 +17,7 @@
 */
 
 use std::fmt;
-use packets::{Packet, Header, RawPacket};
+use packets::{Fixed, Packet, Header, RawPacket};
 
 /* Ethernet Type II Frame
 
@@ -110,11 +110,7 @@ pub struct EthernetHeader {
     ether_type: u16
 }
 
-impl Header for EthernetHeader {
-    fn size() -> usize {
-        14
-    }
-}
+impl Header for EthernetHeader {}
 
 /// Ethernet packet
 pub struct Ethernet {
@@ -170,13 +166,13 @@ impl Packet for Ethernet {
     fn from_packet(envelope: Self::Envelope,
                    mbuf: *mut MBuf,
                    offset: usize,
-                   header: *mut Self::Header) -> Self {
-        Ethernet {
+                   header: *mut Self::Header) -> Result<Self> {
+        Ok(Ethernet {
             envelope,
             mbuf,
             offset,
             header
-        }
+        })
     }
 
     #[inline]
@@ -230,6 +226,11 @@ mod tests {
         // ** UDP payload
         0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x68, 0x65, 0x6c, 0x6c, 0x6f
     ];
+
+    #[test]
+    fn size_of_ethernet_header() {
+        assert_eq!(14, EthernetHeader::size());
+    }
 
     #[test]
     fn mac_addr_to_string() {

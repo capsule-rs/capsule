@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /*
 * Copyright 2019 Comcast Cable Communications Management, LLC
 *
@@ -17,9 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-=======
 use std::fmt;
->>>>>>> 70f55ae... pattern matchin with icmpv6
 use packets::Packet;
 
 pub mod v6;
