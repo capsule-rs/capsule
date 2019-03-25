@@ -18,7 +18,7 @@
 
 use std::fmt;
 use std::net::Ipv6Addr;
-use packets::{Fixed, Packet, Header, Ethernet};
+use packets::{Ethernet, Fixed, Header, Packet};
 use packets::ip::{IpPacket, ProtocolNumber};
 
 pub use self::srh::*;
@@ -134,7 +134,7 @@ impl Ipv6 {
     pub fn set_traffic_class(&mut self, traffic_class: u8) {
         self.header().version_to_flow_label = u32::to_be(
             (u32::from_be(self.header().version_to_flow_label) & 0xf00fffff) | ((traffic_class as u32) << 20),
-        )
+        );
     }
 
     #[inline]
@@ -147,7 +147,7 @@ impl Ipv6 {
         assert!(flow_label <= 0x0fffff);
         self.header().version_to_flow_label = u32::to_be(
             (u32::from_be(self.header().version_to_flow_label) & 0xfff00000) | (flow_label & 0x0fffff)
-        )
+        );
     }
 
     #[inline]
@@ -157,7 +157,7 @@ impl Ipv6 {
 
     #[inline]
     pub fn set_payload_len(&mut self, payload_len: u16) {
-        self.header().payload_len = u16::to_be(payload_len)
+        self.header().payload_len = u16::to_be(payload_len);
     }
 
     #[inline]
@@ -167,7 +167,7 @@ impl Ipv6 {
 
     #[inline]
     pub fn set_next_header(&mut self, next_header: ProtocolNumber) {
-        self.header().next_header = next_header.0
+        self.header().next_header = next_header.0;
     }
 
     #[inline]
@@ -187,7 +187,7 @@ impl Ipv6 {
 
     #[inline]
     pub fn set_src(&mut self, src: Ipv6Addr) {
-        self.header().src = src
+        self.header().src = src;
     }
 
     #[inline]
@@ -197,7 +197,7 @@ impl Ipv6 {
 
     #[inline]
     pub fn set_dst(&mut self, dst: Ipv6Addr) {
-        self.header().dst = dst
+        self.header().dst = dst;
     }
 }
 

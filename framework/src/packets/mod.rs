@@ -20,12 +20,16 @@ use failure::Fail;
 
 pub use self::ethernet::*;
 pub use self::raw::*;
+pub use self::tcp::*;
+pub use self::udp::*;
 
 pub mod buffer;
 pub mod ethernet;
 pub mod icmp;
 pub mod ip;
 pub mod raw;
+pub mod tcp;
+pub mod udp;
 
 /// Type that has a fixed size
 /// 
