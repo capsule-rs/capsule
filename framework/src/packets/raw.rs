@@ -57,14 +57,6 @@ impl Packet for RawPacket {
     type Envelope = RawPacket;
 
     #[inline]
-    fn from_packet(envelope: Self::Envelope,
-                   _mbuf: *mut MBuf,
-                   _offset: usize,
-                   _header: *mut Self::Header) -> Result<Self> {
-        Ok(envelope)
-    }
-
-    #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self
     }
@@ -87,6 +79,12 @@ impl Packet for RawPacket {
     #[inline]
     fn header_len(&self) -> usize {
         0
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn do_parse(envelope: Self::Envelope) -> Result<Self> where Self: Sized {
+        Ok(envelope)
     }
 }
 

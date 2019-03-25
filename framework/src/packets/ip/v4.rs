@@ -18,7 +18,7 @@
 
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
-use packets::{Ethernet, Fixed, Header, Packet};
+use packets::{buffer, Ethernet, Fixed, Header, Packet};
 use packets::ip::{IpPacket, ProtocolNumber};
 
 /*  From (https://tools.ietf.org/html/rfc791#section-3.1)
@@ -280,19 +280,6 @@ impl Packet for Ipv4 {
     type Envelope = Ethernet;
 
     #[inline]
-    fn from_packet(envelope: Self::Envelope,
-                   mbuf: *mut MBuf,
-                   offset: usize,
-                   header: *mut Self::Header) -> Result<Self> {
-        Ok(Ipv4 {
-            envelope,
-            mbuf,
-            offset,
-            header
-        })
-    }
-
-    #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
@@ -315,6 +302,21 @@ impl Packet for Ipv4 {
     #[inline]
     fn header_len(&self) -> usize {
         Self::Header::size()
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+
+        Ok(Ipv4 {
+            envelope,
+            mbuf,
+            offset,
+            header
+        })
     }
 }
 

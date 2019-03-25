@@ -17,7 +17,7 @@
 */
 
 use std::fmt;
-use packets::{Fixed, Header, Packet};
+use packets::{buffer, Fixed, Header, Packet};
 use packets::ip::{Flow, IpPacket, ProtocolNumbers};
 
 /*  From (https://tools.ietf.org/html/rfc793#section-3.1)
@@ -420,19 +420,6 @@ impl<E: IpPacket> Packet for Tcp<E> {
     type Header = TcpHeader;
 
     #[inline]
-    fn from_packet(envelope: Self::Envelope,
-                   mbuf: *mut MBuf,
-                   offset: usize,
-                   header: *mut Self::Header) -> Result<Self> {
-        Ok(Tcp {
-            envelope,
-            mbuf,
-            offset,
-            header
-        })
-    }
-
-    #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
@@ -455,6 +442,21 @@ impl<E: IpPacket> Packet for Tcp<E> {
     #[inline]
     fn header_len(&self) -> usize {
         Self::Header::size()
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+
+        Ok(Tcp {
+            envelope,
+            mbuf,
+            offset,
+            header
+        })
     }
 }
 
