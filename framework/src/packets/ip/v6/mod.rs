@@ -17,7 +17,7 @@
 */
 
 use std::fmt;
-use std::net::Ipv6Addr;
+use std::net::{IpAddr, Ipv6Addr};
 use packets::{Ethernet, Fixed, Header, Packet};
 use packets::ip::{IpPacket, ProtocolNumber};
 
@@ -264,6 +264,14 @@ impl Packet for Ipv6 {
 impl IpPacket for Ipv6 {
     fn next_proto(&self) -> ProtocolNumber {
         self.next_header()
+    }
+
+    fn src(&self) -> IpAddr {
+        IpAddr::V6(self.src())
+    }
+
+    fn dst(&self) -> IpAddr {
+        IpAddr::V6(self.dst())
     }
 }
 
