@@ -24,6 +24,7 @@ pub use self::tcp::*;
 pub use self::udp::*;
 
 pub mod buffer;
+pub mod checksum;
 pub mod ethernet;
 pub mod icmp;
 pub mod ip;

@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use failure::Fail;
 use std::fmt;
 use std::net::IpAddr;
 use packets::Packet;
@@ -82,8 +83,23 @@ pub trait IpPacket: Packet {
     /// Returns the source IP address
     fn src(&self) -> IpAddr;
 
+    /// Sets the source IP address
+    /// 
+    /// This lets an upper layer packet like TCP set the source IP address 
+    /// on a lower layer packet.
+    fn set_src(&self, src: IpAddr) -> Result<()>;
+
     /// Returns the destination IP address
     fn dst(&self) -> IpAddr;
+
+    /// Sets the destination IP address
+    /// 
+    /// This lets an upper layer packet like TCP set the destination IP address 
+    /// on a lower layer packet.
+    fn set_dst(&self, dst: IpAddr) -> Result<()>;
+
+    /// Returns the pseudo-header sum for layer 4 checksum computation
+    fn pseudo_header_sum(&self, packet_len: u16, protocol: ProtocolNumber) -> u16;
 }
 
 /// 5-tuple IP connection identifier
@@ -126,6 +142,10 @@ impl Flow {
         self.protocol
     }
 }
+
+#[derive(Fail, Debug)]
+#[fail(display = "Cannot mix IPv4 and IPv6 addresses")]
+pub struct IpAddrMismatchError;
 
 #[cfg(test)]
 mod tests {

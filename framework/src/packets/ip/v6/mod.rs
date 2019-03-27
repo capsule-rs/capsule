@@ -19,7 +19,7 @@
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use packets::{buffer, Ethernet, Fixed, Header, Packet};
-use packets::ip::{IpPacket, ProtocolNumber};
+use packets::ip::{IpPacket, ProtocolNumber, IpAddrMismatchError};
 
 pub use self::srh::*;
 
@@ -131,7 +131,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_traffic_class(&mut self, traffic_class: u8) {
+    pub fn set_traffic_class(&self, traffic_class: u8) {
         self.header().version_to_flow_label = u32::to_be(
             (u32::from_be(self.header().version_to_flow_label) & 0xf00fffff) | ((traffic_class as u32) << 20),
         );
@@ -143,7 +143,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_flow_label(&mut self, flow_label: u32) {
+    pub fn set_flow_label(&self, flow_label: u32) {
         assert!(flow_label <= 0x0fffff);
         self.header().version_to_flow_label = u32::to_be(
             (u32::from_be(self.header().version_to_flow_label) & 0xfff00000) | (flow_label & 0x0fffff)
@@ -156,7 +156,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_payload_len(&mut self, payload_len: u16) {
+    pub fn set_payload_len(&self, payload_len: u16) {
         self.header().payload_len = u16::to_be(payload_len);
     }
 
@@ -166,7 +166,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_next_header(&mut self, next_header: ProtocolNumber) {
+    pub fn set_next_header(&self, next_header: ProtocolNumber) {
         self.header().next_header = next_header.0;
     }
 
@@ -176,7 +176,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_hop_limit(&mut self, hop_limit: u8) {
+    pub fn set_hop_limit(&self, hop_limit: u8) {
         self.header().hop_limit = hop_limit;
     }
 
@@ -186,7 +186,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_src(&mut self, src: Ipv6Addr) {
+    fn set_src(&self, src: Ipv6Addr) {
         self.header().src = src;
     }
 
@@ -196,7 +196,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    pub fn set_dst(&mut self, dst: Ipv6Addr) {
+    fn set_dst(&self, dst: Ipv6Addr) {
         self.header().dst = dst;
     }
 }
@@ -281,16 +281,80 @@ impl Packet for Ipv6 {
 }
 
 impl IpPacket for Ipv6 {
+    #[inline]
     fn next_proto(&self) -> ProtocolNumber {
         self.next_header()
     }
 
+    #[inline]
     fn src(&self) -> IpAddr {
         IpAddr::V6(self.src())
     }
 
+    #[inline]
+    fn set_src(&self, src: IpAddr) -> Result<()> {
+        match src {
+            IpAddr::V6(addr) => {
+                self.set_src(addr);
+                Ok(())
+            },
+            _ => Err(IpAddrMismatchError.into())
+        }
+    }
+
+    #[inline]
     fn dst(&self) -> IpAddr {
         IpAddr::V6(self.dst())
+    }
+
+    #[inline]
+    fn set_dst(&self, dst: IpAddr) -> Result<()> {
+        match dst {
+            IpAddr::V6(addr) => {
+                self.set_dst(addr);
+                Ok(())
+            },
+            _ => Err(IpAddrMismatchError.into())
+        }
+    }
+
+    /// Returns the IPv6 pseudo-header sum
+    /// https://tools.ietf.org/html/rfc2460#section-8.1
+    /// 
+    /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    /// |                                                               |
+    /// +                                                               +
+    /// |                                                               |
+    /// +                         Source Address                        +
+    /// |                                                               |
+    /// +                                                               +
+    /// |                                                               |
+    /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    /// |                                                               |
+    /// +                                                               +
+    /// |                                                               |
+    /// +                      Destination Address                      +
+    /// |                                                               |
+    /// +                                                               +
+    /// |                                                               |
+    /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    /// |                   Upper-Layer Packet Length                   |
+    /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    /// |                      zero                     |  Next Header  |
+    /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #[inline]
+    fn pseudo_header_sum(&self, packet_len: u16, protocol: ProtocolNumber) -> u16 {
+        let mut sum =
+            self.src().segments().iter().fold(0, |acc, &x| { acc + x as u32 }) +
+            self.dst().segments().iter().fold(0, |acc, &x| { acc + x as u32 }) +
+            packet_len as u32 +
+            protocol.0 as u32;
+        
+        while sum >> 16 != 0 {
+            sum = (sum >> 16) + (sum & 0xFFFF);
+        }
+
+        sum as u16
     }
 }
 
