@@ -17,11 +17,11 @@
 */
 
 use failure::Fail;
+use packets::ip::v6::Ipv6Packet;
+use packets::ip::{IpPacket, ProtocolNumber};
+use packets::{buffer, Fixed, Header, Packet, ParseError};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
-use packets::{buffer, Fixed, Header, Packet, ParseError};
-use packets::ip::{IpPacket, ProtocolNumber};
-use packets::ip::v6::Ipv6Packet;
 
 /*  From https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-16#section-2
     Segment Routing Extension Header (SRH)
@@ -70,8 +70,8 @@ use packets::ip::v6::Ipv6Packet;
 
     Routing Type: TBD, to be assigned by IANA (suggested value: 4).
 
-    Segments Left: 8-bit unsigned integer Number of route segments 
-    remaining, i.e., number of explicitly listed intermediate nodes 
+    Segments Left: 8-bit unsigned integer Number of route segments
+    remaining, i.e., number of explicitly listed intermediate nodes
     still to be visited before reaching the final destination.
 
     Last Entry: contains the index (zero based), in the Segment List,
@@ -104,7 +104,7 @@ use packets::ip::v6::Ipv6Packet;
 */
 
 /// IPv6 segment routing header
-/// 
+///
 /// The segment routing header contains only the fixed portion of the
 /// header. `segment_list` and `tlv` are parsed separately.
 #[derive(Debug)]
@@ -116,7 +116,7 @@ pub struct SegmentRoutingHeader {
     segments_left: u8,
     last_entry: u8,
     flags: u8,
-    tag: u16
+    tag: u16,
 }
 
 impl Default for SegmentRoutingHeader {
@@ -128,7 +128,7 @@ impl Default for SegmentRoutingHeader {
             segments_left: 0,
             last_entry: 0,
             flags: 0,
-            tag: 0
+            tag: 0,
         }
     }
 }
@@ -148,7 +148,7 @@ pub struct SegmentRouting<E: Ipv6Packet> {
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut SegmentRoutingHeader,
-    segments: *mut [Segment]
+    segments: *mut [Segment],
 }
 
 impl<E: Ipv6Packet> SegmentRouting<E> {
@@ -224,7 +224,11 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             let new_len = segments.len() as u8;
             let segments_offset = self.offset + SegmentRoutingHeader::size();
 
-            buffer::realloc(self.mbuf, segments_offset, new_len as isize - old_len as isize)?;
+            buffer::realloc(
+                self.mbuf,
+                segments_offset,
+                new_len as isize - old_len as isize,
+            )?;
             self.segments = buffer::write_slice(self.mbuf, segments_offset, segments)?;
             self.set_hdr_ext_len(new_len * 2);
             self.set_last_entry(new_len - 1);
@@ -237,7 +241,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
 
 impl<E: Ipv6Packet> fmt::Display for SegmentRouting<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let segments = self.segments()
+        let segments = self
+            .segments()
             .iter()
             .map(|s| s.to_string())
             .collect::<Vec<String>>()
@@ -302,7 +307,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
                 let segments = buffer::read_slice::<Segment>(
                     mbuf,
                     offset + SegmentRoutingHeader::size(),
-                    segments_len as usize
+                    segments_len as usize,
                 )?;
 
                 Ok(SegmentRouting {
@@ -310,7 +315,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
                     mbuf,
                     offset,
                     header,
-                    segments
+                    segments,
                 })
             } else {
                 Err(ParseError::new("Packet has inconsistent segment list length").into())
@@ -327,14 +332,18 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         // also add a default segment list of one element
         buffer::alloc(mbuf, offset, Self::Header::size() + Segment::size())?;
         let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
-        let segments = buffer::write_slice(mbuf, offset + Self::Header::size(), &vec![Segment::UNSPECIFIED])?;
+        let segments = buffer::write_slice(
+            mbuf,
+            offset + Self::Header::size(),
+            &vec![Segment::UNSPECIFIED],
+        )?;
 
         Ok(SegmentRouting {
             envelope,
             mbuf,
             offset,
             header,
-            segments
+            segments,
         })
     }
 }
@@ -376,10 +385,10 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {}
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use packets::{Ethernet, RawPacket, Tcp};
-    use packets::ip::ProtocolNumbers;
-    use packets::ip::v6::Ipv6;
     use dpdk_test;
+    use packets::ip::v6::Ipv6;
+    use packets::ip::ProtocolNumbers;
+    use packets::{Ethernet, RawPacket, Tcp};
 
     #[rustfmt::skip]
     pub const SRH_PACKET: [u8; 170] = [
@@ -460,7 +469,7 @@ pub mod tests {
             assert_eq!(2, srh.last_entry());
             assert_eq!(0, srh.flags());
             assert_eq!(0, srh.tag());
-            
+
             let segments = srh.segments();
             assert_eq!(3, segments.len());
             assert_eq!("2001:db8:85a3::8a2e:370:7333", segments[0].to_string());

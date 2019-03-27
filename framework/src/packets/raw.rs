@@ -16,9 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use std::ptr;
-use packets::{Packet, Header};
-use packets::{buffer, Packet, Header};
+use packets::{buffer, Header, Packet};
 
 /// Unit header
 impl Header for () {}
@@ -27,7 +25,7 @@ impl Header for () {}
 ///
 /// Simply a wrapper around the underlying buffer with packet semantic
 pub struct RawPacket {
-    mbuf: *mut MBuf
+    mbuf: *mut MBuf,
 }
 
 impl RawPacket {
@@ -83,13 +81,19 @@ impl Packet for RawPacket {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> where Self: Sized {
+    fn do_parse(envelope: Self::Envelope) -> Result<Self>
+    where
+        Self: Sized,
+    {
         Ok(envelope)
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> where Self: Sized {
+    fn do_push(envelope: Self::Envelope) -> Result<Self>
+    where
+        Self: Sized,
+    {
         Ok(envelope)
     }
 }

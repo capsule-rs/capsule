@@ -16,18 +16,17 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
+use packets::{buffer, Ethernet, Fixed, Header, Packet};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
-use packets::{buffer, Ethernet, Fixed, Header, Packet};
-use packets::ip::{IpPacket, ProtocolNumber, IpAddrMismatchError};
 
 pub use self::srh::*;
 
 pub mod srh;
 
 /// Common behaviors shared by IPv6 and extension packets
-pub trait Ipv6Packet: IpPacket {
-}
+pub trait Ipv6Packet: IpPacket {}
 
 /*  (From RFC8200 https://tools.ietf.org/html/rfc8200#section-3)
     IPv6 Header Format
@@ -115,7 +114,7 @@ pub struct Ipv6 {
     envelope: Ethernet,
     mbuf: *mut MBuf,
     offset: usize,
-    header: *mut Ipv6Header
+    header: *mut Ipv6Header,
 }
 
 impl Ipv6 {
@@ -133,7 +132,8 @@ impl Ipv6 {
     #[inline]
     pub fn set_traffic_class(&self, traffic_class: u8) {
         self.header().version_to_flow_label = u32::to_be(
-            (u32::from_be(self.header().version_to_flow_label) & 0xf00fffff) | ((traffic_class as u32) << 20),
+            (u32::from_be(self.header().version_to_flow_label) & 0xf00fffff)
+                | ((traffic_class as u32) << 20),
         );
     }
 
@@ -146,7 +146,8 @@ impl Ipv6 {
     pub fn set_flow_label(&self, flow_label: u32) {
         assert!(flow_label <= 0x0fffff);
         self.header().version_to_flow_label = u32::to_be(
-            (u32::from_be(self.header().version_to_flow_label) & 0xfff00000) | (flow_label & 0x0fffff)
+            (u32::from_be(self.header().version_to_flow_label) & 0xfff00000)
+                | (flow_label & 0x0fffff),
         );
     }
 
@@ -258,7 +259,7 @@ impl Packet for Ipv6 {
             envelope,
             mbuf,
             offset,
-            header
+            header,
         })
     }
 
@@ -275,7 +276,7 @@ impl Packet for Ipv6 {
             envelope,
             mbuf,
             offset,
-            header
+            header,
         })
     }
 }
@@ -297,8 +298,8 @@ impl IpPacket for Ipv6 {
             IpAddr::V6(addr) => {
                 self.set_src(addr);
                 Ok(())
-            },
-            _ => Err(IpAddrMismatchError.into())
+            }
+            _ => Err(IpAddrMismatchError.into()),
         }
     }
 
@@ -313,14 +314,14 @@ impl IpPacket for Ipv6 {
             IpAddr::V6(addr) => {
                 self.set_dst(addr);
                 Ok(())
-            },
-            _ => Err(IpAddrMismatchError.into())
+            }
+            _ => Err(IpAddrMismatchError.into()),
         }
     }
 
     /// Returns the IPv6 pseudo-header sum
     /// https://tools.ietf.org/html/rfc2460#section-8.1
-    /// 
+    ///
     /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     /// |                                                               |
     /// +                                                               +
@@ -344,12 +345,19 @@ impl IpPacket for Ipv6 {
     /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     #[inline]
     fn pseudo_header_sum(&self, packet_len: u16, protocol: ProtocolNumber) -> u16 {
-        let mut sum =
-            self.src().segments().iter().fold(0, |acc, &x| { acc + x as u32 }) +
-            self.dst().segments().iter().fold(0, |acc, &x| { acc + x as u32 }) +
-            packet_len as u32 +
-            protocol.0 as u32;
-        
+        let mut sum = self
+            .src()
+            .segments()
+            .iter()
+            .fold(0, |acc, &x| acc + x as u32)
+            + self
+                .dst()
+                .segments()
+                .iter()
+                .fold(0, |acc, &x| acc + x as u32)
+            + packet_len as u32
+            + protocol.0 as u32;
+
         while sum >> 16 != 0 {
             sum = (sum >> 16) + (sum & 0xFFFF);
         }
@@ -363,9 +371,9 @@ impl Ipv6Packet for Ipv6 {}
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use packets::RawPacket;
-    use packets::ip::ProtocolNumbers;
     use dpdk_test;
+    use packets::ip::ProtocolNumbers;
+    use packets::RawPacket;
 
     #[rustfmt::skip]
     pub const IPV6_PACKET: [u8; 78] = [

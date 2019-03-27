@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use packets::ip::{Flow, IpPacket, ProtocolNumbers};
+use packets::{buffer, checksum, Fixed, Header, Packet};
 use std::fmt;
 use std::net::IpAddr;
-use packets::{buffer, checksum, Fixed, Header, Packet};
-use packets::ip::{Flow, IpPacket, ProtocolNumbers};
 
 /*  From (https://tools.ietf.org/html/rfc793#section-3.1)
     TCP Header Format
@@ -75,12 +75,12 @@ use packets::ip::{Flow, IpPacket, ProtocolNumbers};
         RST:  Reset the connection
         SYN:  Synchronize sequence numbers
         FIN:  No more data from sender
-    
+
     Window:  16 bits
         The number of data octets beginning with the one indicated in the
         acknowledgment field which the sender of this segment is willing to
         accept.
-    
+
     Checksum:  16 bits
         The checksum field is the 16 bit one's complement of the one's
         complement sum of all 16 bit words in the header and text.  If a
@@ -110,14 +110,14 @@ use packets::ip::{Flow, IpPacket, ProtocolNumbers};
         octets (this is not an explicitly transmitted quantity, but is
         computed), and it does not count the 12 octets of the pseudo
         header.
-    
+
     Urgent Pointer:  16 bits
         This field communicates the current value of the urgent pointer as a
         positive offset from the sequence number in this segment.  The
         urgent pointer points to the sequence number of the octet following
         the urgent data.  This field is only be interpreted in segments with
         the URG control bit set.
-    
+
     Options:  variable
         Options may occupy space at the end of the TCP header and are a
         multiple of 8 bits in length.  All options are included in the
@@ -125,8 +125,8 @@ use packets::ip::{Flow, IpPacket, ProtocolNumbers};
 */
 
 /// TCP header
-/// 
-/// The header only include the fixed portion of the TCP header. 
+///
+/// The header only include the fixed portion of the TCP header.
 /// Options are parsed separately.
 #[derive(Debug, Default, Copy, Clone)]
 #[repr(C, packed)]
@@ -139,7 +139,7 @@ pub struct TcpHeader {
     flags: u8,
     window: u16,
     checksum: u16,
-    urgent_pointer: u16
+    urgent_pointer: u16,
 }
 
 impl Header for TcpHeader {}
@@ -158,7 +158,7 @@ pub struct Tcp<E: IpPacket> {
     envelope: E,
     mbuf: *mut MBuf,
     offset: usize,
-    header: *mut TcpHeader
+    header: *mut TcpHeader,
 }
 
 impl<E: IpPacket> Tcp<E> {
@@ -233,7 +233,7 @@ impl<E: IpPacket> Tcp<E> {
     }
 
     #[inline]
-    pub fn set_cwr(& self) {
+    pub fn set_cwr(&self) {
         self.header().flags |= CWR;
     }
 
@@ -384,7 +384,7 @@ impl<E: IpPacket> Tcp<E> {
             self.envelope().dst(),
             self.src_port(),
             self.dst_port(),
-            ProtocolNumbers::Tcp
+            ProtocolNumbers::Tcp,
         )
     }
 
@@ -476,7 +476,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
             envelope,
             mbuf,
             offset,
-            header
+            header,
         })
     }
 
@@ -493,7 +493,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
             envelope,
             mbuf,
             offset,
-            header
+            header,
         })
     }
 }
@@ -501,11 +501,11 @@ impl<E: IpPacket> Packet for Tcp<E> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr};
     use dpdk_test;
-    use packets::{Ethernet, RawPacket};
     use packets::ip::v4::Ipv4;
     use packets::ip::v6::{Ipv6, SegmentRouting};
+    use packets::{Ethernet, RawPacket};
+    use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[rustfmt::skip]
     pub const TCP_PACKET: [u8; 58] = [
