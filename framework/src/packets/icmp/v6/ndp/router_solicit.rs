@@ -20,7 +20,7 @@ use packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6T
 use packets::ip::v6::Ipv6Packet;
 use std::fmt;
 
-/*  From (https://tools.ietf.org/html/rfc4861#section-4.1)
+/*  From https://tools.ietf.org/html/rfc4861#section-4.1
     Router Solicitation Message Format
 
      0                   1                   2                   3
@@ -33,20 +33,20 @@ use std::fmt;
     |   Options ...
     +-+-+-+-+-+-+-+-+-+-+-+-
 
-    Reserved       This field is unused.  It MUST be initialized to
-                   zero by the sender and MUST be ignored by the
-                   receiver.
+    Reserved        This field is unused.  It MUST be initialized to
+                    zero by the sender and MUST be ignored by the
+                    receiver.
 
    Valid Options:
 
     Source link-layer address
-                   The link-layer address of the sender, if
-                   known.  MUST NOT be included if the Source Address
-                   is the unspecified address.  Otherwise, it SHOULD
-                   be included on link layers that have addresses.
+                    The link-layer address of the sender, if
+                    known.  MUST NOT be included if the Source Address
+                    is the unspecified address.  Otherwise, it SHOULD
+                    be included on link layers that have addresses.
 */
 
-/// Router solicitation message
+/// NDP router solicitation message
 #[derive(Default, Debug)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
@@ -54,6 +54,7 @@ pub struct RouterSolicitation {
 }
 
 impl Icmpv6Payload for RouterSolicitation {
+    #[inline]
     fn msg_type() -> Icmpv6Type {
         Icmpv6Types::RouterSolicitation
     }
@@ -61,6 +62,7 @@ impl Icmpv6Payload for RouterSolicitation {
 
 impl NdpPayload for RouterSolicitation {}
 
+/// NDP router solicitation packet
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
     pub fn reserved(&self) -> u32 {
@@ -72,7 +74,7 @@ impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, RouterSolicitation> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "type: {} code: {} checksum: 0x{:04x} reserved: {}",
+            "type: {}, code: {}, checksum: 0x{:04x}, reserved: {}",
             self.msg_type(),
             self.code(),
             self.checksum(),
@@ -82,6 +84,7 @@ impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, RouterSolicitation> {
 }
 
 impl<E: Ipv6Packet> Icmpv6Packet<E, RouterSolicitation> for Icmpv6<E, RouterSolicitation> {
+    #[inline]
     fn payload(&self) -> &mut RouterSolicitation {
         unsafe { &mut (*self.payload) }
     }
