@@ -22,11 +22,6 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-/// A reference counted VecQueue
-///
-/// Only safe for single-threaded access
-pub type SingleThreadedQueue<T> = Rc<RefCell<VecDeque<T>>>;
-
 /// A type that can enqueue items
 pub trait Enqueue {
     type Item;
@@ -41,19 +36,38 @@ pub trait Dequeue {
     fn dequeue(&self) -> Option<Self::Item>;
 }
 
+/// A reference counted VecQueue
+///
+/// Only safe for single-threaded access
+pub struct SingleThreadedQueue<T>(Rc<RefCell<VecDeque<T>>>);
+
+impl<T> SingleThreadedQueue<T> {
+    #[inline]
+    pub fn new(capacity: usize) -> Self {
+        SingleThreadedQueue(Rc::new(RefCell::new(VecDeque::with_capacity(capacity))))
+    }
+
+    #[inline]
+    pub fn clone(&self) -> Self {
+        SingleThreadedQueue(self.0.clone())
+    }
+}
+
 impl<T> Enqueue for SingleThreadedQueue<T> {
     type Item = T;
 
+    #[inline]
     fn enqueue(&self, item: Self::Item) {
-        self.borrow_mut().push_back(item);
+        self.0.borrow_mut().push_back(item);
     }
 }
 
 impl<T> Dequeue for SingleThreadedQueue<T> {
     type Item = T;
 
+    #[inline]
     fn dequeue(&self) -> Option<Self::Item> {
-        self.borrow_mut().pop_front()
+        self.0.borrow_mut().pop_front()
     }
 }
 
@@ -66,7 +80,8 @@ pub struct QueueBatch<Q: Dequeue> {
 }
 
 impl<Q: Dequeue> QueueBatch<Q> {
-    fn new(queue: Q) -> Self {
+    #[inline]
+    pub fn new(queue: Q) -> Self {
         QueueBatch { queue }
     }
 }
@@ -77,10 +92,12 @@ where
 {
     type Item = Q::Item;
 
+    #[inline]
     fn next(&mut self) -> Option<Result<Self::Item, PacketError>> {
         self.queue.dequeue().map(|p| Ok(p))
     }
 
+    #[inline]
     fn receive(&mut self) {
         // nop
     }
@@ -88,9 +105,10 @@ where
 
 /// Returns a `QueueBatch` and the corresponding producer for
 /// single-threaded use.
+#[inline]
 pub fn single_threaded_batch<T: Packet>(
     capacity: usize,
 ) -> (SingleThreadedQueue<T>, QueueBatch<SingleThreadedQueue<T>>) {
-    let queue = Rc::new(RefCell::new(VecDeque::with_capacity(capacity)));
+    let queue = SingleThreadedQueue::new(capacity);
     (queue.clone(), QueueBatch::new(queue))
 }
