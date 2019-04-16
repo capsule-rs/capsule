@@ -230,7 +230,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    fn set_src(&self, src: Ipv6Addr) {
+    pub fn set_src(&self, src: Ipv6Addr) {
         self.header().src = src;
     }
 
@@ -240,7 +240,7 @@ impl Ipv6 {
     }
 
     #[inline]
-    fn set_dst(&self, dst: Ipv6Addr) {
+    pub fn set_dst(&self, dst: Ipv6Addr) {
         self.header().dst = dst;
     }
 }
