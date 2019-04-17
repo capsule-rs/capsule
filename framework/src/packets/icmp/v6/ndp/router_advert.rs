@@ -151,8 +151,8 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_current_hop_limit(&self, current_hop_limit: u8) {
-        self.payload().current_hop_limit = current_hop_limit;
+    pub fn set_current_hop_limit(&mut self, current_hop_limit: u8) {
+        self.payload_mut().current_hop_limit = current_hop_limit;
     }
 
     #[inline]
@@ -161,13 +161,13 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_managed_addr_cfg(&self) {
-        self.payload().flags |= M_FLAG;
+    pub fn set_managed_addr_cfg(&mut self) {
+        self.payload_mut().flags |= M_FLAG;
     }
 
     #[inline]
-    pub fn unset_managed_addr_cfg(&self) {
-        self.payload().flags &= !M_FLAG;
+    pub fn unset_managed_addr_cfg(&mut self) {
+        self.payload_mut().flags &= !M_FLAG;
     }
 
     #[inline]
@@ -176,13 +176,13 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_other_cfg(&self) {
-        self.payload().flags |= O_FLAG;
+    pub fn set_other_cfg(&mut self) {
+        self.payload_mut().flags |= O_FLAG;
     }
 
     #[inline]
-    pub fn unset_other_cfg(&self) {
-        self.payload().flags &= !O_FLAG;
+    pub fn unset_other_cfg(&mut self) {
+        self.payload_mut().flags &= !O_FLAG;
     }
 
     #[inline]
@@ -192,8 +192,8 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_router_lifetime(&self, router_lifetime: u16) {
-        self.payload().router_lifetime = u16::to_be(router_lifetime);
+    pub fn set_router_lifetime(&mut self, router_lifetime: u16) {
+        self.payload_mut().router_lifetime = u16::to_be(router_lifetime);
     }
 
     #[inline]
@@ -202,8 +202,8 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_reachable_time(&self, reachable_time: u32) {
-        self.payload().reachable_time = u32::to_be(reachable_time);
+    pub fn set_reachable_time(&mut self, reachable_time: u32) {
+        self.payload_mut().reachable_time = u32::to_be(reachable_time);
     }
 
     #[inline]
@@ -212,8 +212,8 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 
     #[inline]
-    pub fn set_retrans_timer(&self, retrans_timer: u32) {
-        self.payload().retrans_timer = u32::to_be(retrans_timer);
+    pub fn set_retrans_timer(&mut self, retrans_timer: u32) {
+        self.payload_mut().retrans_timer = u32::to_be(retrans_timer);
     }
 }
 

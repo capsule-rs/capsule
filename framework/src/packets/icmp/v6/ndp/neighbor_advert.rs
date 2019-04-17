@@ -132,13 +132,13 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     }
 
     #[inline]
-    pub fn set_router(&self) {
-        self.payload().flags |= R_FLAG;
+    pub fn set_router(&mut self) {
+        self.payload_mut().flags |= R_FLAG;
     }
 
     #[inline]
-    pub fn unset_router(&self) {
-        self.payload().flags &= !R_FLAG;
+    pub fn unset_router(&mut self) {
+        self.payload_mut().flags &= !R_FLAG;
     }
 
     #[inline]
@@ -147,13 +147,13 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     }
 
     #[inline]
-    pub fn set_solicited(&self) {
-        self.payload().flags |= S_FLAG;
+    pub fn set_solicited(&mut self) {
+        self.payload_mut().flags |= S_FLAG;
     }
 
     #[inline]
-    pub fn unset_solicited(&self) {
-        self.payload().flags &= !S_FLAG;
+    pub fn unset_solicited(&mut self) {
+        self.payload_mut().flags &= !S_FLAG;
     }
 
     #[inline]
@@ -162,13 +162,13 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     }
 
     #[inline]
-    pub fn set_override(&self) {
-        self.payload().flags |= O_FLAG;
+    pub fn set_override(&mut self) {
+        self.payload_mut().flags |= O_FLAG;
     }
 
     #[inline]
-    pub fn unset_override(&self) {
-        self.payload().flags &= !O_FLAG;
+    pub fn unset_override(&mut self) {
+        self.payload_mut().flags &= !O_FLAG;
     }
 
     #[inline]
@@ -177,8 +177,8 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     }
 
     #[inline]
-    pub fn set_target_addr(&self, target_addr: Ipv6Addr) {
-        self.payload().target_addr = target_addr
+    pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
+        self.payload_mut().target_addr = target_addr
     }
 }
 

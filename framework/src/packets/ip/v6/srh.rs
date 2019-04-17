@@ -141,7 +141,7 @@ pub type Segment = Ipv6Addr;
 /// Error for a bad segment list
 #[derive(Debug, Fail)]
 #[fail(display = "Segment list length must be greater than 0")]
-pub struct BadSegmentsError(());
+pub struct BadSegmentsError;
 
 pub struct SegmentRouting<E: Ipv6Packet> {
     envelope: E,
@@ -158,8 +158,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    pub fn set_next_header(&self, next_header: ProtocolNumber) {
-        self.header().next_header = next_header.0;
+    pub fn set_next_header(&mut self, next_header: ProtocolNumber) {
+        self.header_mut().next_header = next_header.0;
     }
 
     #[inline]
@@ -168,8 +168,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_hdr_ext_len(&self, hdr_ext_len: u8) {
-        self.header().hdr_ext_len = hdr_ext_len;
+    fn set_hdr_ext_len(&mut self, hdr_ext_len: u8) {
+        self.header_mut().hdr_ext_len = hdr_ext_len;
     }
 
     #[inline]
@@ -183,8 +183,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    pub fn set_segments_left(&self, segments_left: u8) {
-        self.header().segments_left = segments_left;
+    pub fn set_segments_left(&mut self, segments_left: u8) {
+        self.header_mut().segments_left = segments_left;
     }
 
     #[inline]
@@ -193,8 +193,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_last_entry(&self, last_entry: u8) {
-        self.header().last_entry = last_entry;
+    fn set_last_entry(&mut self, last_entry: u8) {
+        self.header_mut().last_entry = last_entry;
     }
 
     #[inline]
@@ -208,8 +208,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    pub fn set_tag(&self, tag: u16) {
-        self.header().tag = u16::to_be(tag);
+    pub fn set_tag(&mut self, tag: u16) {
+        self.header_mut().tag = u16::to_be(tag);
     }
 
     #[inline]
@@ -234,7 +234,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             self.set_last_entry(new_len - 1);
             Ok(())
         } else {
-            Err(BadSegmentsError(()).into())
+            Err(BadSegmentsError.into())
         }
     }
 }
@@ -273,6 +273,12 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     }
 
     #[inline]
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[doc(hidden)]
+    #[inline]
     fn mbuf(&self) -> *mut MBuf {
         self.mbuf
     }
@@ -282,8 +288,15 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         self.offset
     }
 
+    #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &mut Self::Header {
+    fn header(&self) -> &Self::Header {
+        unsafe { &(*self.header) }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
         unsafe { &mut (*self.header) }
     }
 
@@ -351,8 +364,8 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     }
 
     #[inline]
-    fn cascade(&self) {
-        self.envelope().cascade();
+    fn cascade(&mut self) {
+        self.envelope_mut().cascade();
     }
 
     #[inline]
@@ -373,8 +386,8 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_src(&self, src: IpAddr) -> Result<()> {
-        self.envelope().set_src(src)
+    fn set_src(&mut self, src: IpAddr) -> Result<()> {
+        self.envelope_mut().set_src(src)
     }
 
     #[inline]
@@ -383,8 +396,8 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_dst(&self, dst: IpAddr) -> Result<()> {
-        self.envelope().set_dst(dst)
+    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
+        self.envelope_mut().set_dst(dst)
     }
 
     #[inline]
@@ -545,7 +558,7 @@ pub mod tests {
             let tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
             assert_eq!(36869, tcp.src_port());
 
-            let srh = tcp.deparse();
+            let mut srh = tcp.deparse();
             let srh_packet_len = srh.len();
             srh.cascade();
             let ipv6 = srh.deparse();
