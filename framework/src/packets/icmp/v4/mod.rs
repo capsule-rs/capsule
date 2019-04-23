@@ -1,0 +1,45 @@
+/*
+* Copyright 2019 Comcast Cable Communications Management, LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+* SPDX-License-Identifier: Apache-2.0
+*/
+
+//TODO: Fill Out
+
+#[cfg(test)]
+pub mod tests {
+
+    #[rustfmt::skip]
+    pub const ICMPV4_PACKET: [u8; 74] = [
+        // ** ethernet header
+        0x00, 0x50, 0x56, 0xe0, 0x14, 0x49,
+        0x00, 0x0c, 0x29, 0x34, 0x0B, 0xde,
+        0x08, 0x00,
+        // ** IPv4 header
+        0x45, 0x00, 0x00, 0x3c,
+        0xd7, 0x43, 0x00, 0x00,
+        0x80, 0x01, 0x2b, 0x73,
+        0xc0, 0xa8, 0x9e, 0x8b,
+        0xae, 0x89, 0x2a, 0x4d,
+        // ** ICMPv4 header
+        0x08, 0x00, 0x2a, 0x5c, 0x02, 0x00,
+        0x21, 0x00, 0x61, 0x62, 0x63, 0x64,
+        0x65, 0x66, 0x67, 0x68, 0x69, 0x6a,
+        0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70,
+        0x71, 0x72, 0x73, 0x74, 0x75, 0x76,
+        0x77, 0x61, 0x62, 0x63, 0x64, 0x65,
+        0x66, 0x67, 0x68, 0x69,
+    ];
+}
