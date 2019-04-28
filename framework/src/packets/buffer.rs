@@ -190,7 +190,7 @@ mod tests {
 
                 assert!(alloc(mbuf, 16, 8).is_ok());
                 assert_eq!(24, (*mbuf).data_len());
-                let slice = &(*read_slice(mbuf, 0, 24).unwrap());
+                let slice = &(*read_slice::<u8>(mbuf, 0, 24).unwrap());
 
                 // data untouched
                 assert_eq!(BUFFER, slice[..16]);
@@ -209,7 +209,7 @@ mod tests {
                 // alloc in the middle
                 assert!(alloc(mbuf, 4, 8).is_ok());
                 assert_eq!(24, (*mbuf).data_len());
-                let slice = &(*read_slice(mbuf, 0, 24).unwrap());
+                let slice = &(*read_slice::<u8>(mbuf, 0, 24).unwrap());
 
                 // [0..4] untouched
                 assert_eq!(BUFFER[..4], slice[..4]);
@@ -241,7 +241,7 @@ mod tests {
 
                 assert!(dealloc(mbuf, 8, 8).is_ok());
                 assert_eq!(8, (*mbuf).data_len());
-                let slice = &(*read_slice(mbuf, 0, 8).unwrap());
+                let slice = &(*read_slice::<u8>(mbuf, 0, 8).unwrap());
 
                 assert_eq!(BUFFER[..8], slice[..8]);
             }
@@ -258,7 +258,7 @@ mod tests {
 
                 assert!(dealloc(mbuf, 4, 8).is_ok());
                 assert_eq!(8, (*mbuf).data_len());
-                let slice = &(*read_slice(mbuf, 0, 8).unwrap());
+                let slice = &(*read_slice::<u8>(mbuf, 0, 8).unwrap());
 
                 // removed [4..12]
                 assert_eq!(BUFFER[..4], slice[..4]);
@@ -288,7 +288,7 @@ mod tests {
 
                 assert!(trim(mbuf, 8).is_ok());
                 assert_eq!(8, (*mbuf).data_len());
-                let slice = &(*read_slice(mbuf, 0, 8).unwrap());
+                let slice = &(*read_slice::<u8>(mbuf, 0, 8).unwrap());
 
                 assert_eq!(BUFFER[..8], slice[..8]);
             }
@@ -322,11 +322,11 @@ mod tests {
                 let mbuf = mbuf_alloc();
                 let _ = alloc(mbuf, 0, 20);
                 let _ = write_slice(mbuf, 0, &BUFFER);
-                let slice = read_slice(mbuf, 0, 16).unwrap();
+                let slice = read_slice::<u8>(mbuf, 0, 16).unwrap();
                 assert_eq!(&BUFFER, &(*slice));
 
                 // read from the wrong offset should return junk
-                let slice = read_slice(mbuf, 2, 16).unwrap();
+                let slice = read_slice::<u8>(mbuf, 2, 16).unwrap();
                 assert!(&BUFFER != &(*slice));
 
                 // read exceeds buffer should err
