@@ -86,6 +86,7 @@ pub struct UdpHeader {
 impl Header for UdpHeader {}
 
 /// UDP packet
+#[derive(Debug)]
 pub struct Udp<E: IpPacket> {
     envelope: E,
     mbuf: *mut MBuf,
