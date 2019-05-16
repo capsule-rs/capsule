@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use packets::checksum::PseudoHeader;
 use packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
 use packets::{buffer, Ethernet, Fixed, Header, Packet};
 use std::fmt;
@@ -400,52 +401,14 @@ impl IpPacket for Ipv6 {
         }
     }
 
-    /*  https://tools.ietf.org/html/rfc2460#section-8.1
-
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                                                               |
-        +                                                               +
-        |                                                               |
-        +                         Source Address                        +
-        |                                                               |
-        +                                                               +
-        |                                                               |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                                                               |
-        +                                                               +
-        |                                                               |
-        +                      Destination Address                      +
-        |                                                               |
-        +                                                               +
-        |                                                               |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                   Upper-Layer Packet Length                   |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                      zero                     |  Next Header  |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    */
-
-    /// Returns the IPv6 pseudo-header sum
     #[inline]
-    fn pseudo_header_sum(&self, packet_len: u16, protocol: ProtocolNumber) -> u16 {
-        let mut sum = self
-            .src()
-            .segments()
-            .iter()
-            .fold(0, |acc, &x| acc + x as u32)
-            + self
-                .dst()
-                .segments()
-                .iter()
-                .fold(0, |acc, &x| acc + x as u32)
-            + packet_len as u32
-            + protocol.0 as u32;
-
-        while sum >> 16 != 0 {
-            sum = (sum >> 16) + (sum & 0xFFFF);
+    fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader {
+        PseudoHeader::V6 {
+            src: self.src(),
+            dst: self.dst(),
+            packet_len: packet_len,
+            protocol: protocol,
         }
-
-        sum as u16
     }
 }
 

@@ -435,7 +435,8 @@ impl<E: IpPacket> Tcp<E> {
             let data = unsafe { &(*data) };
             let pseudo_header_sum = self
                 .envelope()
-                .pseudo_header_sum(data.len() as u16, ProtocolNumbers::Tcp);
+                .pseudo_header(data.len() as u16, ProtocolNumbers::Tcp)
+                .sum();
             let checksum = checksum::compute(pseudo_header_sum, data);
             self.set_checksum(checksum);
         } else {
