@@ -17,6 +17,9 @@
 */
 
 use super::PREFIX_INFORMATION;
+#![allow(clippy::mut_from_ref)]
+
+use super::PREFIX_INFORMATION;
 use packets::{buffer, Fixed, ParseError};
 use std::fmt;
 use std::net::Ipv6Addr;

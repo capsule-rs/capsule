@@ -17,6 +17,9 @@
 */
 
 use super::MTU;
+#![allow(clippy::mut_from_ref)]
+
+use super::MTU;
 use packets::{buffer, Fixed, ParseError};
 use std::fmt;
 

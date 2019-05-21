@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#![allow(clippy::many_single_char_names)]
+
 use packets::{buffer, Fixed, Header, Packet, RawPacket};
 use std::fmt;
 
@@ -94,9 +96,9 @@ impl fmt::Display for EtherType {
         write!(
             f,
             "{}",
-            match self {
-                &EtherTypes::Ipv4 => "IPv4".to_string(),
-                &EtherTypes::Ipv6 => "IPv6".to_string(),
+            match *self {
+                EtherTypes::Ipv4 => "IPv4".to_string(),
+                EtherTypes::Ipv6 => "IPv6".to_string(),
                 _ => format!("0x{:04x}", self.0),
             }
         )

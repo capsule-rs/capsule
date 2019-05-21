@@ -19,6 +19,7 @@
 use super::{Batch, PacketError};
 use packets::{Packet, RawPacket};
 use std::cell::RefCell;
+use std::clone::Clone;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
@@ -65,7 +66,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Result<Self::Item, PacketError>> {
-        self.queue.dequeue().map(|p| Ok(p))
+        self.queue.dequeue().map(Ok)
     }
 
     #[inline]
@@ -82,9 +83,11 @@ impl<T> SingleThreadedQueue<T> {
     pub fn new(capacity: usize) -> Self {
         SingleThreadedQueue(Rc::new(RefCell::new(VecDeque::with_capacity(capacity))))
     }
+}
 
+impl<T> Clone for SingleThreadedQueue<T> {
     #[inline]
-    pub fn clone(&self) -> Self {
+    fn clone(&self) -> Self {
         SingleThreadedQueue(self.0.clone())
     }
 }
@@ -142,9 +145,11 @@ impl MpscProducer {
     pub fn new(sender: Sender<RawPacket>) -> Self {
         MpscProducer(sender)
     }
+}
 
+impl Clone for MpscProducer {
     #[inline]
-    pub fn clone(&self) -> Self {
+    fn clone(&self) -> Self {
         MpscProducer(self.0.clone())
     }
 }
@@ -154,7 +159,7 @@ impl Enqueue for MpscProducer {
 
     #[inline]
     fn enqueue(&self, item: Self::Item) {
-        if let Err(_) = self.0.send(item) {
+        if self.0.send(item).is_err() {
             // Only way to get an error is if the receiver disconnected,
             // and if that happens, something is very wrong but no way
             // to recover from that. No more egress packets from this
