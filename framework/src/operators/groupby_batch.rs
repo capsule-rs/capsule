@@ -1,7 +1,8 @@
 use super::{Batch, Enqueue, PacketError, QueueBatch, SingleThreadedQueue};
 use std::collections::HashMap;
 
-pub type PipelineBuilder<T> = FnMut(QueueBatch<SingleThreadedQueue<T>>) -> Box<Batch<Item = T>>;
+pub type PipelineBuilder<T> =
+    dyn FnMut(QueueBatch<SingleThreadedQueue<T>>) -> Box<dyn Batch<Item = T>>;
 
 /// Lazily-evaluate group_by operator
 ///
@@ -18,8 +19,8 @@ where
     source: B,
     selector: S,
     producer: SingleThreadedQueue<B::Item>,
-    groups: HashMap<K, Box<Batch<Item = B::Item>>>,
-    default: Box<Batch<Item = B::Item>>,
+    groups: HashMap<K, Box<dyn Batch<Item = B::Item>>>,
+    default: Box<dyn Batch<Item = B::Item>>,
 }
 
 impl<B: Batch, K, S> GroupByBatch<B, K, S>
