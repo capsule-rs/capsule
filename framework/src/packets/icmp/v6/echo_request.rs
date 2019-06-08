@@ -16,9 +16,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
-use packets::ip::v6::Ipv6Packet;
-use packets::{buffer, Fixed, Packet};
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::{buffer, Fixed, Packet};
 use std::fmt;
 
 /*  From https://tools.ietf.org/html/rfc4443#section-4.1

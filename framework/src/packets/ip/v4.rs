@@ -16,9 +16,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use packets::checksum::PseudoHeader;
-use packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use packets::{buffer, Ethernet, Fixed, Header, Packet};
+use crate::packets::checksum::PseudoHeader;
+use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
+use crate::packets::{buffer, Ethernet, Fixed, Header, Packet};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -520,9 +520,8 @@ impl IpPacket for Ipv4 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dpdk_test;
-    use packets::ip::ProtocolNumbers;
-    use packets::{Ethernet, RawPacket};
+    use crate::packets::ip::ProtocolNumbers;
+    use crate::packets::{Ethernet, RawPacket, UDP_PACKET};
 
     #[test]
     fn size_of_ipv4_header() {
@@ -531,8 +530,6 @@ mod tests {
 
     #[test]
     fn parse_ipv4_packet() {
-        use packets::udp::tests::UDP_PACKET;
-
         dpdk_test! {
             let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();
@@ -557,8 +554,6 @@ mod tests {
 
     #[test]
     fn parse_ipv4_setter_checks() {
-        use packets::udp::tests::UDP_PACKET;
-
         dpdk_test! {
             let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
             let ethernet = packet.parse::<Ethernet>().unwrap();

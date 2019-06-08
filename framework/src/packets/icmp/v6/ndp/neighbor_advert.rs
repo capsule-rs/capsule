@@ -16,8 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types, NdpPayload};
-use packets::ip::v6::Ipv6Packet;
+use crate::packets::icmp::v6::{
+    Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types, NdpPayload,
+};
+use crate::packets::ip::v6::Ipv6Packet;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -201,7 +203,7 @@ impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, NeighborAdvertisement> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use packets::Fixed;
+    use crate::packets::Fixed;
 
     #[test]
     fn size_of_neighbor_advertisement() {
