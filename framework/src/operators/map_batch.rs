@@ -17,8 +17,8 @@
 */
 
 use super::{Batch, PacketError};
+use crate::packets::Packet;
 use failure::Error;
-use packets::Packet;
 
 /// Lazily-evaluate map operator
 ///

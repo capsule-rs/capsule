@@ -17,7 +17,7 @@
 */
 
 use super::{Batch, PacketError, BATCH_SIZE};
-use packets::Packet;
+use crate::packets::Packet;
 
 /// Send operator
 ///

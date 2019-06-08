@@ -17,7 +17,7 @@
 */
 
 use super::{Batch, PacketError};
-use packets::{Packet, RawPacket};
+use crate::packets::{Packet, RawPacket};
 use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::VecDeque;
@@ -174,7 +174,10 @@ impl Dequeue for Receiver<RawPacket> {
 
     fn dequeue(&self) -> Option<Self::Item> {
         match self.try_recv() {
-            Ok(packet) => Some(packet),
+            Ok(mut packet) => {
+                packet.unown();
+                Some(packet)
+            }
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 // Only way to get an error is if the sender disconnected,
@@ -217,35 +220,28 @@ pub fn mpsc_batch() -> (MpscProducer, QueueBatch<Receiver<RawPacket>>) {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
-    use dpdk_test;
-    use packets::RawPacket;
+    use crate::packets::{RawPacket, UDP_PACKET};
+    use crate::testing::dpdk_test;
 
-    #[test]
+    #[dpdk_test]
     fn single_threaded() {
-        use packets::udp::tests::UDP_PACKET;
+        let (producer, mut batch) = single_threaded_batch::<RawPacket>(1);
+        producer.enqueue(RawPacket::from_bytes(&UDP_PACKET).unwrap());
 
-        dpdk_test! {
-            let (producer, mut batch) = single_threaded_batch::<RawPacket>(1);
-            producer.enqueue(RawPacket::from_bytes(&UDP_PACKET).unwrap());
-
-            assert!(batch.next().unwrap().is_ok());
-        }
+        assert!(batch.next().unwrap().is_ok());
     }
 
-    #[test]
+    #[dpdk_test]
     fn mpsc() {
-        use packets::udp::tests::UDP_PACKET;
+        let (producer, mut batch) = mpsc_batch();
+        producer.enqueue(RawPacket::from_bytes(&UDP_PACKET).unwrap());
 
-        dpdk_test! {
-            let (producer, mut batch) = mpsc_batch();
-            producer.enqueue(RawPacket::from_bytes(&UDP_PACKET).unwrap());
-
-            let thread = std::thread::spawn(move || {
-                assert!(batch.next().unwrap().is_ok());
-            });
-            thread.join().unwrap()
-        }
+        let thread = std::thread::spawn(move || {
+            assert!(batch.next().unwrap().is_ok());
+        });
+        thread.join().unwrap()
     }
+
 }

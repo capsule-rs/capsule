@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, PacketError};
-use packets::RawPacket;
-
-pub const BATCH_SIZE: usize = 32;
+use super::{Batch, PacketError, BATCH_SIZE};
+use crate::interface::PacketRx;
+use crate::native::mbuf::MBuf;
+use crate::packets::RawPacket;
 
 /// Receive operator
 ///
