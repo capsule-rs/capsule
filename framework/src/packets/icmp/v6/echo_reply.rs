@@ -44,7 +44,7 @@ use std::fmt;
 */
 
 /// Echo reply message
-#[derive(Default, Debug)]
+#[derive(Clone, Copy, Default, Debug)]
 #[repr(C, packed)]
 pub struct EchoReply {
     identifier: u16,

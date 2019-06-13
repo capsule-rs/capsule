@@ -49,7 +49,7 @@ use std::fmt;
 */
 
 /// NDP router solicitation message
-#[derive(Default, Debug)]
+#[derive(Clone, Copy, Default, Debug)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
     reserved: u32,
