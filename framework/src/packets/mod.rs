@@ -166,7 +166,7 @@ pub trait Packet {
     where
         Self: Sized,
     {
-        RawPacket::from_mbuf(self.mbuf())
+        self.deparse().reset()
     }
 }
 
