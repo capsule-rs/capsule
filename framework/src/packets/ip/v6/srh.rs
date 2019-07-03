@@ -128,13 +128,19 @@ pub type Segment = Ipv6Addr;
 #[fail(display = "Segment list length must be greater than 0")]
 pub struct BadSegmentsError;
 
-/// Error for invalid segments left
+/// Error for bad index within segment list
 #[derive(Debug, Fail)]
-#[fail(
-    display = "Segments left {} must be less than segment list length {}",
-    _0, _1
-)]
-pub struct SegmentsLeftOutOfBoundError(u8, usize);
+#[fail(display = "Index {} out of bounds of segment list length {}", _0, _1)]
+pub struct SegmentsOutOfBoundsError(usize, usize);
+
+/// Trait with helper functions for segment routing manipulation
+pub trait SegmentRoutingExt {
+    fn first_segment(&self) -> Segment;
+    fn last_segment(&self) -> Segment;
+    fn current_segment(&self) -> Result<Segment>;
+    fn previous_segment(&self) -> Result<Segment>;
+    fn next_segment(&self) -> Result<Segment>;
+}
 
 #[derive(Debug)]
 pub struct SegmentRouting<E: Ipv6Packet> {
@@ -193,7 +199,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             self.header_mut().segments_left = segments_left;
             self.envelope_mut().set_dst(IpAddr::V6(segment))
         } else {
-            Err(SegmentsLeftOutOfBoundError(segments_left, self.segments().len()).into())
+            Err(SegmentsOutOfBoundsError(segments_left as usize, self.segments().len()).into())
         }
     }
 
@@ -267,24 +273,6 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
         } else {
             Err(BadSegmentsError.into())
         }
-    }
-
-    /// Returns the current segment in the segment list.
-    #[inline]
-    pub fn current_segment(&self) -> Segment {
-        self.segments()[self.segments_left() as usize]
-    }
-
-    /// Returns the previous segment in the segment list.
-    #[inline]
-    pub fn previous_segment(&self) -> Segment {
-        self.segments()[self.segments_left() as usize + 1]
-    }
-
-    /// Returns the next segment in the segment list.
-    #[inline]
-    pub fn next_segment(&self) -> Segment {
-        self.segments()[self.segments_left() as usize - 1]
     }
 }
 
@@ -491,6 +479,60 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
 
 impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {}
 
+impl<E: Ipv6Packet> SegmentRoutingExt for SegmentRouting<E> {
+    /// Returns the first segment in the segment list.
+    #[inline]
+    fn first_segment(&self) -> Segment {
+        let segments = self.segments();
+        segments[segments.len() - 1]
+    }
+
+    /// Returns the last segment in the segment list.
+    #[inline]
+    fn last_segment(&self) -> Segment {
+        self.segments()[0]
+    }
+
+    /// Returns the current segment in the segment list.
+    #[inline]
+    fn current_segment(&self) -> Result<Segment> {
+        let segments = self.segments();
+        let current_idx = self.segments_left() as usize;
+
+        if let Some(segment) = segments.get(current_idx) {
+            Ok(*segment)
+        } else {
+            Err(SegmentsOutOfBoundsError(current_idx, segments.len()).into())
+        }
+    }
+
+    /// Returns the previous segment in the segment list.
+    #[inline]
+    fn previous_segment(&self) -> Result<Segment> {
+        let segments = self.segments();
+        let prev_idx = self.segments_left() as usize + 1;
+
+        if let Some(segment) = segments.get(prev_idx) {
+            Ok(*segment)
+        } else {
+            Err(SegmentsOutOfBoundsError(prev_idx, segments.len()).into())
+        }
+    }
+
+    /// Returns the next segment in the segment list.
+    #[inline]
+    fn next_segment(&self) -> Result<Segment> {
+        let segments = self.segments();
+        let next_idx = self.segments_left() as usize - 1;
+
+        if let Some(segment) = segments.get(next_idx) {
+            Ok(*segment)
+        } else {
+            Err(SegmentsOutOfBoundsError(next_idx, segments.len()).into())
+        }
+    }
+}
+
 #[cfg(test)]
 #[rustfmt::skip]
 pub const SRH_PACKET: [u8; 170] = [
@@ -636,15 +678,15 @@ mod tests {
 
         assert_eq!(
             "2001:db8:85a3::8a2e:370:7333",
-            srh.next_segment().to_string()
+            srh.next_segment().unwrap().to_string()
         );
         assert_eq!(
             "2001:db8:85a3::8a2e:370:7334",
-            srh.current_segment().to_string()
+            srh.current_segment().unwrap().to_string()
         );
         assert_eq!(
             "2001:db8:85a3::8a2e:370:7335",
-            srh.previous_segment().to_string()
+            srh.previous_segment().unwrap().to_string()
         );
 
         assert!(srh.set_segments_left(10).is_err());
