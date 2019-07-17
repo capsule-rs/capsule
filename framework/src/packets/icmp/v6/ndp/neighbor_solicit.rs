@@ -1,6 +1,5 @@
-use crate::packets::icmp::v6::{
-    Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types, NdpPayload,
-};
+use crate::packets::icmp::v6::ndp::NdpPayload;
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use std::fmt;
 use std::net::Ipv6Addr;

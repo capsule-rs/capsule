@@ -1,6 +1,7 @@
 use super::PREFIX_INFORMATION;
 use crate::common::Result;
 use crate::native::mbuf::MBuf;
+use crate::packets::icmp::v6::ndp::NdpOption;
 use crate::packets::{buffer, Fixed, ParseError};
 use std::fmt;
 use std::net::Ipv6Addr;
@@ -251,6 +252,23 @@ impl fmt::Display for PrefixInformation {
             self.preferred_lifetime(),
             self.prefix()
         )
+    }
+}
+
+impl NdpOption for PrefixInformation {
+    #![allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[inline]
+    fn do_push(mbuf: *mut MBuf) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let offset = unsafe { (*mbuf).data_len() };
+
+        buffer::alloc(mbuf, offset, PrefixInformationFields::size())?;
+
+        let fields =
+            buffer::write_item::<PrefixInformationFields>(mbuf, offset, &Default::default())?;
+        Ok(PrefixInformation { fields, offset })
     }
 }
 
