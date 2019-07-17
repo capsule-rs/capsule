@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::MTU;
 #![allow(clippy::mut_from_ref)]
 
 use super::MTU;
+use crate::packets::icmp::v6::ndp::NdpOption;
 use crate::packets::{buffer, Fixed, ParseError};
 use std::fmt;
 
@@ -129,6 +129,22 @@ impl fmt::Display for Mtu {
     }
 }
 
+impl NdpOption for Mtu {
+    #![allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[inline]
+    fn do_push(mbuf: *mut MBuf) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let offset = unsafe { (*mbuf).data_len() };
+
+        buffer::alloc(mbuf, offset, MtuFields::size())?;
+
+        let fields = buffer::write_item::<MtuFields>(mbuf, offset, &Default::default())?;
+        Ok(Mtu { fields, offset })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,4 +153,5 @@ mod tests {
     fn size_of_mtu() {
         assert_eq!(8, MtuFields::size());
     }
+
 }

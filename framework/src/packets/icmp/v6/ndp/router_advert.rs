@@ -16,9 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::icmp::v6::{
-    Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types, NdpPayload,
-};
+use crate::packets::icmp::v6::ndp::NdpPayload;
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use std::fmt;
 
@@ -285,11 +284,16 @@ pub const ROUTER_ADVERT_PACKET: [u8; 142] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types, NdpOption, NdpPacket};
+    use crate::packets::ethernet::MacAddr;
+    use crate::packets::icmp::v6::ndp::{
+        LinkLayerAddress, NdpOptions, NdpPacket, SOURCE_LINK_LAYER_ADDR,
+    };
+    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::{Ethernet, Fixed, Packet, RawPacket};
     use crate::testing::dpdk_test;
     use fallible_iterator::FallibleIterator;
+    use std::str::FromStr;
 
     #[test]
     fn size_of_router_advertisement() {
@@ -324,10 +328,14 @@ mod tests {
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
         if let Ok(Icmpv6Message::RouterAdvertisement(advert)) = ipv6.parse_icmpv6() {
+            let mut source_link_address: LinkLayerAddress = advert.push_option().unwrap();
+            source_link_address.set_addr(MacAddr::from_str("70:3a:cb:1b:f9:7a").unwrap());
+            source_link_address.set_option_type(SOURCE_LINK_LAYER_ADDR);
+
             let mut slla_found = false;
             let mut iter = advert.options();
             while let Ok(Some(option)) = iter.next() {
-                if let NdpOption::SourceLinkLayerAddress(addr) = option {
+                if let NdpOptions::SourceLinkLayerAddress(addr) = option {
                     assert_eq!(1, addr.length());
                     assert_eq!("70:3a:cb:1b:f9:7a", addr.addr().to_string());
                     slla_found = true;
@@ -336,7 +344,7 @@ mod tests {
 
             assert!(slla_found);
         } else {
-            panic!("bad packet");
+            panic!("not a router advertisement packet");
         }
     }
 }
