@@ -10,20 +10,27 @@ use crate::native::mbuf::MBuf;
 use crate::packets::{buffer, ParseError};
 use fallible_iterator::FallibleIterator;
 
-const SOURCE_LINK_LAYER_ADDR: u8 = 1;
-const TARGET_LINK_LAYER_ADDR: u8 = 2;
-const PREFIX_INFORMATION: u8 = 3;
+pub const SOURCE_LINK_LAYER_ADDR: u8 = 1;
+pub const TARGET_LINK_LAYER_ADDR: u8 = 2;
+pub const PREFIX_INFORMATION: u8 = 3;
 //const REDIRECTED_HEADER: u8 = 4;
-const MTU: u8 = 5;
+pub const MTU: u8 = 5;
 
 /// A parsed NDP option
-pub enum NdpOption {
+pub enum NdpOptions {
     SourceLinkLayerAddress(LinkLayerAddress),
     TargetLinkLayerAddress(LinkLayerAddress),
     PrefixInformation(PrefixInformation),
     Mtu(Mtu),
     /// An undefined NDP option
     Undefined(u8, u8),
+}
+
+pub trait NdpOption {
+    #[doc(hidden)]
+    fn do_push(mbuf: *mut MBuf) -> crate::common::Result<Self>
+    where
+        Self: Sized;
 }
 
 /// NDP options iterator
@@ -39,7 +46,7 @@ impl NdpOptionsIterator {
 }
 
 impl FallibleIterator for NdpOptionsIterator {
-    type Item = NdpOption;
+    type Item = NdpOptions;
     type Error = failure::Error;
 
     fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
@@ -55,21 +62,21 @@ impl FallibleIterator for NdpOptionsIterator {
                 let option = match option_type {
                     SOURCE_LINK_LAYER_ADDR => {
                         let option = LinkLayerAddress::parse(self.mbuf, self.offset)?;
-                        NdpOption::SourceLinkLayerAddress(option)
+                        NdpOptions::SourceLinkLayerAddress(option)
                     }
                     TARGET_LINK_LAYER_ADDR => {
                         let option = LinkLayerAddress::parse(self.mbuf, self.offset)?;
-                        NdpOption::TargetLinkLayerAddress(option)
+                        NdpOptions::TargetLinkLayerAddress(option)
                     }
                     PREFIX_INFORMATION => {
                         let option = PrefixInformation::parse(self.mbuf, self.offset)?;
-                        NdpOption::PrefixInformation(option)
+                        NdpOptions::PrefixInformation(option)
                     }
                     MTU => {
                         let option = Mtu::parse(self.mbuf, self.offset)?;
-                        NdpOption::Mtu(option)
+                        NdpOptions::Mtu(option)
                     }
-                    _ => NdpOption::Undefined(option_type, length),
+                    _ => NdpOptions::Undefined(option_type, length),
                 };
 
                 self.offset += (length * 8) as usize;
@@ -156,7 +163,8 @@ const UNDEFINED_OPTION: [u8;78] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, NdpPacket};
+    use crate::packets::icmp::v6::ndp::NdpPacket;
+    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse};
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::{Ethernet, Packet, RawPacket};
     use crate::testing::dpdk_test;
@@ -184,7 +192,7 @@ mod tests {
             let mut undefined = false;
             let mut iter = advert.options();
             while let Ok(Some(option)) = iter.next() {
-                if let NdpOption::Undefined(option_type, length) = option {
+                if let NdpOptions::Undefined(option_type, length) = option {
                     assert_eq!(7, option_type);
                     assert_eq!(1, length);
                     undefined = true;

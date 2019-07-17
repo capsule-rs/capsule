@@ -1,6 +1,7 @@
 use crate::common::Result;
 use crate::native::mbuf::MBuf;
 use crate::packets::{buffer, Fixed, MacAddr, ParseError};
+use packets::icmp::v6::ndp::options::{NdpOption, SOURCE_LINK_LAYER_ADDR, TARGET_LINK_LAYER_ADDR};
 use std::fmt;
 
 /*  From https://tools.ietf.org/html/rfc4861#section-4.6.1
@@ -34,6 +35,33 @@ struct LinkLayerAddressFields {
     option_type: u8,
     length: u8,
     addr: MacAddr,
+}
+
+impl Default for LinkLayerAddressFields {
+    fn default() -> LinkLayerAddressFields {
+        LinkLayerAddressFields {
+            option_type: 1,
+            length: 1,
+            addr: MacAddr::UNSPECIFIED,
+        }
+    }
+}
+
+impl NdpOption for LinkLayerAddress {
+    #![allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[inline]
+    fn do_push(mbuf: *mut MBuf) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let offset = unsafe { (*mbuf).data_len() };
+
+        buffer::alloc(mbuf, offset, LinkLayerAddressFields::size())?;
+
+        let fields =
+            buffer::write_item::<LinkLayerAddressFields>(mbuf, offset, &Default::default())?;
+        Ok(LinkLayerAddress { fields, offset })
+    }
 }
 
 /// Link-layer address option
@@ -87,6 +115,15 @@ impl LinkLayerAddress {
     #[inline]
     pub fn set_addr(&mut self, addr: MacAddr) {
         self.fields_mut().addr = addr;
+    }
+
+    #[inline]
+    pub fn set_option_type(&mut self, option_type: u8) {
+        if option_type == SOURCE_LINK_LAYER_ADDR || option_type == TARGET_LINK_LAYER_ADDR {
+            self.fields_mut().option_type = option_type
+        } else {
+            //TODO: determine what to do when option_type is set incorrectly
+        }
     }
 }
 
