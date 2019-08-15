@@ -194,7 +194,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     /// because the new `dst` value is taken from the segments
     /// list.
     #[inline]
-    pub fn set_segments_left(&mut self, segments_left: u8) -> Result<()> {
+    pub fn set_segments_left_and_dst(&mut self, segments_left: u8) -> Result<()> {
         if let Some(&segment) = self.segments().get(segments_left as usize) {
             self.header_mut().segments_left = segments_left;
             self.envelope_mut().set_dst(IpAddr::V6(segment))
@@ -203,11 +203,9 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
         }
     }
 
-    // hack, internal setter intended for proptest packet generator
-    // to skip the consistency check. do not use otherwise.
-    #[cfg(any(test, feature = "test"))]
-    #[doc(hidden)]
-    pub(crate) fn __set_segments_left(&mut self, segments_left: u8) {
+    /// Sets only the segments left. To keep segments left and IPv6 dst in sync,
+    /// @see set_segments_left_and_dst.
+    pub fn set_segments_left(&mut self, segments_left: u8) {
         self.header_mut().segments_left = segments_left;
     }
 
@@ -672,7 +670,7 @@ mod tests {
         let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
 
         // packet has 3 segments
-        assert!(srh.set_segments_left(1).is_ok());
+        assert!(srh.set_segments_left_and_dst(1).is_ok());
         assert_eq!(1, srh.segments_left());
         assert_eq!(srh.segments()[1], srh.envelope().dst());
 
@@ -689,8 +687,12 @@ mod tests {
             srh.previous_segment().unwrap().to_string()
         );
 
-        assert!(srh.set_segments_left(10).is_err());
+        assert!(srh.set_segments_left_and_dst(10).is_err());
         assert_eq!(1, srh.segments_left());
+
+        // set only the segments_left field
+        srh.set_segments_left(2);
+        assert_eq!(2, srh.segments_left());
     }
 
     #[dpdk_test]
@@ -709,7 +711,7 @@ mod tests {
             .set_segments(&[segment1, segment2, segment3, segment4])
             .is_ok());
         assert_eq!(4, srh.segments().len());
-        srh.set_segments_left(3).unwrap();
+        srh.set_segments_left_and_dst(3).unwrap();
 
         let mut tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
 
@@ -729,7 +731,7 @@ mod tests {
         let mut srh_ret = tcp.deparse();
         assert!(srh_ret.set_segments(&[segment1]).is_ok());
         assert_eq!(1, srh_ret.segments().len());
-        srh_ret.set_segments_left(0).unwrap();
+        srh_ret.set_segments_left_and_dst(0).unwrap();
 
         let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
         tcp_ret.cascade();
@@ -738,7 +740,7 @@ mod tests {
         // Let's make sure that if segments left is 0, then our checksum
         // is still the same segment.
         let mut srh_fin = tcp_ret.deparse();
-        srh_fin.set_segments_left(0).unwrap();
+        srh_fin.set_segments_left_and_dst(0).unwrap();
         let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
         tcp_fin.cascade();
         assert_eq!(expected, tcp_fin.checksum());
