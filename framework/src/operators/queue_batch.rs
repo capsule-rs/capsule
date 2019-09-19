@@ -243,5 +243,4 @@ mod tests {
         });
         thread.join().unwrap()
     }
-
 }
