@@ -6,7 +6,7 @@ use crate::packets::checksum::PseudoHeader;
 use crate::packets::Packet;
 use failure::Fail;
 use std::fmt;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
 /// Assigned internet protocol number
 ///
@@ -91,12 +91,25 @@ pub trait IpPacket: Packet {
 
 /// 5-tuple IP connection identifier
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[repr(C, packed)]
 pub struct Flow {
     src_ip: IpAddr,
     dst_ip: IpAddr,
     src_port: u16,
     dst_port: u16,
     protocol: ProtocolNumber,
+}
+
+impl Default for Flow {
+    fn default() -> Flow {
+        Flow {
+            src_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            dst_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            src_port: 0,
+            dst_port: 0,
+            protocol: ProtocolNumber::default(),
+        }
+    }
 }
 
 impl Flow {
