@@ -52,7 +52,7 @@ pub trait Batch {
     #[inline]
     fn filter<P>(self, predicate: P) -> FilterBatch<Self, P>
     where
-        P: FnMut(&Self::Item) -> bool,
+        P: Fn(&Self::Item) -> bool,
         Self: Sized,
     {
         FilterBatch::new(self, predicate)
@@ -122,7 +122,7 @@ pub trait Batch {
     fn group_by<K, S, C>(self, selector: S, composer: C) -> GroupByBatch<Self, K, S>
     where
         K: Eq + Clone + std::hash::Hash,
-        S: FnMut(&Self::Item) -> K,
+        S: Fn(&Self::Item) -> K,
         C: FnOnce(&mut HashMap<Option<K>, Box<PipelineBuilder<Self::Item>>>) -> (),
         Self: Sized,
     {

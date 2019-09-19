@@ -14,7 +14,7 @@ pub type PipelineBuilder<T> =
 pub struct GroupByBatch<B: Batch, K, S>
 where
     K: Eq + Clone + std::hash::Hash,
-    S: FnMut(&B::Item) -> K,
+    S: Fn(&B::Item) -> K,
 {
     source: B,
     selector: S,
@@ -26,7 +26,7 @@ where
 impl<B: Batch, K, S> GroupByBatch<B, K, S>
 where
     K: Eq + Clone + std::hash::Hash,
-    S: FnMut(&B::Item) -> K,
+    S: Fn(&B::Item) -> K,
 {
     #[inline]
     pub fn new<C>(source: B, selector: S, composer: C) -> Self
@@ -61,7 +61,7 @@ where
 impl<B: Batch, K, S> Batch for GroupByBatch<B, K, S>
 where
     K: Eq + Clone + std::hash::Hash,
-    S: FnMut(&B::Item) -> K,
+    S: Fn(&B::Item) -> K,
 {
     type Item = B::Item;
 
@@ -110,6 +110,9 @@ macro_rules! compose {
     }};
     ($map:ident, $($key:expr => |$arg:tt| $body:block),*,_ => |$_arg:tt| $_body:block) => {{
         $crate::__compose!($map, $($key => |$arg| $body),*);
+        $map.insert(None, Box::new(|$_arg| Box::new($_body)));
+    }};
+    ($map:ident, _ => |$_arg:tt| $_body:block) => {{
         $map.insert(None, Box::new(|$_arg| Box::new($_body)));
     }};
 }

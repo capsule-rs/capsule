@@ -7,7 +7,7 @@ use crate::packets::Packet;
 /// dropped and will short-circuit the remainder of the pipeline.
 pub struct FilterBatch<B: Batch, P>
 where
-    P: FnMut(&B::Item) -> bool,
+    P: Fn(&B::Item) -> bool,
 {
     source: B,
     predicate: P,
@@ -15,7 +15,7 @@ where
 
 impl<B: Batch, P> FilterBatch<B, P>
 where
-    P: FnMut(&B::Item) -> bool,
+    P: Fn(&B::Item) -> bool,
 {
     #[inline]
     pub fn new(source: B, predicate: P) -> Self {
@@ -25,7 +25,7 @@ where
 
 impl<B: Batch, P> Batch for FilterBatch<B, P>
 where
-    P: FnMut(&B::Item) -> bool,
+    P: Fn(&B::Item) -> bool,
 {
     type Item = B::Item;
 
