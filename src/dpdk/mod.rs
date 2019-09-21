@@ -17,9 +17,11 @@
 */
 
 mod mempool;
+mod port;
 mod rte;
 
 pub use mempool::*;
+pub use port::*;
 
 use failure::{format_err, Error};
 use std::ffi::CString;
@@ -39,8 +41,4 @@ pub fn eal_init(args: &[&str]) -> Result<(), Error> {
             Err(format_err!("Cannot init EAL."))
         }
     }
-}
-
-pub fn eth_dev_count_avail() -> u16 {
-    unsafe { rte::rte_eth_dev_count_avail() }
 }
