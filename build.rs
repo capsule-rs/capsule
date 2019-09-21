@@ -17,6 +17,7 @@
 */
 
 extern crate bindgen;
+extern crate cc;
 
 use std::env;
 use std::path::PathBuf;
@@ -28,8 +29,15 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=pcap");
     println!("cargo:rustc-link-lib=dylib=z");
 
+    cc::Build::new()
+        .file("src/dpdk/shim.c")
+        .include("/opt/dpdk/build/include")
+        .include("src/dpdk")
+        .compile("rte_shim");
+
     let bindings = bindgen::Builder::default()
         .header("src/dpdk/rte.h")
+        .header("src/dpdk/shim.h")
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|cmdline|ether|eth|arp|vlan|vxlan)_.*")

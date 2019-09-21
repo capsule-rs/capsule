@@ -16,31 +16,26 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-mod mbuf;
-mod mempool;
-mod port;
-mod rte;
+use crate::dpdk::rte;
 
-pub use mbuf::*;
-pub use mempool::*;
-pub use port::*;
+pub struct MBuf {
+    raw: *mut rte::rte_mbuf,
+}
 
-use failure::{format_err, Error};
-use std::ffi::CString;
-use std::os::raw;
+impl MBuf {
+    pub unsafe fn new(raw: *mut rte::rte_mbuf) -> Self {
+        MBuf { raw }
+    }
 
-pub fn eal_init(args: &[&str]) -> Result<(), Error> {
-    unsafe {
-        let len = args.len() as raw::c_int;
-        let mut args = args
-            .iter()
-            .map(|&s| CString::from_vec_unchecked(s.into()).into_raw())
-            .collect::<Vec<*mut raw::c_char>>();
+    unsafe fn raw(&self) -> &mut rte::rte_mbuf {
+        &mut (*self.raw)
+    }
 
-        if rte::rte_eal_init(len, args.as_mut_ptr()) >= 0 {
-            Ok(())
-        } else {
-            Err(format_err!("Cannot init EAL."))
-        }
+    pub unsafe fn raw_ptr(&self) -> *mut rte::rte_mbuf {
+        self.raw
+    }
+
+    pub fn data_len(&self) -> u16 {
+        unsafe { self.raw().data_len }
     }
 }
