@@ -1,6 +1,7 @@
 use crate::dpdk::rte;
-use crate::dpdk::Mempool;
+use crate::dpdk::{MBuf, Mempool};
 use failure::{format_err, Error};
+use std::cmp::min;
 use std::ffi::{CStr, CString};
 use std::os::raw;
 use std::ptr;
@@ -89,6 +90,34 @@ impl PmdPort {
     pub fn stop(&self) {
         unsafe {
             rte::rte_eth_dev_stop(self.port_id);
+        }
+    }
+
+    pub fn receive(&self) -> Vec<MBuf> {
+        unsafe {
+            let batch_size = 32;
+            let mut buffer = Vec::with_capacity(batch_size);
+            let len =
+                rte::_rte_eth_rx_burst(self.port_id, 0, buffer.as_mut_ptr(), batch_size as u16);
+            println!("{} received.", len);
+            buffer
+                .iter()
+                .take(len as usize)
+                .map(|&ptr| MBuf::new(ptr))
+                .collect::<Vec<_>>()
+        }
+    }
+
+    pub fn send(&self, mbufs: Vec<MBuf>) {
+        unsafe {
+            let mut buffer = mbufs.iter().map(|mbuf| mbuf.raw_ptr()).collect::<Vec<_>>();
+            let len = rte::_rte_eth_tx_burst(
+                self.port_id,
+                0,
+                buffer.as_mut_ptr(),
+                min(mbufs.len(), 32) as u16,
+            );
+            println!("{} sent.", len);
         }
     }
 }

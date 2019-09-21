@@ -1,7 +1,9 @@
+mod mbuf;
 mod mempool;
 mod port;
 mod rte;
 
+pub use mbuf::*;
 pub use mempool::*;
 pub use port::*;
 
