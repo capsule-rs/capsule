@@ -23,6 +23,7 @@ impl Mempool {
             if ptr.is_null() {
                 Err(format_err!("Cannot create mbuf pool."))
             } else {
+                println!("private data size: {}", (*ptr).private_data_size);
                 Ok(Self { pool: *ptr })
             }
         }
@@ -34,5 +35,9 @@ impl Mempool {
                 .to_str()
                 .unwrap_or("unknown")
         }
+    }
+
+    pub(crate) fn as_mut(&mut self) -> &mut rte::rte_mempool {
+        &mut self.pool
     }
 }
