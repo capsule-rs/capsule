@@ -21,7 +21,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber};
-use crate::packets::{buffer, Fixed, Header, Packet, ParseError};
+use crate::packets::{buffer, CondRc, Fixed, Header, Packet, ParseError};
 use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -162,7 +162,7 @@ pub trait SegmentRoutingExt {
 
 #[derive(Debug)]
 pub struct SegmentRouting<E: Ipv6Packet> {
-    envelope: E,
+    envelope: CondRc<E>,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut SegmentRoutingHeader,
@@ -316,18 +316,30 @@ impl<E: Ipv6Packet> fmt::Display for SegmentRouting<E> {
     }
 }
 
+impl<E: Ipv6Packet> Clone for SegmentRouting<E> {
+    fn clone(&self) -> SegmentRouting<E> {
+        SegmentRouting {
+            envelope: self.envelope.clone(),
+            mbuf: self.mbuf,
+            offset: self.offset,
+            header: self.header,
+            segments: self.segments,
+        }
+    }
+}
+
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     type Header = SegmentRoutingHeader;
     type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+        &*self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
+        &mut *self.envelope
     }
 
     #[doc(hidden)]
@@ -375,7 +387,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
             )?;
 
             Ok(SegmentRouting {
-                envelope,
+                envelope: CondRc::new(envelope),
                 mbuf,
                 offset,
                 header,
@@ -399,7 +411,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
             buffer::write_slice(mbuf, offset + Self::Header::size(), &[Segment::UNSPECIFIED])?;
 
         Ok(SegmentRouting {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -410,7 +422,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     #[inline]
     fn remove(self) -> Result<Self::Envelope> {
         buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
-        Ok(self.envelope)
+        Ok(self.envelope.into_owned())
     }
 
     #[inline]
@@ -420,7 +432,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope
+        self.envelope.into_owned()
     }
 }
 

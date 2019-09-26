@@ -28,7 +28,7 @@ pub use self::too_big::*;
 
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{buffer, checksum, Fixed, Header, Packet, ParseError};
+use crate::packets::{buffer, checksum, CondRc, Fixed, Header, Packet, ParseError};
 use std::fmt;
 
 /*  From (https://tools.ietf.org/html/rfc4443)
@@ -183,7 +183,7 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
 /// ICMPv6 packet
 #[derive(Debug)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
-    envelope: E,
+    envelope: CondRc<E>,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut Icmpv6Header,
@@ -212,7 +212,7 @@ impl<E: Ipv6Packet> Icmpv6<E, ()> {
     /// }
     /// ```
     pub fn downcast<P: Icmpv6Payload>(self) -> Result<Icmpv6<E, P>> {
-        Icmpv6::<E, P>::do_parse(self.envelope)
+        Icmpv6::<E, P>::do_parse(self.envelope.into_owned())
     }
 }
 
@@ -238,18 +238,30 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Icmpv6Packet<E, P> for Icmpv6<E, P> {
     }
 }
 
+impl<E: Ipv6Packet, P: Icmpv6Payload> Clone for Icmpv6<E, P> {
+    fn clone(&self) -> Icmpv6<E, P> {
+        Icmpv6 {
+            envelope: self.envelope.clone(),
+            mbuf: self.mbuf,
+            offset: self.offset,
+            header: self.header,
+            payload: self.payload,
+        }
+    }
+}
+
 impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     type Header = Icmpv6Header;
     type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+        &*self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
+        &mut *self.envelope
     }
 
     #[doc(hidden)]
@@ -289,7 +301,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
         let payload = buffer::read_item::<P>(mbuf, offset + Self::Header::size())?;
 
         Ok(Icmpv6 {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -313,7 +325,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
         }
 
         Ok(Icmpv6 {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -324,7 +336,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     #[inline]
     fn remove(self) -> Result<Self::Envelope> {
         buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
-        Ok(self.envelope)
+        Ok(self.envelope.into_owned())
     }
 
     #[inline]
@@ -335,7 +347,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope
+        self.envelope.into_owned()
     }
 }
 

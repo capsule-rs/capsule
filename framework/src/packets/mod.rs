@@ -31,6 +31,9 @@ pub use self::tcp::*;
 pub use self::udp::*;
 
 use failure::Fail;
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 
 /// Type that has a fixed size
 ///
@@ -55,7 +58,7 @@ impl<T> Fixed for T {
 pub trait Header: Fixed {}
 
 /// Common behaviors shared by all packets
-pub trait Packet {
+pub trait Packet: Clone {
     /// The header type of the packet
     type Header: Header;
     /// The outer packet type that encapsulates the packet
@@ -114,6 +117,10 @@ pub trait Packet {
     }
 
     /// Parses the payload as packet of `T`
+    ///
+    /// The ownership of the packet is moved after invocation. To retain
+    /// ownership, use `Packet::peek` instead to gain immutable access
+    /// to the packet payload.
     #[inline]
     fn parse<T: Packet<Envelope = Self>>(self) -> Result<T>
     where
@@ -127,6 +134,18 @@ pub trait Packet {
     fn do_parse(envelope: Self::Envelope) -> Result<Self>
     where
         Self: Sized;
+
+    /// Peeks into the payload as packet of `T`
+    ///
+    /// `Packet::peek` returns an immutable reference to the payload. Use
+    /// `Packet::parse` instead to gain mutable access to the packet payload.
+    #[inline]
+    fn peek<'a, T: Packet<Envelope = Self>>(&'a self) -> Result<Immutable<'a, T>>
+    where
+        Self: Sized,
+    {
+        self.clone().parse::<T>().map(Immutable::new)
+    }
 
     /// Pushes a new packet `T` as the payload
     #[inline]
@@ -167,6 +186,92 @@ pub trait Packet {
         Self: Sized,
     {
         self.deparse().reset()
+    }
+}
+
+/// Immutable smart pointer to a packet
+///
+/// A smart pointer that prevents the packet from being modified. The main
+/// use is allow safe lookahead of packet payload while retaining ownership
+/// of the original packet. The lifetime of the smart pointer is constrained
+/// by the original packet.
+pub struct Immutable<'a, T: Packet + 'a> {
+    value: T,
+    phantom: PhantomData<&'a T>,
+}
+
+impl<'a, T: Packet> Immutable<'a, T> {
+    pub fn new(value: T) -> Self {
+        Immutable {
+            value,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: Packet> Deref for Immutable<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+/// Conditional reference counted smart pointer
+///
+/// The content of the pointer will be deep-copied the first time `clone` is
+/// invoked. Subsequent calls to `clone` will clone a `std::rc::Rc` pointer,
+/// and not perform deep copy any more.
+#[doc(hidden)]
+#[derive(Debug)]
+pub(crate) enum CondRc<T: Packet> {
+    Raw(T),
+    Counted(Rc<T>),
+}
+
+impl<T: Packet> CondRc<T> {
+    pub fn new(value: T) -> Self {
+        CondRc::Raw(value)
+    }
+
+    pub fn into_owned(self) -> T {
+        match self {
+            CondRc::Raw(value) => value,
+            // because this fn requires ownership move, it should
+            // never be invoked on a reference counted one.
+            CondRc::Counted(_) => unreachable!(),
+        }
+    }
+}
+
+impl<T: Packet> Clone for CondRc<T> {
+    fn clone(&self) -> Self {
+        match self {
+            CondRc::Raw(value) => CondRc::Counted(Rc::new(value.clone())),
+            CondRc::Counted(value) => CondRc::Counted(Rc::clone(value)),
+        }
+    }
+}
+
+impl<T: Packet> Deref for CondRc<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CondRc::Raw(value) => value,
+            CondRc::Counted(value) => Deref::deref(value),
+        }
+    }
+}
+
+impl<T: Packet> DerefMut for CondRc<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            CondRc::Raw(value) => value,
+            // because this fn requires a mutable reference, it should
+            // never be invoked on a reference counted one.
+            CondRc::Counted(_) => unreachable!(),
+        }
     }
 }
 
