@@ -1,6 +1,6 @@
 use crate::common::Result;
 use crate::native::mbuf::MBuf;
-use crate::packets::{buffer, Fixed, Header, Packet, RawPacket};
+use crate::packets::{buffer, CondRc, Fixed, Header, Packet, RawPacket};
 use failure::Fail;
 use hex;
 use serde::{de, Deserialize, Deserializer};
@@ -146,7 +146,7 @@ impl Header for EthernetHeader {}
 /// Ethernet packet
 #[derive(Debug)]
 pub struct Ethernet {
-    envelope: RawPacket,
+    envelope: CondRc<RawPacket>,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut EthernetHeader,
@@ -204,18 +204,29 @@ impl fmt::Display for Ethernet {
     }
 }
 
+impl Clone for Ethernet {
+    fn clone(&self) -> Ethernet {
+        Ethernet {
+            envelope: self.envelope.clone(),
+            mbuf: self.mbuf,
+            offset: self.offset,
+            header: self.header,
+        }
+    }
+}
+
 impl Packet for Ethernet {
     type Header = EthernetHeader;
     type Envelope = RawPacket;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+        &*self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
+        &mut *self.envelope
     }
 
     #[doc(hidden)]
@@ -254,7 +265,7 @@ impl Packet for Ethernet {
         let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
 
         Ok(Ethernet {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -271,7 +282,7 @@ impl Packet for Ethernet {
         let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
 
         Ok(Ethernet {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -281,7 +292,7 @@ impl Packet for Ethernet {
     #[inline]
     fn remove(self) -> Result<Self::Envelope> {
         buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
-        Ok(self.envelope)
+        Ok(self.envelope.into_owned())
     }
 
     #[inline]
@@ -291,14 +302,15 @@ impl Packet for Ethernet {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope
+        self.envelope.into_owned()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::UDP_PACKET;
+    use crate::packets::ip::v4::Ipv4;
+    use crate::packets::{Udp, UDP_PACKET};
     use crate::testing::dpdk_test;
 
     #[test]
@@ -385,4 +397,16 @@ mod tests {
         assert_eq!(EthernetHeader::size(), ethernet.len());
     }
 
+    #[dpdk_test]
+    fn peek_v4_udp_packet() {
+        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+
+        let v4 = ethernet.peek::<Ipv4>().unwrap();
+        assert_eq!(255, v4.ttl());
+        assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), v4.envelope().src());
+
+        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
+        assert_eq!(39376, udp.src_port());
+    }
 }
