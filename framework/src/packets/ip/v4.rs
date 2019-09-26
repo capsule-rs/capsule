@@ -2,7 +2,7 @@ use crate::common::Result;
 use crate::native::mbuf::MBuf;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{buffer, Ethernet, Fixed, Header, Packet};
+use crate::packets::{buffer, CondRc, Ethernet, Fixed, Header, Packet};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -168,7 +168,7 @@ impl Header for Ipv4Header {}
 /// IPv4 packet
 #[derive(Debug)]
 pub struct Ipv4 {
-    envelope: Ethernet,
+    envelope: CondRc<Ethernet>,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut Ipv4Header,
@@ -358,18 +358,29 @@ impl fmt::Display for Ipv4 {
     }
 }
 
+impl Clone for Ipv4 {
+    fn clone(&self) -> Ipv4 {
+        Ipv4 {
+            envelope: self.envelope.clone(),
+            mbuf: self.mbuf,
+            offset: self.offset,
+            header: self.header,
+        }
+    }
+}
+
 impl Packet for Ipv4 {
     type Header = Ipv4Header;
     type Envelope = Ethernet;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+        &*self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
+        &mut *self.envelope
     }
 
     #[doc(hidden)]
@@ -408,7 +419,7 @@ impl Packet for Ipv4 {
         let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
 
         Ok(Ipv4 {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -425,7 +436,7 @@ impl Packet for Ipv4 {
         let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
 
         Ok(Ipv4 {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -435,7 +446,7 @@ impl Packet for Ipv4 {
     #[inline]
     fn remove(self) -> Result<Self::Envelope> {
         buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
-        Ok(self.envelope)
+        Ok(self.envelope.into_owned())
     }
 
     #[inline]
@@ -448,7 +459,7 @@ impl Packet for Ipv4 {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope
+        self.envelope.into_owned()
     }
 }
 
@@ -505,7 +516,7 @@ impl IpPacket for Ipv4 {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Ethernet, RawPacket, UDP_PACKET};
+    use crate::packets::{Ethernet, RawPacket, Udp, UDP_PACKET};
     use crate::testing::dpdk_test;
 
     #[test]
@@ -571,5 +582,14 @@ mod tests {
 
         assert_eq!(4, ipv4.version());
         assert_eq!(Ipv4Header::size(), ipv4.len());
+    }
+
+    #[dpdk_test]
+    fn peek_udp_packet() {
+        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let v4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
+        assert_eq!(39376, udp.src_port());
     }
 }

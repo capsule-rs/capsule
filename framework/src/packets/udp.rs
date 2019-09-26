@@ -1,7 +1,7 @@
 use crate::common::Result;
 use crate::native::mbuf::MBuf;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{buffer, checksum, Fixed, Header, Packet};
+use crate::packets::{buffer, checksum, CondRc, Fixed, Header, Packet};
 use std::fmt;
 use std::net::IpAddr;
 
@@ -72,7 +72,7 @@ impl Header for UdpHeader {}
 /// UDP packet
 #[derive(Debug)]
 pub struct Udp<E: IpPacket> {
-    envelope: E,
+    envelope: CondRc<E>,
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut UdpHeader,
@@ -195,18 +195,29 @@ impl<E: IpPacket> fmt::Display for Udp<E> {
     }
 }
 
+impl<E: IpPacket> Clone for Udp<E> {
+    fn clone(&self) -> Udp<E> {
+        Udp {
+            envelope: self.envelope.clone(),
+            mbuf: self.mbuf,
+            offset: self.offset,
+            header: self.header,
+        }
+    }
+}
+
 impl<E: IpPacket> Packet for Udp<E> {
     type Envelope = E;
     type Header = UdpHeader;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+        &*self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
+        &mut *self.envelope
     }
 
     #[doc(hidden)]
@@ -245,7 +256,7 @@ impl<E: IpPacket> Packet for Udp<E> {
         let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
 
         Ok(Udp {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -262,7 +273,7 @@ impl<E: IpPacket> Packet for Udp<E> {
         let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
 
         Ok(Udp {
-            envelope,
+            envelope: CondRc::new(envelope),
             mbuf,
             offset,
             header,
@@ -272,7 +283,7 @@ impl<E: IpPacket> Packet for Udp<E> {
     #[inline]
     fn remove(self) -> Result<Self::Envelope> {
         buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
-        Ok(self.envelope)
+        Ok(self.envelope.into_owned())
     }
 
     #[inline]
@@ -285,7 +296,7 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope
+        self.envelope.into_owned()
     }
 }
 

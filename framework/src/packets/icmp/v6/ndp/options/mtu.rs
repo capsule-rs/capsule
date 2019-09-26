@@ -135,5 +135,4 @@ mod tests {
     fn size_of_mtu() {
         assert_eq!(8, MtuFields::size());
     }
-
 }

@@ -153,6 +153,13 @@ impl Packet for RawPacket {
     }
 }
 
+impl Clone for RawPacket {
+    fn clone(&self) -> Self {
+        // might need to up the ref count on mbuf
+        RawPacket::from_mbuf(self.mbuf)
+    }
+}
+
 // only free the underlying mbuf if it's created by the raw packet.
 // otherwise if the mbuf is passed in externally on creation, then
 // the external allocator is responsible for freeing the mbuf. for
