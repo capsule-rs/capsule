@@ -1,0 +1,15 @@
+[package]
+name = "capsule-ffi"
+version = "18.11.2"
+authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+edition = "2018"
+
+[lib]
+name = "capsule_ffi"
+path = "lib.rs"
+
+[build-dependencies]
+bindgen = "0.51"
+cc = "1.0"
+
+[dependencies]

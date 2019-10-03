@@ -23,21 +23,22 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+    // there's a problem statically linking to a linker script
+    // see: https://github.com/rust-lang/rust/issues/40483
     println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
-    println!("cargo:rustc-link-lib=static=dpdk");
+    println!("cargo:rustc-link-lib=static-nobundle=dpdk");
     println!("cargo:rustc-link-lib=dylib=numa");
     println!("cargo:rustc-link-lib=dylib=pcap");
     println!("cargo:rustc-link-lib=dylib=z");
 
     cc::Build::new()
-        .file("src/dpdk/shim.c")
+        .file("shim.c")
         .include("/opt/dpdk/build/include")
-        .include("src/dpdk")
         .compile("rte_shim");
 
     let bindings = bindgen::Builder::default()
-        .header("src/dpdk/rte.h")
-        .header("src/dpdk/shim.h")
+        .header("rte.h")
+        .header("shim.h")
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|cmdline|ether|eth|arp|vlan|vxlan)_.*")

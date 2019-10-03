@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+extern crate capsule;
 extern crate failure;
 
-mod dpdk;
-
+use capsule::dpdk;
 use failure::Error;
 
 fn main() -> Result<(), Error> {
@@ -34,16 +34,16 @@ fn main() -> Result<(), Error> {
     ];
     dpdk::eal_init(&args)?;
     println!("HOORAY!!!");
-    let mut mempool = dpdk::Mempool::create("dump", 8191, 0)?;
+    let mut mempool = dpdk::Mempool::create("dump", 257, 0)?;
     println!("mempool '{}' created.", mempool.name());
     let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
     println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
     port.start()?;
     println!("port started.");
-    loop {
-        let pks = port.receive();
-        port.send(pks);
-    }
+    // loop {
+    //     let pks = port.receive();
+    //     port.send(pks);
+    // }
     port.stop();
     println!("port stopped.");
     Ok(())
