@@ -1,0 +1,15 @@
+[package]
+name = "nb2-ffi"
+version = "18.11.2"
+authors = ["drunkirishcoder <daniel.jin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "nb2_ffi"
+path = "lib.rs"
+
+[build-dependencies]
+bindgen = "0.51"
+cc = "1.0"
+
+[dependencies]

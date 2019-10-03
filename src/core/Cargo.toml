@@ -1,0 +1,13 @@
+[package]
+name = "nb2"
+version = "0.1.0"
+authors = ["drunkirishcoder <daniel.jin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "nb2"
+path = "lib.rs"
+
+[dependencies]
+failure = "0.1"
+nb2-ffi = { path = "../ffi" }

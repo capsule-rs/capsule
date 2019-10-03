@@ -1,0 +1,13 @@
+[package]
+name = "skeleton"
+version = "0.1.0"
+authors = ["drunkirishcoder <daniel.jin@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "skeleton"
+path = "main.rs"
+
+[dependencies]
+failure = "0.1"
+nb2 = { path = "../../core" }
