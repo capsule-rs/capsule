@@ -16,18 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate capsule_ffi;
-extern crate failure;
-extern crate log;
+use crate::dpdk::eal_init;
+use crate::Result;
 
-pub mod dpdk;
-mod ffi;
-mod runtime;
+pub struct Runtime {}
 
-pub use crate::runtime::Runtime;
-
-use failure::Error;
-use std::result;
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = result::Result<T, Error>;
+impl Runtime {
+    pub fn init(args: Vec<String>) -> Result<Self> {
+        eal_init(args)?;
+        Ok(Runtime {})
+    }
+}

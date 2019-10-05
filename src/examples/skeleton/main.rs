@@ -19,10 +19,9 @@
 extern crate capsule;
 extern crate failure;
 
-use capsule::dpdk;
-use failure::Error;
+use capsule::{Result, Runtime};
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     let args = [
         "shizzle",
         "--log-level=9",
@@ -32,19 +31,23 @@ fn main() -> Result<(), Error> {
         "0000:00:08.0",
         "-v",
     ];
-    dpdk::eal_init(&args)?;
+
+    let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
+    let runtime = Runtime::init(args)?;
     println!("HOORAY!!!");
-    let mut mempool = dpdk::Mempool::create("dump", 257, 0)?;
-    println!("mempool '{}' created.", mempool.name());
-    let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
-    println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
-    port.start()?;
-    println!("port started.");
+
+    // let mut mempool = dpdk::Mempool::create("dump", 257, 0)?;
+    // println!("mempool '{}' created.", mempool.name());
+    // let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
+    // println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
+    // port.start()?;
+    // println!("port started.");
     // loop {
     //     let pks = port.receive();
     //     port.send(pks);
     // }
-    port.stop();
-    println!("port stopped.");
+    // port.stop();
+    // println!("port stopped.");
+
     Ok(())
 }
