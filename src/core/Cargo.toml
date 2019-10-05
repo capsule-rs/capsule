@@ -10,4 +10,5 @@ path = "lib.rs"
 
 [dependencies]
 failure = "0.1"
+log = "0.4"
 nb2-ffi = { path = "../ffi" }
