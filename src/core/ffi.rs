@@ -6,7 +6,7 @@ use log::warn;
 use std::ffi::{CStr, CString};
 use std::os::raw;
 
-/// Simplify `*const c_char` to `&str` conversion
+/// Simplify `*const c_char` to `&str` conversion.
 pub trait AsStr {
     #[inline]
     fn as_str(&self) -> &str;
@@ -23,7 +23,7 @@ impl AsStr for *const raw::c_char {
     }
 }
 
-/// Simplify `String` and `&str` to raw pointer conversion
+/// Simplify `String` and `&str` to raw pointer conversion.
 pub trait ToRaw {
     type Ptr;
 
@@ -47,7 +47,7 @@ impl ToRaw for String {
     }
 }
 
-/// Simplify `c_int` to `Result` conversion
+/// Simplify `c_int` to `Result` conversion.
 pub trait ToResult {
     type T;
 
