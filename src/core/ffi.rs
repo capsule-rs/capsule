@@ -21,7 +21,7 @@ pub use capsule_ffi::*;
 use crate::dpdk::DpdkError;
 use crate::Result;
 use log::warn;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::os::raw;
 
 /// Simplify `*const c_char` to `&str` conversion
@@ -38,6 +38,30 @@ impl AsStr for *const raw::c_char {
                 Default::default()
             })
         }
+    }
+}
+
+/// Simplify `String` and `&str` to raw pointer conversion
+pub trait ToRaw {
+    type Ptr;
+
+    #[inline]
+    fn to_raw(self) -> Self::Ptr;
+}
+
+impl ToRaw for &str {
+    type Ptr = *const raw::c_char;
+
+    fn to_raw(self) -> Self::Ptr {
+        unsafe { CStr::from_bytes_with_nul_unchecked(self.as_bytes()).as_ptr() }
+    }
+}
+
+impl ToRaw for String {
+    type Ptr = *mut raw::c_char;
+
+    fn to_raw(self) -> Self::Ptr {
+        unsafe { CString::from_vec_unchecked(self.into_bytes()).into_raw() }
     }
 }
 
