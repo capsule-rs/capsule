@@ -9,5 +9,6 @@ name = "capsule"
 path = "lib.rs"
 
 [dependencies]
-failure = "0.1"
 capsule-ffi = { path = "../ffi" }
+failure = "0.1"
+log = "0.4"

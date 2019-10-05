@@ -16,8 +16,15 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate failure;
 extern crate capsule_ffi;
+extern crate failure;
+extern crate log;
 
 pub mod dpdk;
 mod ffi;
+
+use failure::Error;
+use std::result;
+
+/// A type alias of `std:result::Result` for convenience
+pub type Result<T> = result::Result<T, Error>;

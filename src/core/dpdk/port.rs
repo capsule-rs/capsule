@@ -16,8 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::ffi;
 use crate::dpdk::{MBuf, Mempool};
+use crate::ffi;
 use failure::{format_err, Error};
 use std::cmp::min;
 use std::ffi::{CStr, CString};

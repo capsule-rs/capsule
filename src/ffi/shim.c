@@ -16,7 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#include <rte_errno.h>
 #include <rte_ethdev.h>
+
+int
+_rte_errno(void) {
+    return rte_errno;
+}
 
 uint16_t _rte_eth_rx_burst(
     uint16_t port_id,
