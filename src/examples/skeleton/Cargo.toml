@@ -11,3 +11,4 @@ path = "main.rs"
 [dependencies]
 failure = "0.1"
 nb2 = { path = "../../core" }
+simplelog = "0.7"

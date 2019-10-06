@@ -1,9 +1,20 @@
 #include <rte_errno.h>
 #include <rte_ethdev.h>
+#include <rte_lcore.h>
 
 int
 _rte_errno(void) {
     return rte_errno;
+}
+
+unsigned
+_rte_lcore_id(void) {
+    return rte_lcore_id();
+}
+
+unsigned
+_rte_lcore_to_socket_id(unsigned lcore_id) {
+    return rte_lcore_to_socket_id(lcore_id);
 }
 
 uint16_t _rte_eth_rx_burst(
