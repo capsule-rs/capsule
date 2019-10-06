@@ -18,26 +18,38 @@
 
 extern crate capsule;
 extern crate failure;
+extern crate simplelog;
 
 use capsule::{Result, Runtime};
+use simplelog::*;
 
 fn main() -> Result<()> {
+    CombinedLogger::init(vec![TermLogger::new(
+        LevelFilter::Trace,
+        Config::default(),
+        TerminalMode::Mixed,
+    )
+    .unwrap()])
+    .unwrap();
+
     let args = [
         "shizzle",
-        "--log-level=9",
+        "--master-lcore",
+        "0",
         "-l",
         "0",
         "-w",
         "0000:00:08.0",
+        "-m",
+        "1024",
+        "--log-level=9",
         "-v",
     ];
 
     let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
-    let runtime = Runtime::init(args)?;
+    let _ = Runtime::init(args)?;
     println!("HOORAY!!!");
 
-    // let mut mempool = dpdk::Mempool::create("dump", 257, 0)?;
-    // println!("mempool '{}' created.", mempool.name());
     // let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
     // println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
     // port.start()?;

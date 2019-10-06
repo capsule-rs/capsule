@@ -23,8 +23,9 @@ use crate::Result;
 use log::warn;
 use std::ffi::{CStr, CString};
 use std::os::raw;
+use std::ptr::NonNull;
 
-/// Simplify `*const c_char` to `&str` conversion.
+/// Simplify `*const c_char` or [c_char] to `&str` conversion.
 pub trait AsStr {
     #[inline]
     fn as_str(&self) -> &str;
@@ -41,46 +42,58 @@ impl AsStr for *const raw::c_char {
     }
 }
 
-/// Simplify `String` and `&str` to raw pointer conversion.
-pub trait ToRaw {
-    type Ptr;
-
-    #[inline]
-    fn to_raw(self) -> Self::Ptr;
-}
-
-impl ToRaw for &str {
-    type Ptr = *const raw::c_char;
-
-    fn to_raw(self) -> Self::Ptr {
-        unsafe { CStr::from_bytes_with_nul_unchecked(self.as_bytes()).as_ptr() }
+impl AsStr for [raw::c_char] {
+    fn as_str(&self) -> &str {
+        unsafe {
+            CStr::from_ptr(self.as_ptr()).to_str().unwrap_or_else(|_| {
+                warn!("invalid UTF8 data");
+                Default::default()
+            })
+        }
     }
 }
 
-impl ToRaw for String {
-    type Ptr = *mut raw::c_char;
+/// Simplify `String` and `&str` to `CString` conversion.
+pub trait ToCString {
+    fn to_cstring(self) -> CString;
+}
 
-    fn to_raw(self) -> Self::Ptr {
-        unsafe { CString::from_vec_unchecked(self.into_bytes()).into_raw() }
+impl ToCString for String {
+    fn to_cstring(self) -> CString {
+        CString::new(self).unwrap()
     }
 }
 
-/// Simplify `c_int` to `Result` conversion.
+impl ToCString for &str {
+    fn to_cstring(self) -> CString {
+        CString::new(self).unwrap()
+    }
+}
+
+/// Simplify FFI binding's return to `Result` conversion.
 pub trait ToResult {
-    type T;
+    type Ok;
 
     #[inline]
-    fn to_result(self) -> Result<Self::T>;
+    fn to_result(self) -> Result<Self::Ok>;
 }
 
 impl ToResult for raw::c_int {
-    type T = u32;
+    type Ok = u32;
 
-    fn to_result(self) -> Result<Self::T> {
+    fn to_result(self) -> Result<Self::Ok> {
         if self < 0 {
             Err(DpdkError::new().into())
         } else {
-            Ok(self as Self::T)
+            Ok(self as u32)
         }
+    }
+}
+
+impl<T> ToResult for *mut T {
+    type Ok = NonNull<T>;
+
+    fn to_result(self) -> Result<Self::Ok> {
+        NonNull::new(self).ok_or_else(|| DpdkError::new().into())
     }
 }

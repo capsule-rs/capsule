@@ -16,46 +16,56 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::ffi;
-use failure::{format_err, Error};
-use std::ffi::{CStr, CString};
+use crate::dpdk::SocketId;
+use crate::ffi::{self, AsStr, ToCString, ToResult};
+use crate::Result;
+use std::fmt;
 use std::os::raw;
+use std::ptr::NonNull;
 
 pub struct Mempool {
-    pool: ffi::rte_mempool,
+    pool: NonNull<ffi::rte_mempool>,
 }
 
 impl Mempool {
-    pub fn create(name: &str, size: usize, cache_size: usize) -> Result<Self, Error> {
-        unsafe {
-            let socket_id = ffi::rte_socket_id();
-            let ptr = ffi::rte_pktmbuf_pool_create(
-                CString::from_vec_unchecked(name.into()).as_ptr(),
-                size as raw::c_uint,
+    pub fn create(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
+        let name = format!("mempool{}", socket_id.0).to_cstring();
+        let pool = unsafe {
+            ffi::rte_pktmbuf_pool_create(
+                name.as_ptr(),
+                capacity as raw::c_uint,
                 cache_size as raw::c_uint,
                 0,
                 ffi::RTE_MBUF_DEFAULT_BUF_SIZE as u16,
-                socket_id as raw::c_int,
-            );
+                socket_id.0 as raw::c_int,
+            )
+            .to_result()?
+        };
 
-            if ptr.is_null() {
-                Err(format_err!("Cannot create mbuf pool."))
-            } else {
-                println!("private data size: {}", (*ptr).private_data_size);
-                Ok(Self { pool: *ptr })
-            }
-        }
+        Ok(Self { pool })
+    }
+
+    fn pool(&self) -> &ffi::rte_mempool {
+        unsafe { self.pool.as_ref() }
     }
 
     pub fn name(&self) -> &str {
-        unsafe {
-            CStr::from_ptr(self.pool.name[..].as_ptr())
-                .to_str()
-                .unwrap_or("unknown")
-        }
+        self.pool().name[..].as_str()
     }
+}
 
-    pub(crate) fn as_mut(&mut self) -> &mut ffi::rte_mempool {
-        &mut self.pool
+impl fmt::Display for Mempool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let pool = self.pool();
+        write!(
+            f,
+            "name: {}, capacity: {}, populated: {}, cache_size: {}, flags: {}, socket: {}",
+            self.name(),
+            pool.size,
+            pool.populated_size,
+            pool.cache_size,
+            pool.flags,
+            pool.socket_id,
+        )
     }
 }

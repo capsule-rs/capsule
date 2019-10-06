@@ -11,3 +11,4 @@ path = "main.rs"
 [dependencies]
 capsule = { path = "../../core" }
 failure = "0.1"
+simplelog = "0.7"
