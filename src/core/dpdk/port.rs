@@ -1,86 +1,173 @@
-use crate::dpdk::Mempool;
+use crate::dpdk::{CoreId, Mempool, SocketId};
 use crate::ffi::{self, ToCString, ToResult};
 use crate::Result;
-use log::debug;
+use failure::Fail;
+use std::collections::HashMap;
+use std::ptr;
 
-pub struct Port {}
+/// An opaque identifier for a port.
+#[derive(Copy, Clone, Debug)]
+pub struct PortId(u16);
 
-impl Port {
-    pub fn init(name: String, pool: &mut Mempool) -> Result<Self> {
-        let mut port_id = 0u16;
-        let name = name.to_cstring();
-        unsafe {
-            ffi::rte_eth_dev_get_port_by_name(name.as_ptr(), &mut port_id).to_result()?;
+impl PortId {
+    /// Returns the ID of the socket the port is connected to.
+    ///
+    /// For virtual devices, `rte_eth_dev_socket_id` will not return a
+    /// real socket ID. The value returned will be discarded if it does
+    /// not match any of the system's physical socket IDs.
+    #[inline]
+    pub fn socket_id(&self) -> Option<SocketId> {
+        let id = unsafe { SocketId(ffi::rte_eth_dev_socket_id(self.0) as u32) };
+        if SocketId::all().contains(&id) {
+            Some(id)
+        } else {
+            None
         }
-
-        debug!("port_id: {}", port_id);
-
-        Ok(Port {})
     }
 }
 
-// pub struct PmdPort {
-//     name: String,
-//     port_id: u16,
-//     dev_info: ffi::rte_eth_dev_info,
-// }
+/// An opaque identifier for a RX queue.
+struct RxQueueId(u16);
+
+/// An opaque identifier for a TX queue.
+struct TxQueueId(u16);
+
+pub struct PortHandle {
+    port_id: PortId,
+    rxq_id: RxQueueId,
+    txq_id: TxQueueId,
+}
+
+pub struct Port {
+    id: PortId,
+    handles: HashMap<CoreId, PortHandle>,
+    info: ffi::rte_eth_dev_info,
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "Insufficient number of RX queues '{}'.", _0)]
+pub struct InsufficientRxQueues(usize);
+
+#[derive(Debug, Fail)]
+#[fail(display = "Insufficient number of TX queues '{}'.", _0)]
+pub struct InsufficientTxQueues(usize);
+
+#[derive(Debug, Fail)]
+#[fail(display = "Mempool for socket '{}' not found.", _0)]
+pub struct MempoolNotFound(u32);
+
+impl Port {
+    pub fn init(
+        name: String,
+        rx_desc: usize,
+        tx_desc: usize,
+        cores: &[CoreId],
+        mempools: &mut HashMap<SocketId, Mempool>,
+    ) -> Result<Self> {
+        unsafe {
+            let name = name.to_cstring();
+
+            let mut port_id = 0u16;
+            ffi::rte_eth_dev_get_port_by_name(name.as_ptr(), &mut port_id).to_result()?;
+            let port_id = PortId(port_id);
+            debug!("{:?} has port id {}.", name, port_id.0);
+
+            let len = cores.len() as u16;
+            let mut port_info = ffi::rte_eth_dev_info::default();
+            ffi::rte_eth_dev_info_get(port_id.0, &mut port_info);
+
+            ensure!(
+                port_info.max_rx_queues >= len,
+                InsufficientRxQueues(port_info.max_rx_queues as usize)
+            );
+            ensure!(
+                port_info.max_tx_queues >= len,
+                InsufficientTxQueues(port_info.max_tx_queues as usize)
+            );
+
+            let port_conf = ffi::rte_eth_conf::default();
+            ffi::rte_eth_dev_configure(port_id.0, len, len, &port_conf).to_result()?;
+
+            let mut new_rx_desc = rx_desc as u16;
+            let mut new_tx_desc = tx_desc as u16;
+            ffi::rte_eth_dev_adjust_nb_rx_tx_desc(port_id.0, &mut new_rx_desc, &mut new_tx_desc)
+                .to_result()?;
+
+            info!(
+                cond: new_rx_desc != rx_desc as u16,
+                "adjusted number of RX descriptors from {} to {}.", rx_desc, new_rx_desc
+            );
+            info!(
+                cond: new_tx_desc != tx_desc as u16,
+                "adjusted number of TX descriptors from {} to {}.", tx_desc, new_tx_desc
+            );
+
+            // if the port is virtual, we tie it to the socket of the first core
+            let socket_id = port_id
+                .socket_id()
+                .unwrap_or_else(|| cores.first().unwrap().socket_id());
+            debug!("{:?} is connected to socket {}.", name, socket_id.0);
+
+            let mempool = mempools
+                .get_mut(&socket_id)
+                .ok_or_else(|| MempoolNotFound(socket_id.0))?;
+
+            let mut handles = HashMap::new();
+
+            for idx in 0..len as usize {
+                let core_id = cores[idx];
+
+                warn!(
+                    cond: core_id.socket_id() != socket_id,
+                    "core '{}''s socket '{}' does not match port's socket '{}'.",
+                    core_id.0,
+                    core_id.socket_id().0,
+                    socket_id.0
+                );
+
+                let rxq_id = RxQueueId(idx as u16);
+                ffi::rte_eth_rx_queue_setup(
+                    port_id.0,
+                    rxq_id.0,
+                    new_rx_desc,
+                    socket_id.0,
+                    ptr::null(),
+                    mempool.pool_mut(),
+                )
+                .to_result()?;
+
+                let txq_id = TxQueueId(idx as u16);
+                ffi::rte_eth_tx_queue_setup(
+                    port_id.0,
+                    txq_id.0,
+                    new_tx_desc,
+                    socket_id.0,
+                    ptr::null(),
+                )
+                .to_result()?;
+
+                handles.insert(
+                    core_id,
+                    PortHandle {
+                        port_id,
+                        rxq_id,
+                        txq_id,
+                    },
+                );
+
+                debug!("core '{}' initialized for {:?}.", core_id.0, name);
+            }
+
+            Ok(Port {
+                id: port_id,
+                handles,
+                info: port_info,
+            })
+        }
+    }
+}
 
 // impl PmdPort {
-//     pub fn init(name: &str, pool: &mut Mempool) -> Result<Self, Error> {
-//         unsafe {
-//             let mut port_id = 0u16;
-//             let ret = ffi::rte_eth_dev_get_port_by_name(
-//                 CString::from_vec_unchecked(name.into()).as_ptr(),
-//                 &mut port_id,
-//             );
-//             if ret < 0 {
-//                 return Err(format_err!("{} device '{}' not found.", ret, name));
-//             }
-
-//             let mut dev_info = ffi::rte_eth_dev_info::default();
-//             ffi::rte_eth_dev_info_get(port_id, &mut dev_info);
-
-//             let conf = ffi::rte_eth_conf::default();
-//             let ret = ffi::rte_eth_dev_configure(port_id, 1, 1, &conf);
-//             if ret != 0 {
-//                 return Err(format_err!("{} device '{}' not configured.", ret, name));
-//             }
-
-//             let mut rxd_size = 1024;
-//             let mut txd_size = 1024;
-//             let ret = ffi::rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &mut rxd_size, &mut txd_size);
-//             if ret != 0 {
-//                 return Err(format_err!("{} device descriptors not adjusted.", ret));
-//             }
-
-//             let socket_id = ffi::rte_eth_dev_socket_id(port_id) as raw::c_uint;
-//             println!("socket id {}", socket_id);
-
-//             let ret = ffi::rte_eth_rx_queue_setup(
-//                 port_id,
-//                 0,
-//                 rxd_size,
-//                 socket_id,
-//                 ptr::null(),
-//                 pool.as_mut(),
-//             );
-//             if ret < 0 {
-//                 return Err(format_err!("{} rx queue not setup.", ret));
-//             }
-
-//             let ret = ffi::rte_eth_tx_queue_setup(port_id, 0, txd_size, socket_id, ptr::null());
-//             if ret < 0 {
-//                 return Err(format_err!("{} tx queue not setup.", ret));
-//             }
-
-//             Ok(PmdPort {
-//                 name: name.to_owned(),
-//                 port_id,
-//                 dev_info,
-//             })
-//         }
-//     }
-
 //     pub fn driver_name(&self) -> &str {
 //         unsafe {
 //             CStr::from_ptr(self.dev_info.driver_name)

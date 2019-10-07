@@ -2,7 +2,6 @@ pub use nb2_ffi::*;
 
 use crate::dpdk::DpdkError;
 use crate::Result;
-use log::warn;
 use std::ffi::{CStr, CString};
 use std::os::raw;
 use std::ptr::NonNull;
