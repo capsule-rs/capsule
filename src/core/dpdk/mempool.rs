@@ -59,7 +59,7 @@ impl fmt::Display for Mempool {
         let pool = self.pool();
         write!(
             f,
-            "name: {}, capacity: {}, populated: {}, cache_size: {}, flags: {}, socket: {}",
+            "{}: capacity={}, populated={}, cache_size={}, flags={}, socket={}",
             self.name(),
             pool.size,
             pool.populated_size,

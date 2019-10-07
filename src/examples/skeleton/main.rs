@@ -21,6 +21,7 @@ extern crate failure;
 extern crate simplelog;
 
 use capsule::{Result, Runtime};
+use log::info;
 use simplelog::*;
 
 fn main() -> Result<()> {
@@ -40,15 +41,15 @@ fn main() -> Result<()> {
         "0",
         "-w",
         "0000:00:08.0",
-        "-m",
-        "1024",
-        "--log-level=9",
+        "--vdev",
+        "net_pcap0,tx_pcap=tx.pcap",
         "-v",
     ];
 
     let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
     let _ = Runtime::init(args)?;
-    println!("HOORAY!!!");
+
+    info!("HOORAY!!!");
 
     // let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
     // println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
