@@ -49,6 +49,10 @@ impl Mempool {
         unsafe { self.pool.as_ref() }
     }
 
+    pub(crate) fn pool_mut(&mut self) -> &mut ffi::rte_mempool {
+        unsafe { self.pool.as_mut() }
+    }
+
     pub fn name(&self) -> &str {
         self.pool().name[..].as_str()
     }

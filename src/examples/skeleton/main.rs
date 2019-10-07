@@ -42,7 +42,7 @@ fn main() -> Result<()> {
         "-w",
         "0000:00:08.0",
         "--vdev",
-        "net_pcap0,tx_pcap=tx.pcap",
+        "net_pcap0,rx_iface=lo,tx_pcap=tx.pcap",
         "-v",
     ];
 
