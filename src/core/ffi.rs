@@ -64,10 +64,10 @@ impl ToResult for raw::c_int {
     type Ok = u32;
 
     fn to_result(self) -> Result<Self::Ok> {
-        if self < 0 {
-            Err(DpdkError::new().into())
-        } else {
-            Ok(self as u32)
+        match self {
+            -1 => Err(DpdkError::new().into()),
+            err if err < 0 => Err(DpdkError::new_with_errno(-err).into()),
+            _ => Ok(self as u32),
         }
     }
 }
