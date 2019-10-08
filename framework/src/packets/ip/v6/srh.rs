@@ -138,27 +138,10 @@ impl Default for SegmentRoutingHeader {
 
 impl Header for SegmentRoutingHeader {}
 
-/// Type alias for a segment in segment routing header
-pub type Segment = Ipv6Addr;
-
 /// Error for a bad segment list
 #[derive(Debug, Fail)]
 #[fail(display = "Segment list length must be greater than 0")]
 pub struct BadSegmentsError;
-
-/// Error for bad index within segment list
-#[derive(Debug, Fail)]
-#[fail(display = "Index {} out of bounds of segment list length {}", _0, _1)]
-pub struct SegmentsOutOfBoundsError(usize, usize);
-
-/// Trait with helper functions for segment routing manipulation
-pub trait SegmentRoutingExt {
-    fn first_segment(&self) -> Segment;
-    fn last_segment(&self) -> Segment;
-    fn current_segment(&self) -> Result<Segment>;
-    fn previous_segment(&self) -> Result<Segment>;
-    fn next_segment(&self) -> Result<Segment>;
-}
 
 #[derive(Debug)]
 pub struct SegmentRouting<E: Ipv6Packet> {
@@ -166,20 +149,10 @@ pub struct SegmentRouting<E: Ipv6Packet> {
     mbuf: *mut MBuf,
     offset: usize,
     header: *mut SegmentRoutingHeader,
-    segments: *mut [Segment],
+    segments: *mut [Ipv6Addr],
 }
 
 impl<E: Ipv6Packet> SegmentRouting<E> {
-    #[inline]
-    pub fn next_header(&self) -> ProtocolNumber {
-        ProtocolNumber::new(self.header().next_header)
-    }
-
-    #[inline]
-    pub fn set_next_header(&mut self, next_header: ProtocolNumber) {
-        self.header_mut().next_header = next_header.0;
-    }
-
     #[inline]
     pub fn hdr_ext_len(&self) -> u8 {
         self.header().hdr_ext_len
@@ -196,33 +169,22 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
+    pub fn set_routing_type(&mut self, routing_type: u8) {
+        self.header_mut().routing_type = routing_type;
+    }
+
+    #[inline]
     pub fn segments_left(&self) -> u8 {
         self.header().segments_left
     }
 
-    /// Sets the segments left and the IPv6 `dst` to match.
-    ///
-    /// Given a segment list of 3 segments, `[a, b, c]`, if the
-    /// `segments_left` is set to 2, then the IPv6 `dst` is set
-    /// to the (n + 1)th segment in the list, which is `c`.
+    /// Sets segments left
     ///
     /// # Remarks
     ///
-    /// `segments` should be set before setting `segments_left`
-    /// because the new `dst` value is taken from the segments
-    /// list.
+    /// Should also call `set_dst` on `Ipv6` to keep the packet's destination
+    /// in sync with the segment routing header.
     #[inline]
-    pub fn set_segments_left_and_dst(&mut self, segments_left: u8) -> Result<()> {
-        if let Some(&segment) = self.segments().get(segments_left as usize) {
-            self.header_mut().segments_left = segments_left;
-            self.envelope_mut().set_dst(IpAddr::V6(segment))
-        } else {
-            Err(SegmentsOutOfBoundsError(segments_left as usize, self.segments().len()).into())
-        }
-    }
-
-    /// Sets only the segments left. To keep segments left and IPv6 dst in sync,
-    /// @see set_segments_left_and_dst.
     pub fn set_segments_left(&mut self, segments_left: u8) {
         self.header_mut().segments_left = segments_left;
     }
@@ -253,7 +215,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     }
 
     #[inline]
-    pub fn segments(&self) -> &[Segment] {
+    pub fn segments(&self) -> &[Ipv6Addr] {
         unsafe { &(*self.segments) }
     }
 
@@ -271,7 +233,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     /// checksum calculations, as the last segment is used as part of the pseudo
     /// header.
     #[inline]
-    pub fn set_segments(&mut self, segments: &[Segment]) -> Result<()> {
+    pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Result<()> {
         if !segments.is_empty() {
             let old_len = self.last_entry() + 1;
             let new_len = segments.len() as u8;
@@ -280,7 +242,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             buffer::realloc(
                 self.mbuf,
                 segments_offset,
-                (new_len as isize - old_len as isize) * Segment::size() as isize,
+                (new_len as isize - old_len as isize) * Ipv6Addr::size() as isize,
             )?;
             self.segments = buffer::write_slice(self.mbuf, segments_offset, segments)?;
             self.set_hdr_ext_len(new_len * 2);
@@ -380,7 +342,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         let segments_len = unsafe { (*header).last_entry + 1 };
 
         if hdr_ext_len != 0 && (2 * segments_len == hdr_ext_len) {
-            let segments = buffer::read_slice::<Segment>(
+            let segments = buffer::read_slice::<Ipv6Addr>(
                 mbuf,
                 offset + SegmentRoutingHeader::size(),
                 segments_len as usize,
@@ -405,10 +367,13 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         let offset = envelope.payload_offset();
 
         // also add a default segment list of one element
-        buffer::alloc(mbuf, offset, Self::Header::size() + Segment::size())?;
+        buffer::alloc(mbuf, offset, Self::Header::size() + Ipv6Addr::size())?;
         let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
-        let segments =
-            buffer::write_slice(mbuf, offset + Self::Header::size(), &[Segment::UNSPECIFIED])?;
+        let segments = buffer::write_slice(
+            mbuf,
+            offset + Self::Header::size(),
+            &[Ipv6Addr::UNSPECIFIED],
+        )?;
 
         Ok(SegmentRouting {
             envelope: CondRc::new(envelope),
@@ -505,59 +470,15 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 }
 
-impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {}
-
-impl<E: Ipv6Packet> SegmentRoutingExt for SegmentRouting<E> {
-    /// Returns the first segment in the segment list.
+impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
     #[inline]
-    fn first_segment(&self) -> Segment {
-        let segments = self.segments();
-        segments[segments.len() - 1]
+    fn next_header(&self) -> ProtocolNumber {
+        ProtocolNumber::new(self.header().next_header)
     }
 
-    /// Returns the last segment in the segment list.
     #[inline]
-    fn last_segment(&self) -> Segment {
-        self.segments()[0]
-    }
-
-    /// Returns the current segment in the segment list.
-    #[inline]
-    fn current_segment(&self) -> Result<Segment> {
-        let segments = self.segments();
-        let current_idx = self.segments_left() as usize;
-
-        if let Some(segment) = segments.get(current_idx) {
-            Ok(*segment)
-        } else {
-            Err(SegmentsOutOfBoundsError(current_idx, segments.len()).into())
-        }
-    }
-
-    /// Returns the previous segment in the segment list.
-    #[inline]
-    fn previous_segment(&self) -> Result<Segment> {
-        let segments = self.segments();
-        let prev_idx = self.segments_left() as usize + 1;
-
-        if let Some(segment) = segments.get(prev_idx) {
-            Ok(*segment)
-        } else {
-            Err(SegmentsOutOfBoundsError(prev_idx, segments.len()).into())
-        }
-    }
-
-    /// Returns the next segment in the segment list.
-    #[inline]
-    fn next_segment(&self) -> Result<Segment> {
-        let segments = self.segments();
-        let next_idx = self.segments_left() as usize - 1;
-
-        if let Some(segment) = segments.get(next_idx) {
-            Ok(*segment)
-        } else {
-            Err(SegmentsOutOfBoundsError(next_idx, segments.len()).into())
-        }
+    fn set_next_header(&mut self, next_header: ProtocolNumber) {
+        self.header_mut().next_header = next_header.0;
     }
 }
 
@@ -663,7 +584,7 @@ mod tests {
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
 
-        let segment1: Segment = "::1".parse().unwrap();
+        let segment1: Ipv6Addr = "::1".parse().unwrap();
 
         assert!(srh.set_segments(&[segment1]).is_ok());
         assert_eq!(2, srh.hdr_ext_len());
@@ -671,9 +592,9 @@ mod tests {
         assert_eq!(1, srh.segments().len());
         assert_eq!(segment1, srh.segments()[0]);
 
-        let segment2: Segment = "::2".parse().unwrap();
-        let segment3: Segment = "::3".parse().unwrap();
-        let segment4: Segment = "::4".parse().unwrap();
+        let segment2: Ipv6Addr = "::2".parse().unwrap();
+        let segment3: Ipv6Addr = "::3".parse().unwrap();
+        let segment4: Ipv6Addr = "::4".parse().unwrap();
 
         assert!(srh
             .set_segments(&[segment1, segment2, segment3, segment4])
@@ -693,55 +614,22 @@ mod tests {
     }
 
     #[dpdk_test]
-    fn set_segments_left() {
-        let packet = RawPacket::from_bytes(&SRH_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
-
-        // packet has 3 segments
-        assert!(srh.set_segments_left_and_dst(1).is_ok());
-        assert_eq!(1, srh.segments_left());
-        assert_eq!(srh.segments()[1], srh.envelope().dst());
-
-        assert_eq!(
-            "2001:db8:85a3::8a2e:370:7333",
-            srh.next_segment().unwrap().to_string()
-        );
-        assert_eq!(
-            "2001:db8:85a3::8a2e:370:7334",
-            srh.current_segment().unwrap().to_string()
-        );
-        assert_eq!(
-            "2001:db8:85a3::8a2e:370:7335",
-            srh.previous_segment().unwrap().to_string()
-        );
-
-        assert!(srh.set_segments_left_and_dst(10).is_err());
-        assert_eq!(1, srh.segments_left());
-
-        // set only the segments_left field
-        srh.set_segments_left(2);
-        assert_eq!(2, srh.segments_left());
-    }
-
-    #[dpdk_test]
     fn check_checksum() {
         let packet = RawPacket::from_bytes(&SRH_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
 
-        let segment1: Segment = "::1".parse().unwrap();
-        let segment2: Segment = "::2".parse().unwrap();
-        let segment3: Segment = "::3".parse().unwrap();
-        let segment4: Segment = "::4".parse().unwrap();
+        let segment1: Ipv6Addr = "::1".parse().unwrap();
+        let segment2: Ipv6Addr = "::2".parse().unwrap();
+        let segment3: Ipv6Addr = "::3".parse().unwrap();
+        let segment4: Ipv6Addr = "::4".parse().unwrap();
 
         assert!(srh
             .set_segments(&[segment1, segment2, segment3, segment4])
             .is_ok());
         assert_eq!(4, srh.segments().len());
-        srh.set_segments_left_and_dst(3).unwrap();
+        srh.set_segments_left(3);
 
         let mut tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
 
@@ -761,7 +649,7 @@ mod tests {
         let mut srh_ret = tcp.deparse();
         assert!(srh_ret.set_segments(&[segment1]).is_ok());
         assert_eq!(1, srh_ret.segments().len());
-        srh_ret.set_segments_left_and_dst(0).unwrap();
+        srh_ret.set_segments_left(0);
 
         let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
         tcp_ret.cascade();
@@ -770,7 +658,7 @@ mod tests {
         // Let's make sure that if segments left is 0, then our checksum
         // is still the same segment.
         let mut srh_fin = tcp_ret.deparse();
-        srh_fin.set_segments_left_and_dst(0).unwrap();
+        srh_fin.set_segments_left(0);
         let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
         tcp_fin.cascade();
         assert_eq!(expected, tcp_fin.checksum());
