@@ -103,7 +103,7 @@ impl fmt::Display for CoreId {
     }
 }
 
-/// Initialize the Environment Abstraction Layer (EAL).
+/// Initializes the Environment Abstraction Layer (EAL).
 pub fn eal_init(args: Vec<String>) -> Result<()> {
     let len = args.len() as raw::c_int;
     let mut args = args
@@ -123,4 +123,9 @@ pub fn eal_init(args: Vec<String>) -> Result<()> {
     // });
 
     res.to_result().map(|_| ())
+}
+
+/// Cleans up the Environment Abstraction Layer (EAL).
+pub fn eal_cleanup() -> Result<()> {
+    unsafe { ffi::rte_eal_cleanup().to_result().map(|_| ()) }
 }
