@@ -5,7 +5,7 @@ extern crate nb2_ffi;
 // make sure macros are defined before other mods
 mod macros;
 
-pub mod dpdk;
+mod dpdk;
 mod ffi;
 mod runtime;
 

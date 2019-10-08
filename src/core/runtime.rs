@@ -1,4 +1,4 @@
-use crate::dpdk::{eal_init, CoreId, Mempool, Port, SocketId};
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Mempool, Port, SocketId};
 use crate::Result;
 use std::collections::HashMap;
 
@@ -30,5 +30,12 @@ impl Runtime {
         debug!("{}", pcap);
 
         Ok(Runtime { mempools })
+    }
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        debug!("freeing EAL.");
+        eal_cleanup().unwrap();
     }
 }

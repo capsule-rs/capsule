@@ -27,11 +27,11 @@ impl Mempool {
         Ok(Self { pool })
     }
 
-    fn pool(&self) -> &ffi::rte_mempool {
+    pub fn pool(&self) -> &ffi::rte_mempool {
         unsafe { self.pool.as_ref() }
     }
 
-    pub(crate) fn pool_mut(&mut self) -> &mut ffi::rte_mempool {
+    pub fn pool_mut(&mut self) -> &mut ffi::rte_mempool {
         unsafe { self.pool.as_mut() }
     }
 
@@ -59,6 +59,9 @@ impl fmt::Display for Mempool {
 impl Drop for Mempool {
     fn drop(&mut self) {
         debug!("freeing {}.", self.name());
-        unsafe { ffi::rte_mempool_free(self.pool_mut()) };
+
+        unsafe {
+            ffi::rte_mempool_free(self.pool_mut());
+        }
     }
 }

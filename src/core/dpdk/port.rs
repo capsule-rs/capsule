@@ -164,6 +164,24 @@ impl Port {
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
+
+    pub fn start(&mut self) -> Result<()> {
+        unsafe {
+            ffi::rte_eth_dev_start(self.id.0).to_result()?;
+            ffi::rte_eth_promiscuous_enable(self.id.0);
+        }
+
+        info!("started {}.", self.name());
+        Ok(())
+    }
+
+    pub fn stop(&mut self) {
+        unsafe {
+            ffi::rte_eth_dev_stop(self.id.0);
+        }
+
+        info!("stopped {}.", self.name());
+    }
 }
 
 impl fmt::Display for Port {
@@ -171,35 +189,30 @@ impl fmt::Display for Port {
         let info = self.info;
         write!(
             f,
-            "{}: driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}",
+            "{}: port={}, driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}, socket={}",
             self.name,
+            self.id.0,
             info.driver_name.as_str(),
             info.rx_offload_capa,
             info.tx_offload_capa,
             info.max_rx_queues,
             info.max_tx_queues,
+            self.id.socket_id().map_or_else(|| "n/a".to_owned(), |sid| sid.0.to_string()),
         )
     }
 }
 
+impl Drop for Port {
+    fn drop(&mut self) {
+        debug!("freeing {}.", self.name());
+
+        unsafe {
+            ffi::rte_eth_dev_close(self.id.0);
+        }
+    }
+}
+
 // impl PmdPort {
-//     pub fn start(&self) -> Result<(), Error> {
-//         unsafe {
-//             let ret = ffi::rte_eth_dev_start(self.port_id);
-//             if ret == 0 {
-//                 Ok(())
-//             } else {
-//                 Err(format_err!("{} device {} not started.", ret, self.name))
-//             }
-//         }
-//     }
-
-//     pub fn stop(&self) {
-//         unsafe {
-//             ffi::rte_eth_dev_stop(self.port_id);
-//         }
-//     }
-
 //     pub fn receive(&self) -> Vec<MBuf> {
 //         unsafe {
 //             let batch_size = 32;
