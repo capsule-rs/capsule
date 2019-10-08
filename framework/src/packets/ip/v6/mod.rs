@@ -11,7 +11,13 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 
 /// Common behaviors shared by IPv6 and extension packets
-pub trait Ipv6Packet: IpPacket {}
+pub trait Ipv6Packet: IpPacket {
+    /// Returns the next header type
+    fn next_header(&self) -> ProtocolNumber;
+
+    /// Sets the next header type
+    fn set_next_header(&mut self, next_header: ProtocolNumber);
+}
 
 /// The minimum IPv6 MTU
 ///
@@ -193,16 +199,6 @@ impl Ipv6 {
     #[inline]
     fn set_payload_length(&mut self, payload_length: u16) {
         self.header_mut().payload_length = u16::to_be(payload_length);
-    }
-
-    #[inline]
-    pub fn next_header(&self) -> ProtocolNumber {
-        ProtocolNumber::new(self.header().next_header)
-    }
-
-    #[inline]
-    pub fn set_next_header(&mut self, next_header: ProtocolNumber) {
-        self.header_mut().next_header = next_header.0;
     }
 
     #[inline]
@@ -407,7 +403,17 @@ impl IpPacket for Ipv6 {
     }
 }
 
-impl Ipv6Packet for Ipv6 {}
+impl Ipv6Packet for Ipv6 {
+    #[inline]
+    fn next_header(&self) -> ProtocolNumber {
+        ProtocolNumber::new(self.header().next_header)
+    }
+
+    #[inline]
+    fn set_next_header(&mut self, next_header: ProtocolNumber) {
+        self.header_mut().next_header = next_header.0;
+    }
+}
 
 #[cfg(test)]
 #[rustfmt::skip]
