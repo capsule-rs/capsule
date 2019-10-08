@@ -45,7 +45,7 @@ impl fmt::Display for Mempool {
         let pool = self.pool();
         write!(
             f,
-            "{}: capacity={}, populated={}, cache_size={}, flags={}, socket={}",
+            "{}: capacity={}, populated={}, cache_size={}, flags={:#x}, socket={}",
             self.name(),
             pool.size,
             pool.populated_size,
@@ -53,5 +53,12 @@ impl fmt::Display for Mempool {
             pool.flags,
             pool.socket_id,
         )
+    }
+}
+
+impl Drop for Mempool {
+    fn drop(&mut self) {
+        debug!("freeing {}.", self.name());
+        unsafe { ffi::rte_mempool_free(self.pool_mut()) };
     }
 }

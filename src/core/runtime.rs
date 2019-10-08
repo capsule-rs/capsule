@@ -13,7 +13,7 @@ impl Runtime {
         info!("creating mempools...");
         let socket_id = SocketId::current();
         let mempool = Mempool::create(65535, 16, socket_id)?;
-        info!("created '{}'.", mempool.name());
+        info!("created {}.", mempool.name());
         debug!("{}", mempool);
 
         let mut mempools = HashMap::new();
@@ -21,14 +21,13 @@ impl Runtime {
 
         let cores = [CoreId(0)];
 
-        let _ = Port::init(
-            "0000:00:08.0".to_owned(),
-            256,
-            256,
-            &cores[..],
-            &mut mempools,
-        )?;
-        let _ = Port::init("net_pcap0".to_owned(), 256, 256, &cores[..], &mut mempools)?;
+        info!("initializing ports...");
+        let pci = Port::init("0000:00:08.0".to_owned(), 256, 256, &cores, &mut mempools)?;
+        info!("init port {}.", pci.name());
+        debug!("{}", pci);
+        let pcap = Port::init("net_pcap0".to_owned(), 256, 256, &cores, &mut mempools)?;
+        info!("init port {}.", pcap.name());
+        debug!("{}", pcap);
 
         Ok(Runtime { mempools })
     }

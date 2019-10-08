@@ -23,6 +23,7 @@ macro_rules! ensure {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! error {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -67,6 +68,7 @@ macro_rules! debug {
     )
 }
 
+#[allow(unused_macros)]
 macro_rules! trace {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {

@@ -34,16 +34,5 @@ fn main() -> Result<()> {
 
     info!("HOORAY!!!");
 
-    // let port = dpdk::PmdPort::init("0000:00:08.0", &mut mempool)?;
-    // println!("0000:00:08.0 uses driver '{}'.", port.driver_name());
-    // port.start()?;
-    // println!("port started.");
-    // loop {
-    //     let pks = port.receive();
-    //     port.send(pks);
-    // }
-    // port.stop();
-    // println!("port stopped.");
-
     Ok(())
 }
