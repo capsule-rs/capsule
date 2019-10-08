@@ -17,10 +17,11 @@
 */
 
 use crate::dpdk::{CoreId, Mempool, SocketId};
-use crate::ffi::{self, ToCString, ToResult};
+use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::Result;
 use failure::Fail;
 use std::collections::HashMap;
+use std::fmt;
 use std::ptr;
 
 /// An opaque identifier for a port.
@@ -34,7 +35,7 @@ impl PortId {
     /// real socket ID. The value returned will be discarded if it does
     /// not match any of the system's physical socket IDs.
     #[inline]
-    pub fn socket_id(&self) -> Option<SocketId> {
+    pub fn socket_id(self) -> Option<SocketId> {
         let id = unsafe { SocketId(ffi::rte_eth_dev_socket_id(self.0) as u32) };
         if SocketId::all().contains(&id) {
             Some(id)
@@ -58,6 +59,7 @@ pub struct PortHandle {
 
 pub struct Port {
     id: PortId,
+    name: String,
     handles: HashMap<CoreId, PortHandle>,
     info: ffi::rte_eth_dev_info,
 }
@@ -77,8 +79,8 @@ pub struct MempoolNotFound(u32);
 impl Port {
     pub fn init(
         name: String,
-        rx_desc: usize,
-        tx_desc: usize,
+        rxd: usize,
+        txd: usize,
         cores: &[CoreId],
         mempools: &mut HashMap<SocketId, Mempool>,
     ) -> Result<Self> {
@@ -106,25 +108,25 @@ impl Port {
             let port_conf = ffi::rte_eth_conf::default();
             ffi::rte_eth_dev_configure(port_id.0, len, len, &port_conf).to_result()?;
 
-            let mut new_rx_desc = rx_desc as u16;
-            let mut new_tx_desc = tx_desc as u16;
-            ffi::rte_eth_dev_adjust_nb_rx_tx_desc(port_id.0, &mut new_rx_desc, &mut new_tx_desc)
+            let mut new_rxd = rxd as u16;
+            let mut new_txd = txd as u16;
+            ffi::rte_eth_dev_adjust_nb_rx_tx_desc(port_id.0, &mut new_rxd, &mut new_txd)
                 .to_result()?;
 
             info!(
-                cond: new_rx_desc != rx_desc as u16,
-                "adjusted number of RX descriptors from {} to {}.", rx_desc, new_rx_desc
+                cond: new_rxd != rxd as u16,
+                "adjusted rxd from {} to {}.", rxd, new_rxd
             );
             info!(
-                cond: new_tx_desc != tx_desc as u16,
-                "adjusted number of TX descriptors from {} to {}.", tx_desc, new_tx_desc
+                cond: new_txd != txd as u16,
+                "adjusted txd from {} to {}.", txd, new_txd
             );
 
             // if the port is virtual, we tie it to the socket of the first core
             let socket_id = port_id
                 .socket_id()
                 .unwrap_or_else(|| cores.first().unwrap().socket_id());
-            debug!("{:?} is connected to socket {}.", name, socket_id.0);
+            debug!("{:?} connected to {}.", name, socket_id);
 
             let mempool = mempools
                 .get_mut(&socket_id)
@@ -132,12 +134,10 @@ impl Port {
 
             let mut handles = HashMap::new();
 
-            for idx in 0..len as usize {
-                let core_id = cores[idx];
-
+            for (idx, &core_id) in cores.iter().enumerate() {
                 warn!(
                     cond: core_id.socket_id() != socket_id,
-                    "core '{}''s socket '{}' does not match port's socket '{}'.",
+                    "{} socket '{}' does not match port socket '{}'.",
                     core_id.0,
                     core_id.socket_id().0,
                     socket_id.0
@@ -147,7 +147,7 @@ impl Port {
                 ffi::rte_eth_rx_queue_setup(
                     port_id.0,
                     rxq_id.0,
-                    new_rx_desc,
+                    new_rxd,
                     socket_id.0,
                     ptr::null(),
                     mempool.pool_mut(),
@@ -155,14 +155,8 @@ impl Port {
                 .to_result()?;
 
                 let txq_id = TxQueueId(idx as u16);
-                ffi::rte_eth_tx_queue_setup(
-                    port_id.0,
-                    txq_id.0,
-                    new_tx_desc,
-                    socket_id.0,
-                    ptr::null(),
-                )
-                .to_result()?;
+                ffi::rte_eth_tx_queue_setup(port_id.0, txq_id.0, new_txd, socket_id.0, ptr::null())
+                    .to_result()?;
 
                 handles.insert(
                     core_id,
@@ -173,27 +167,40 @@ impl Port {
                     },
                 );
 
-                debug!("core '{}' initialized for {:?}.", core_id.0, name);
+                debug!("initialized port queue for {}.", core_id);
             }
 
             Ok(Port {
+                name: name.into_string().unwrap(),
                 id: port_id,
                 handles,
                 info: port_info,
             })
         }
     }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl fmt::Display for Port {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let info = self.info;
+        write!(
+            f,
+            "{}: driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}",
+            self.name,
+            info.driver_name.as_str(),
+            info.rx_offload_capa,
+            info.tx_offload_capa,
+            info.max_rx_queues,
+            info.max_tx_queues,
+        )
+    }
 }
 
 // impl PmdPort {
-//     pub fn driver_name(&self) -> &str {
-//         unsafe {
-//             CStr::from_ptr(self.dev_info.driver_name)
-//                 .to_str()
-//                 .unwrap_or("unknown")
-//         }
-//     }
-
 //     pub fn start(&self) -> Result<(), Error> {
 //         unsafe {
 //             let ret = ffi::rte_eth_dev_start(self.port_id);

@@ -26,11 +26,11 @@ use std::ptr::NonNull;
 
 /// Simplify `*const c_char` or [c_char] to `&str` conversion.
 pub trait AsStr {
-    #[inline]
     fn as_str(&self) -> &str;
 }
 
 impl AsStr for *const raw::c_char {
+    #[inline]
     fn as_str(&self) -> &str {
         unsafe {
             CStr::from_ptr(*self).to_str().unwrap_or_else(|_| {
@@ -42,6 +42,7 @@ impl AsStr for *const raw::c_char {
 }
 
 impl AsStr for [raw::c_char] {
+    #[inline]
     fn as_str(&self) -> &str {
         unsafe {
             CStr::from_ptr(self.as_ptr()).to_str().unwrap_or_else(|_| {
@@ -58,12 +59,14 @@ pub trait ToCString {
 }
 
 impl ToCString for String {
+    #[inline]
     fn to_cstring(self) -> CString {
         CString::new(self).unwrap()
     }
 }
 
 impl ToCString for &str {
+    #[inline]
     fn to_cstring(self) -> CString {
         CString::new(self).unwrap()
     }
@@ -73,13 +76,13 @@ impl ToCString for &str {
 pub trait ToResult {
     type Ok;
 
-    #[inline]
     fn to_result(self) -> Result<Self::Ok>;
 }
 
 impl ToResult for raw::c_int {
     type Ok = u32;
 
+    #[inline]
     fn to_result(self) -> Result<Self::Ok> {
         match self {
             -1 => Err(DpdkError::new().into()),
@@ -92,6 +95,7 @@ impl ToResult for raw::c_int {
 impl<T> ToResult for *mut T {
     type Ok = NonNull<T>;
 
+    #[inline]
     fn to_result(self) -> Result<Self::Ok> {
         NonNull::new(self).ok_or_else(|| DpdkError::new().into())
     }

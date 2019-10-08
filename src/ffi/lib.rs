@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#![allow(clippy::all)]
 #![feature(static_nobundle)]
 
 mod rte;
