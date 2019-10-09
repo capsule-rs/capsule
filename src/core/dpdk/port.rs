@@ -27,6 +27,12 @@ impl PortId {
     }
 }
 
+impl fmt::Display for PortId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "port{}", self.0)
+    }
+}
+
 /// An opaque identifier for a RX queue.
 struct RxQueueId(u16);
 
@@ -72,7 +78,7 @@ impl Port {
             let mut port_id = 0u16;
             ffi::rte_eth_dev_get_port_by_name(name.as_ptr(), &mut port_id).to_result()?;
             let port_id = PortId(port_id);
-            debug!("{:?} has port id {}.", name, port_id.0);
+            debug!("{:?} is {}.", name, port_id);
 
             let len = cores.len() as u16;
             let mut port_info = ffi::rte_eth_dev_info::default();
@@ -132,7 +138,7 @@ impl Port {
                     new_rxd,
                     socket_id.0,
                     ptr::null(),
-                    mempool.pool_mut(),
+                    mempool.raw_mut(),
                 )
                 .to_result()?;
 

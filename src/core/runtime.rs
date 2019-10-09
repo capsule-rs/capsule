@@ -1,4 +1,5 @@
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Mempool, Port, SocketId};
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Mempool, Port, SocketId, MEMPOOL};
+use crate::ffi;
 use crate::Result;
 use std::collections::HashMap;
 
@@ -12,9 +13,12 @@ impl Runtime {
 
         info!("creating mempools...");
         let socket_id = SocketId::current();
-        let mempool = Mempool::create(65535, 16, socket_id)?;
+        let mut mempool = Mempool::create(65535, 16, socket_id)?;
         info!("created {}.", mempool.name());
         debug!("{}", mempool);
+
+        let ptr: *mut ffi::rte_mempool = mempool.raw_mut();
+        MEMPOOL.with(|tl| tl.set(ptr));
 
         let mut mempools = HashMap::new();
         mempools.insert(socket_id, mempool);

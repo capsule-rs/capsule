@@ -9,6 +9,7 @@ mod dpdk;
 mod ffi;
 mod runtime;
 
+pub use crate::dpdk::Mbuf;
 pub use crate::runtime::Runtime;
 
 use failure::Error;

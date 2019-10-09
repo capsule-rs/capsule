@@ -3,8 +3,8 @@ extern crate log;
 extern crate nb2;
 extern crate simplelog;
 
-use log::info;
-use nb2::{Result, Runtime};
+use log::{debug, info};
+use nb2::{Mbuf, Result, Runtime};
 use simplelog::*;
 
 fn main() -> Result<()> {
@@ -30,9 +30,15 @@ fn main() -> Result<()> {
     ];
 
     let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
-    let _ = Runtime::init(args)?;
+    let runtime = Runtime::init(args)?;
 
     info!("HOORAY!!!");
+
+    let mbuf = Mbuf::new()?;
+    debug!("{}", mbuf);
+
+    drop(mbuf);
+    drop(runtime);
 
     Ok(())
 }
