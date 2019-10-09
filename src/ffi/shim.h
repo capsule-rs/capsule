@@ -16,25 +16,34 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#include <rte_mbuf.h>
+#include <rte_mempool.h>
+
 /**
  * Error number value, stored per-thread, which can be queried after
  * calls to certain functions to determine why those functions failed.
  */
-int
-_rte_errno(void);
-
+int _rte_errno(void);
 
 /**
  * Return the Application thread ID of the execution unit.
  */
-unsigned
-_rte_lcore_id(void);
+unsigned _rte_lcore_id(void);
 
 /**
- * Get the ID of the physical socket of the specified lcore
+ * Get the ID of the physical socket of the specified lcore.
  */
-unsigned
-_rte_lcore_to_socket_id(unsigned lcore_id);
+unsigned _rte_lcore_to_socket_id(unsigned lcore_id);
+
+/**
+ * Allocate a new mbuf from a mempool.
+ */
+struct rte_mbuf *_rte_pktmbuf_alloc(struct rte_mempool *mp);
+
+/**
+ * Free a packet mbuf back into its original mempool.
+ */
+void _rte_pktmbuf_free(struct rte_mbuf *m);
 
 /**
  * Retrieve a burst of input packets from a receive queue of an Ethernet

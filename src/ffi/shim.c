@@ -19,20 +19,27 @@
 #include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
+#include <rte_mbuf.h>
+#include <rte_mempool.h>
 
-int
-_rte_errno(void) {
+int _rte_errno(void) {
     return rte_errno;
 }
 
-unsigned
-_rte_lcore_id(void) {
+unsigned _rte_lcore_id(void) {
     return rte_lcore_id();
 }
 
-unsigned
-_rte_lcore_to_socket_id(unsigned lcore_id) {
+unsigned _rte_lcore_to_socket_id(unsigned lcore_id) {
     return rte_lcore_to_socket_id(lcore_id);
+}
+
+struct rte_mbuf *_rte_pktmbuf_alloc(struct rte_mempool *mp) {
+    return rte_pktmbuf_alloc(mp);
+}
+
+void _rte_pktmbuf_free(struct rte_mbuf *m) {
+    rte_pktmbuf_free(m);
 }
 
 uint16_t _rte_eth_rx_burst(

@@ -34,6 +34,7 @@ fn main() {
     cc::Build::new()
         .file("shim.c")
         .include("/opt/dpdk/build/include")
+        .flag("-march=native")
         .compile("rte_shim");
 
     let bindings = bindgen::Builder::default()

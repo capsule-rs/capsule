@@ -16,11 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//mod mbuf;
+mod mbuf;
 mod mempool;
 mod port;
 
-//pub use mbuf::*;
+pub use mbuf::*;
 pub use mempool::*;
 pub use port::*;
 

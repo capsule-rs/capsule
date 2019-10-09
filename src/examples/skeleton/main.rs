@@ -20,8 +20,8 @@ extern crate capsule;
 extern crate failure;
 extern crate simplelog;
 
-use capsule::{Result, Runtime};
-use log::info;
+use capsule::{Mbuf, Result, Runtime};
+use log::{debug, info};
 use simplelog::*;
 
 fn main() -> Result<()> {
@@ -47,9 +47,15 @@ fn main() -> Result<()> {
     ];
 
     let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
-    let _ = Runtime::init(args)?;
+    let runtime = Runtime::init(args)?;
 
     info!("HOORAY!!!");
+
+    let mbuf = Mbuf::new()?;
+    debug!("{}", mbuf);
+
+    drop(mbuf);
+    drop(runtime);
 
     Ok(())
 }
