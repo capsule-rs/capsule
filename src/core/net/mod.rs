@@ -16,30 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate capsule_ffi;
-extern crate capsule_macros;
-extern crate failure;
-extern crate log;
+mod mac;
 
-// alias for the test macro
-#[cfg(test)]
-extern crate self as capsule;
-
-// make sure macros are defined before other mods
-mod macros;
-
-mod dpdk;
-mod ffi;
-pub mod net;
-mod runtime;
-mod testil;
-
-pub use crate::dpdk::Mbuf;
-pub use crate::runtime::Runtime;
-pub use capsule_macros::test;
-
-use failure::Error;
-use std::result;
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = result::Result<T, Error>;
+pub use self::mac::{MacAddr, MacParseError};

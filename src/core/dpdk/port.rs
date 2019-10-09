@@ -18,6 +18,7 @@
 
 use crate::dpdk::{CoreId, Mempool, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
+use crate::net::MacAddr;
 use crate::Result;
 use failure::Fail;
 use std::collections::HashMap;
@@ -196,6 +197,15 @@ impl Port {
         self.name.as_str()
     }
 
+    // Returns the MAC address of the port
+    pub fn mac_addr(&self) -> MacAddr {
+        unsafe {
+            let mut addr = ffi::ether_addr::default();
+            ffi::rte_eth_macaddr_get(self.id.0, &mut addr);
+            addr.addr_bytes.into()
+        }
+    }
+
     pub fn start(&mut self) -> Result<()> {
         unsafe {
             ffi::rte_eth_dev_start(self.id.0).to_result()?;
@@ -220,9 +230,10 @@ impl fmt::Display for Port {
         let info = self.info;
         write!(
             f,
-            "{}: port={}, driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}, socket={}",
+            "{}: port={}, mac={}, driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}, socket={}",
             self.name,
             self.id.0,
+            self.mac_addr(),
             info.driver_name.as_str(),
             info.rx_offload_capa,
             info.tx_offload_capa,
