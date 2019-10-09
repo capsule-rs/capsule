@@ -2,11 +2,14 @@
 name = "skeleton"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+license = "Apache-2.0"
+keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [[bin]]
 name = "skeleton"
 path = "main.rs"
+doctest = false
 
 [dependencies]
 capsule = { path = "../../core" }

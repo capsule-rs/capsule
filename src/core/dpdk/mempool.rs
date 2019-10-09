@@ -23,6 +23,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::os::raw;
 use std::ptr::{self, NonNull};
+use std::thread;
 
 pub struct Mempool {
     raw: NonNull<ffi::rte_mempool>,
@@ -30,7 +31,10 @@ pub struct Mempool {
 
 impl Mempool {
     pub fn create(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
-        let name = format!("mempool{}", socket_id.0).to_cstring();
+        let name = match socket_id {
+            SocketId::ANY => format!("mempool-{:?}", thread::current().id()).to_cstring(),
+            _ => format!("mempool{}", socket_id.0).to_cstring(),
+        };
         let raw = unsafe {
             ffi::rte_pktmbuf_pool_create(
                 name.as_ptr(),
@@ -38,7 +42,7 @@ impl Mempool {
                 cache_size as raw::c_uint,
                 0,
                 ffi::RTE_MBUF_DEFAULT_BUF_SIZE as u16,
-                socket_id.0 as raw::c_int,
+                socket_id.0,
             )
             .to_result()?
         };

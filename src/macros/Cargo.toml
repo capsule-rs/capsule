@@ -1,18 +1,17 @@
 [package]
-name = "capsule-ffi"
-version = "18.11.2"
+name = "capsule-macros"
+version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
 keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [lib]
-name = "capsule_ffi"
+name = "capsule_macros"
 path = "lib.rs"
+proc-macro = true
 doctest = false
 
-[build-dependencies]
-bindgen = "0.51"
-cc = "1.0"
-
 [dependencies]
+quote = "1"
+syn = { version = "1.0", features = ["full"] }

@@ -22,6 +22,7 @@ use crate::Result;
 use failure::Fail;
 use std::collections::HashMap;
 use std::fmt;
+use std::os::raw;
 use std::ptr;
 
 /// An opaque identifier for a port.
@@ -36,7 +37,7 @@ impl PortId {
     /// not match any of the system's physical socket IDs.
     #[inline]
     pub fn socket_id(self) -> Option<SocketId> {
-        let id = unsafe { SocketId(ffi::rte_eth_dev_socket_id(self.0) as u32) };
+        let id = unsafe { SocketId(ffi::rte_eth_dev_socket_id(self.0)) };
         if SocketId::all().contains(&id) {
             Some(id)
         } else {
@@ -80,7 +81,7 @@ pub struct InsufficientTxQueues(usize);
 
 #[derive(Debug, Fail)]
 #[fail(display = "Mempool for socket '{}' not found.", _0)]
-pub struct MempoolNotFound(u32);
+pub struct MempoolNotFound(raw::c_int);
 
 impl Port {
     pub fn init(
@@ -154,15 +155,21 @@ impl Port {
                     port_id.0,
                     rxq_id.0,
                     new_rxd,
-                    socket_id.0,
+                    socket_id.0 as raw::c_uint,
                     ptr::null(),
                     mempool.raw_mut(),
                 )
                 .to_result()?;
 
                 let txq_id = TxQueueId(idx as u16);
-                ffi::rte_eth_tx_queue_setup(port_id.0, txq_id.0, new_txd, socket_id.0, ptr::null())
-                    .to_result()?;
+                ffi::rte_eth_tx_queue_setup(
+                    port_id.0,
+                    txq_id.0,
+                    new_txd,
+                    socket_id.0 as raw::c_uint,
+                    ptr::null(),
+                )
+                .to_result()?;
 
                 handles.insert(
                     core_id,

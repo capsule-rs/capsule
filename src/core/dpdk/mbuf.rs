@@ -69,3 +69,13 @@ impl Drop for Mbuf {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[capsule::test]
+    fn allocate_new_mbuf() {
+        assert!(Mbuf::new().is_ok());
+    }
+}

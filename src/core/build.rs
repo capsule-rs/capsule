@@ -16,29 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate capsule_ffi;
-extern crate capsule_macros;
-extern crate failure;
-extern crate log;
+// https://github.com/rust-lang/rust/issues/56306
+// must statically link dpdk to the final binary, otherwise rustc
+// will decide to not link functions not explicitly called but
+// must be included in the final binary.
 
-// alias for the test macro
-#[cfg(test)]
-extern crate self as capsule;
-
-// make sure macros are defined before other mods
-mod macros;
-
-mod dpdk;
-mod ffi;
-mod runtime;
-mod testil;
-
-pub use crate::dpdk::Mbuf;
-pub use crate::runtime::Runtime;
-pub use capsule_macros::test;
-
-use failure::Error;
-use std::result;
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = result::Result<T, Error>;
+fn main() {
+    // need to statically link the mempool ring driver for `cargo test`
+    println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
+    println!("cargo:rustc-link-lib=static=rte_mempool_ring");
+}

@@ -2,13 +2,17 @@
 name = "capsule"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+license = "Apache-2.0"
+keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [lib]
 name = "capsule"
 path = "lib.rs"
+doctest = false
 
 [dependencies]
 capsule-ffi = { path = "../ffi" }
+capsule-macros = { path = "../macros" }
 failure = "0.1"
 log = "0.4"
