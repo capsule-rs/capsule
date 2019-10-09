@@ -12,6 +12,7 @@ mod macros;
 
 mod dpdk;
 mod ffi;
+pub mod net;
 mod runtime;
 mod testil;
 
