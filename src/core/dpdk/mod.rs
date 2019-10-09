@@ -33,13 +33,15 @@ impl DpdkError {
 
 /// An opaque identifier for a physical CPU socket.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SocketId(raw::c_uint);
+pub struct SocketId(raw::c_int);
 
 impl SocketId {
+    pub const ANY: Self = SocketId(-1);
+
     /// Returns the ID of the socket the current core is on.
     #[inline]
     pub fn current() -> SocketId {
-        unsafe { SocketId(ffi::rte_socket_id()) }
+        unsafe { SocketId(ffi::rte_socket_id() as raw::c_int) }
     }
 
     /// Returns all the socket IDs detected.
@@ -49,7 +51,7 @@ impl SocketId {
             (0..ffi::rte_socket_count())
                 .map(|idx| ffi::rte_socket_id_by_idx(idx))
                 .filter(|&sid| sid != -1)
-                .map(|sid| SocketId(sid as raw::c_uint))
+                .map(SocketId)
                 .collect::<Vec<_>>()
         }
     }
@@ -75,7 +77,7 @@ impl CoreId {
     /// Returns the ID of the socket the core is on.
     #[inline]
     pub fn socket_id(self) -> SocketId {
-        unsafe { SocketId(ffi::_rte_lcore_to_socket_id(self.0)) }
+        unsafe { SocketId(ffi::_rte_lcore_to_socket_id(self.0) as raw::c_int) }
     }
 }
 

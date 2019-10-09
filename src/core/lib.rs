@@ -1,6 +1,11 @@
 extern crate failure;
 extern crate log;
 extern crate nb2_ffi;
+extern crate nb2_macros;
+
+// alias for the test macro
+#[cfg(test)]
+extern crate self as nb2;
 
 // make sure macros are defined before other mods
 mod macros;
@@ -8,9 +13,11 @@ mod macros;
 mod dpdk;
 mod ffi;
 mod runtime;
+mod testil;
 
 pub use crate::dpdk::Mbuf;
 pub use crate::runtime::Runtime;
+pub use nb2_macros::test;
 
 use failure::Error;
 use std::result;

@@ -1,5 +1,5 @@
 [package]
-name = "nb2"
+name = "nb2-macros"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
@@ -7,12 +7,11 @@ keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [lib]
-name = "nb2"
+name = "nb2_macros"
 path = "lib.rs"
+proc-macro = true
 doctest = false
 
 [dependencies]
-failure = "0.1"
-log = "0.4"
-nb2-ffi = { path = "../ffi" }
-nb2-macros = { path = "../macros" }
+quote = "1"
+syn = { version = "1.0", features = ["full"] }
