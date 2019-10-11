@@ -27,7 +27,7 @@ use std::os::raw;
 use std::ptr;
 
 /// An opaque identifier for a port.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct PortId(u16);
 
 impl PortId {
@@ -47,8 +47,8 @@ impl PortId {
     }
 }
 
-impl fmt::Display for PortId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for PortId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "port{}", self.0)
     }
 }
@@ -98,7 +98,7 @@ impl Port {
             let mut port_id = 0u16;
             ffi::rte_eth_dev_get_port_by_name(name.as_ptr(), &mut port_id).to_result()?;
             let port_id = PortId(port_id);
-            debug!("{:?} is {}.", name, port_id);
+            debug!("{:?} is {:?}.", name, port_id);
 
             let len = cores.len() as u16;
             let mut port_info = ffi::rte_eth_dev_info::default();
@@ -134,7 +134,7 @@ impl Port {
             let socket_id = port_id
                 .socket_id()
                 .unwrap_or_else(|| cores.first().unwrap().socket_id());
-            debug!("{:?} connected to {}.", name, socket_id);
+            debug!("{:?} connected to {:?}.", name, socket_id);
 
             let mempool = mempools
                 .get_mut(&socket_id)
@@ -181,7 +181,7 @@ impl Port {
                     },
                 );
 
-                debug!("initialized port queue for {}.", core_id);
+                debug!("initialized port queue for {:?}.", core_id);
             }
 
             Ok(Port {
@@ -225,22 +225,25 @@ impl Port {
     }
 }
 
-impl fmt::Display for Port {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for Port {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let info = self.info;
-        write!(
-            f,
-            "{}: port={}, mac={}, driver={}, rx_offload={:#x}, tx_offload={:#x}, max_rxq={}, max_txq={}, socket={}",
-            self.name,
-            self.id.0,
-            self.mac_addr(),
-            info.driver_name.as_str(),
-            info.rx_offload_capa,
-            info.tx_offload_capa,
-            info.max_rx_queues,
-            info.max_tx_queues,
-            self.id.socket_id().map_or_else(|| "n/a".to_owned(), |sid| sid.0.to_string()),
-        )
+        f.debug_struct(&self.name)
+            .field("port", &self.id.0)
+            .field("mac", &format_args!("\"{}\"", self.mac_addr()))
+            .field("driver", &info.driver_name.as_str())
+            .field("rx_offload", &format_args!("{:#x}", info.rx_offload_capa))
+            .field("tx_offload", &format_args!("{:#x}", info.tx_offload_capa))
+            .field("max_rxq", &info.max_rx_queues)
+            .field("max_txq", &info.max_tx_queues)
+            .field(
+                "socket",
+                &self
+                    .id
+                    .socket_id()
+                    .map_or_else(|| "n/a".to_owned(), |sid| sid.0.to_string()),
+            )
+            .finish()
     }
 }
 

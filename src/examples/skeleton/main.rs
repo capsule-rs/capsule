@@ -52,7 +52,7 @@ fn main() -> Result<()> {
     info!("HOORAY!!!");
 
     let mbuf = Mbuf::new()?;
-    debug!("{}", mbuf);
+    debug!("{:?}", mbuf);
 
     drop(mbuf);
     drop(runtime);
