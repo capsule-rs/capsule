@@ -32,7 +32,7 @@ impl DpdkError {
 }
 
 /// An opaque identifier for a physical CPU socket.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq)]
 pub struct SocketId(raw::c_int);
 
 impl SocketId {
@@ -57,14 +57,14 @@ impl SocketId {
     }
 }
 
-impl fmt::Display for SocketId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for SocketId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "socket{}", self.0)
     }
 }
 
 /// An opaque identifier for a physical CPU core.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq)]
 pub struct CoreId(pub(crate) raw::c_uint);
 
 impl CoreId {
@@ -81,8 +81,8 @@ impl CoreId {
     }
 }
 
-impl fmt::Display for CoreId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for CoreId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "core{}", self.0)
     }
 }

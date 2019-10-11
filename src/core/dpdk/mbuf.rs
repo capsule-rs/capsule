@@ -31,20 +31,21 @@ impl From<NonNull<ffi::rte_mbuf>> for Mbuf {
     }
 }
 
-impl fmt::Display for Mbuf {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for Mbuf {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let raw = self.raw();
-        write!(
-            f,
-            "mbuf ({:p}): buffer_len={}, packet_len={}, data_len={}, data_offset={}",
-            raw.buf_addr, raw.buf_len, raw.pkt_len, raw.data_len, raw.data_off,
-        )
+        f.debug_struct(&format!("mbuf@{:p}", raw.buf_addr))
+            .field("buffer_len", &raw.buf_len)
+            .field("packet_len", &raw.pkt_len)
+            .field("data_len", &raw.data_len)
+            .field("data_offset", &raw.data_off)
+            .finish()
     }
 }
 
 impl Drop for Mbuf {
     fn drop(&mut self) {
-        debug!("freeing mbuf ({:p}).", self.raw().buf_addr);
+        debug!("freeing mbuf@{:p}.", self.raw().buf_addr);
 
         unsafe {
             ffi::_rte_pktmbuf_free(self.raw_mut());

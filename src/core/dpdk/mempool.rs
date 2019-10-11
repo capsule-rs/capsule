@@ -45,19 +45,16 @@ impl Mempool {
     }
 }
 
-impl fmt::Display for Mempool {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for Mempool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let raw = self.raw();
-        write!(
-            f,
-            "{}: capacity={}, populated={}, cache_size={}, flags={:#x}, socket={}",
-            self.name(),
-            raw.size,
-            raw.populated_size,
-            raw.cache_size,
-            raw.flags,
-            raw.socket_id,
-        )
+        f.debug_struct(self.name())
+            .field("capacity", &raw.size)
+            .field("populated", &raw.populated_size)
+            .field("cache_size", &raw.cache_size)
+            .field("flags", &format_args!("{:#x}", raw.flags))
+            .field("socket", &raw.socket_id)
+            .finish()
     }
 }
 
