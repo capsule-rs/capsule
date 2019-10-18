@@ -8,7 +8,7 @@ fn main() {
     // there's a problem statically linking to a linker script
     // see: https://github.com/rust-lang/rust/issues/40483
     println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
-    println!("cargo:rustc-link-lib=static-nobundle=dpdk");
+    println!("cargo:rustc-link-lib=dylib=dpdk");
     println!("cargo:rustc-link-lib=dylib=numa");
     println!("cargo:rustc-link-lib=dylib=pcap");
     println!("cargo:rustc-link-lib=dylib=z");

@@ -13,6 +13,10 @@ doctest = false
 
 [dependencies]
 failure = "0.1"
+libc = "0.2"
 log = "0.4"
 nb2-ffi = { path = "../ffi" }
 nb2-macros = { path = "../macros" }
+tokio = "=0.2.0-alpha.6"
+tokio-executor = { version = "=0.2.0-alpha.6", features = ["current-thread", "threadpool"] }
+tokio-timer = "=0.3.0-alpha.6"
