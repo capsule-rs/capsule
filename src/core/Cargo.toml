@@ -15,4 +15,8 @@ doctest = false
 capsule-ffi = { path = "../ffi" }
 capsule-macros = { path = "../macros" }
 failure = "0.1"
+libc = "0.2"
 log = "0.4"
+tokio = "=0.2.0-alpha.6"
+tokio-executor = { version = "=0.2.0-alpha.6", features = ["current-thread", "threadpool"] }
+tokio-timer = "=0.3.0-alpha.6"

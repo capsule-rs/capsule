@@ -20,6 +20,9 @@ extern crate capsule_ffi;
 extern crate capsule_macros;
 extern crate failure;
 extern crate log;
+extern crate tokio;
+extern crate tokio_executor;
+extern crate tokio_timer;
 
 // alias for the test macro
 #[cfg(test)]
@@ -28,6 +31,7 @@ extern crate self as capsule;
 // make sure macros are defined before other mods
 mod macros;
 
+mod core_map;
 mod dpdk;
 mod ffi;
 pub mod net;

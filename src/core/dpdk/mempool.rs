@@ -19,11 +19,16 @@
 use crate::dpdk::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::Result;
+use failure::Fail;
 use std::cell::Cell;
 use std::fmt;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::thread;
+
+#[derive(Debug, Fail)]
+#[fail(display = "Mempool for socket '{}' not found.", _0)]
+pub struct MempoolNotFound(pub(crate) raw::c_int);
 
 pub struct Mempool {
     raw: NonNull<ffi::rte_mempool>,

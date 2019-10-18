@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::{CoreId, Mempool, SocketId};
+use crate::dpdk::{CoreId, Mempool, MempoolNotFound, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
 use crate::Result;
@@ -79,10 +79,6 @@ pub struct InsufficientRxQueues(usize);
 #[derive(Debug, Fail)]
 #[fail(display = "Insufficient number of TX queues '{}'.", _0)]
 pub struct InsufficientTxQueues(usize);
-
-#[derive(Debug, Fail)]
-#[fail(display = "Mempool for socket '{}' not found.", _0)]
-pub struct MempoolNotFound(raw::c_int);
 
 impl Port {
     pub fn init(
@@ -228,7 +224,7 @@ impl Port {
 impl fmt::Debug for Port {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let info = self.info;
-        f.debug_struct(&self.name)
+        f.debug_struct(&self.name())
             .field("port", &self.id.0)
             .field("mac", &format_args!("\"{}\"", self.mac_addr()))
             .field("driver", &info.driver_name.as_str())
