@@ -1,11 +1,3 @@
-extern crate failure;
-extern crate log;
-extern crate nb2_ffi;
-extern crate nb2_macros;
-extern crate tokio;
-extern crate tokio_executor;
-extern crate tokio_timer;
-
 // alias for the test macro
 #[cfg(test)]
 extern crate self as nb2;
@@ -19,6 +11,7 @@ mod ffi;
 mod mempool_map;
 pub mod net;
 mod runtime;
+pub mod settings;
 mod testil;
 
 pub use crate::dpdk::Mbuf;
