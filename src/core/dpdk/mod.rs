@@ -100,7 +100,7 @@ impl fmt::Debug for SocketId {
 }
 
 /// An opaque identifier for a physical CPU core.
-#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CoreId(raw::c_uint);
 
 impl CoreId {
