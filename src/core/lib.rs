@@ -16,14 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate capsule_ffi;
-extern crate capsule_macros;
-extern crate failure;
-extern crate log;
-extern crate tokio;
-extern crate tokio_executor;
-extern crate tokio_timer;
-
 // alias for the test macro
 #[cfg(test)]
 extern crate self as capsule;
@@ -37,6 +29,7 @@ mod ffi;
 mod mempool_map;
 pub mod net;
 mod runtime;
+pub mod settings;
 mod testil;
 
 pub use crate::dpdk::Mbuf;

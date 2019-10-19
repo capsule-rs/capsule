@@ -153,6 +153,8 @@ impl fmt::Debug for CoreId {
 
 /// Initializes the Environment Abstraction Layer (EAL).
 pub fn eal_init(args: Vec<String>) -> Result<()> {
+    debug!("EAL arguments: {:?}", args);
+
     let len = args.len() as raw::c_int;
     let mut args = args
         .into_iter()

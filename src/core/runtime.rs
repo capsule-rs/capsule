@@ -16,51 +16,55 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::core_map::CoreMapBuilder;
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, SocketId};
+use crate::core_map::{CoreMap, CoreMapBuilder};
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder};
 use crate::mempool_map::MempoolMap;
+use crate::settings::RuntimeSettings;
 use crate::Result;
+use std::collections::HashSet;
 
 pub struct Runtime {
     ports: Vec<Port>,
     mempools: MempoolMap,
+    core_map: CoreMap,
 }
 
 impl Runtime {
-    pub fn init(args: Vec<String>) -> Result<Self> {
-        eal_init(args)?;
+    pub fn init(config: RuntimeSettings) -> Result<Self> {
+        eal_init(config.to_eal_args())?;
 
-        info!("creating mempools...");
-        let socket_id = SocketId::current();
-        let mut mempools = MempoolMap::new(65535, 16, &[socket_id])?;
+        let cores = config.all_cores();
 
-        let cores = [CoreId::new(0), CoreId::new(1), CoreId::new(2)];
+        info!("initializing mempools...");
+        let mut sockets = cores.iter().map(CoreId::socket_id).collect::<HashSet<_>>();
+        let sockets = sockets.drain().collect::<Vec<_>>();
+        let mut mempools =
+            MempoolMap::new(config.mempool.capacity, config.mempool.cache_size, &sockets)?;
 
-        let map = CoreMapBuilder::new()
+        info!("intializing cores...");
+        let core_map = CoreMapBuilder::new()
             .cores(&cores)
-            .master_core(&cores[0])
+            .master_core(&CoreId::new(config.master_core))
             .mempools(mempools.borrow_mut())
             .finish()?;
 
         info!("initializing ports...");
+        let mut ports = vec![];
+        for conf in config.ports.iter() {
+            let port = PortBuilder::new(conf.name.clone())?
+                .cores(&conf.cores())?
+                .mempools(mempools.borrow_mut())
+                .rx_tx_queue_capacity(conf.rxd, conf.txd)?
+                .finish()?;
 
-        let pci = PortBuilder::new("0000:00:08.0".to_owned())?
-            .cores(&cores[1..2])?
-            .mempools(mempools.borrow_mut())
-            .rx_tx_queue_capacity(256, 256)?
-            .finish()?;
-        debug!("{:?}", pci);
-
-        let pcap = PortBuilder::new("net_pcap0".to_owned())?
-            .cores(&cores[2..3])?
-            .mempools(mempools.borrow_mut())
-            .rx_tx_queue_capacity(256, 256)?
-            .finish()?;
-        debug!("{:?}", pcap);
+            debug!("{:?}", port);
+            ports.push(port);
+        }
 
         Ok(Runtime {
-            ports: vec![pci, pcap],
+            ports,
             mempools,
+            core_map,
         })
     }
 }
