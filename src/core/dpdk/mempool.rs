@@ -1,16 +1,11 @@
 use crate::dpdk::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::Result;
-use failure::Fail;
 use std::cell::Cell;
 use std::fmt;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-#[derive(Debug, Fail)]
-#[fail(display = "Mempool for socket '{}' not found.", _0)]
-pub struct MempoolNotFound(pub(crate) raw::c_int);
 
 // A global counter used to generate a unique name for new mempools.
 static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -35,7 +30,9 @@ impl Mempool {
     /// `socket_id` is the socket where the memory should be allocated. The
     /// value can be `SocketId::ANY` if there is no constraint.
     ///
-    /// Returns the new `Mempool` or a `DpdkError`.
+    /// # Errors
+    ///
+    /// If allocation fails, then `DpdkError` is returned.
     pub fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
         let n = MEMPOOL_COUNT.fetch_add(1, Ordering::Relaxed);
         let name = format!("mempool{}", n).to_cstring();
@@ -55,16 +52,19 @@ impl Mempool {
     }
 
     /// Returns the raw struct needed for FFI calls.
+    #[inline]
     pub fn raw(&self) -> &ffi::rte_mempool {
         unsafe { self.raw.as_ref() }
     }
 
     /// Returns the raw struct needed for FFI calls.
+    #[inline]
     pub fn raw_mut(&mut self) -> &mut ffi::rte_mempool {
         unsafe { self.raw.as_mut() }
     }
 
     /// Returns the name of the `Mempool`.
+    #[inline]
     pub fn name(&self) -> &str {
         self.raw().name[..].as_str()
     }

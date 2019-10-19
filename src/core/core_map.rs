@@ -1,5 +1,6 @@
-use crate::dpdk::{CoreId, Mempool, MempoolNotFound, SocketId, MEMPOOL};
+use crate::dpdk::{CoreId, MEMPOOL};
 use crate::ffi;
+use crate::mempool_map::MempoolMap2;
 use crate::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
@@ -30,7 +31,7 @@ unsafe impl std::marker::Send for SendablePtr {}
 pub struct CoreMapBuilder<'a> {
     cores: HashSet<CoreId>,
     master_core: CoreId,
-    mempools: HashMap<SocketId, &'a mut Mempool>,
+    mempools: MempoolMap2<'a>,
 }
 
 impl<'a> CoreMapBuilder<'a> {
@@ -52,22 +53,18 @@ impl<'a> CoreMapBuilder<'a> {
         self
     }
 
-    pub fn mempools(&mut self, mempools: &'a mut HashMap<SocketId, Mempool>) -> &mut Self {
-        self.mempools = mempools.iter_mut().map(|(&k, v)| (k, v)).collect();
+    pub fn mempools(&'a mut self, mempools: MempoolMap2<'a>) -> &'a mut Self {
+        self.mempools = mempools;
         self
     }
 
-    pub fn finish(&mut self) -> Result<CoreMap> {
+    pub fn finish(&'a mut self) -> Result<CoreMap> {
         let mut map = HashMap::new();
 
         // first initializes the master core, which the current running
         // thread should be affinitized to.
         let socket_id = self.master_core.socket_id();
-        let mempool = self
-            .mempools
-            .get_mut(&socket_id)
-            .ok_or_else(|| MempoolNotFound(socket_id.raw()))?
-            .raw_mut();
+        let mempool = self.mempools.get_raw(&socket_id)?;
 
         let (master_thread, core_executor) = init_core(&self.master_core, mempool)?;
 
@@ -87,11 +84,7 @@ impl<'a> CoreMapBuilder<'a> {
             // reference in a sendable pointer because we are sending it to
             // a background thread
             let socket_id = core_id.socket_id();
-            let mempool = self
-                .mempools
-                .get_mut(&socket_id)
-                .ok_or_else(|| MempoolNotFound(socket_id.raw()))?
-                .raw_mut();
+            let mempool = self.mempools.get_raw(&socket_id)?;
             let ptr = SendablePtr(mempool);
 
             // creates a synchronous channel so we can retrieve the executor for

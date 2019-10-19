@@ -1,5 +1,6 @@
-use crate::dpdk::{CoreId, Mempool, MempoolNotFound, SocketId};
+use crate::dpdk::{CoreId, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
+use crate::mempool_map::MempoolMap2;
 use crate::net::MacAddr;
 use crate::Result;
 use failure::Fail;
@@ -68,7 +69,7 @@ impl Port {
         rxd: usize,
         txd: usize,
         cores: &[CoreId],
-        mempools: &mut HashMap<SocketId, Mempool>,
+        mut mempools: MempoolMap2,
     ) -> Result<Self> {
         unsafe {
             let name = name.to_cstring();
@@ -114,9 +115,7 @@ impl Port {
                 .unwrap_or_else(|| cores.first().unwrap().socket_id());
             debug!("{:?} connected to {:?}.", name, socket_id);
 
-            let mempool = mempools
-                .get_mut(&socket_id)
-                .ok_or_else(|| MempoolNotFound(socket_id.0))?;
+            let mempool = mempools.get_raw(&socket_id)?;
 
             let mut handles = HashMap::new();
 
@@ -136,7 +135,7 @@ impl Port {
                     new_rxd,
                     socket_id.0 as raw::c_uint,
                     ptr::null(),
-                    mempool.raw_mut(),
+                    mempool,
                 )
                 .to_result()?;
 

@@ -1,11 +1,10 @@
 use crate::core_map::CoreMapBuilder;
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Mempool, Port, SocketId, MEMPOOL};
-use crate::ffi;
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, SocketId};
+use crate::mempool_map::MempoolMap;
 use crate::Result;
-use std::collections::HashMap;
 
 pub struct Runtime {
-    mempools: HashMap<SocketId, Mempool>,
+    mempools: MempoolMap,
 }
 
 impl Runtime {
@@ -14,22 +13,14 @@ impl Runtime {
 
         info!("creating mempools...");
         let socket_id = SocketId::current();
-        let mut mempool = Mempool::new(65535, 16, socket_id)?;
-        info!("created {}.", mempool.name());
-        debug!("{:?}", mempool);
-
-        let ptr: *mut ffi::rte_mempool = mempool.raw_mut();
-        MEMPOOL.with(|tl| tl.set(ptr));
-
-        let mut mempools = HashMap::new();
-        mempools.insert(socket_id, mempool);
+        let mut mempools = MempoolMap::new(65535, 16, &[socket_id])?;
 
         let cores = [CoreId::new(0), CoreId::new(1), CoreId::new(2)];
 
         let map = CoreMapBuilder::new()
             .cores(&cores)
             .master_core(&cores[0])
-            .mempools(&mut mempools)
+            .mempools(mempools.borrow_mut())
             .finish()?;
 
         info!("initializing ports...");
@@ -38,7 +29,7 @@ impl Runtime {
             256,
             256,
             &cores[1..2],
-            &mut mempools,
+            mempools.borrow_mut(),
         )?;
         info!("init port {}.", pci.name());
         debug!("{:?}", pci);
@@ -47,7 +38,7 @@ impl Runtime {
             256,
             256,
             &cores[2..3],
-            &mut mempools,
+            mempools.borrow_mut(),
         )?;
         info!("init port {}.", pcap.name());
         debug!("{:?}", pcap);
