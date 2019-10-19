@@ -1,9 +1,10 @@
 use crate::core_map::CoreMapBuilder;
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, SocketId};
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, SocketId};
 use crate::mempool_map::MempoolMap;
 use crate::Result;
 
 pub struct Runtime {
+    ports: Vec<Port>,
     mempools: MempoolMap,
 }
 
@@ -24,26 +25,25 @@ impl Runtime {
             .finish()?;
 
         info!("initializing ports...");
-        let pci = Port::init(
-            "0000:00:08.0".to_owned(),
-            256,
-            256,
-            &cores[1..2],
-            mempools.borrow_mut(),
-        )?;
-        info!("init port {}.", pci.name());
+
+        let pci = PortBuilder::new("0000:00:08.0".to_owned())?
+            .cores(&cores[1..2])?
+            .mempools(mempools.borrow_mut())
+            .rx_tx_queue_capacity(256, 256)?
+            .finish()?;
         debug!("{:?}", pci);
-        let pcap = Port::init(
-            "net_pcap0".to_owned(),
-            256,
-            256,
-            &cores[2..3],
-            mempools.borrow_mut(),
-        )?;
-        info!("init port {}.", pcap.name());
+
+        let pcap = PortBuilder::new("net_pcap0".to_owned())?
+            .cores(&cores[2..3])?
+            .mempools(mempools.borrow_mut())
+            .rx_tx_queue_capacity(256, 256)?
+            .finish()?;
         debug!("{:?}", pcap);
 
-        Ok(Runtime { mempools })
+        Ok(Runtime {
+            ports: vec![pci, pcap],
+            mempools,
+        })
     }
 }
 
