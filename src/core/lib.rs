@@ -34,6 +34,7 @@ mod macros;
 mod core_map;
 mod dpdk;
 mod ffi;
+mod mempool_map;
 pub mod net;
 mod runtime;
 mod testil;
