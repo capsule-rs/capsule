@@ -14,7 +14,7 @@ impl Runtime {
 
         info!("creating mempools...");
         let socket_id = SocketId::current();
-        let mut mempool = Mempool::create(65535, 16, socket_id)?;
+        let mut mempool = Mempool::new(65535, 16, socket_id)?;
         info!("created {}.", mempool.name());
         debug!("{:?}", mempool);
 
@@ -24,7 +24,7 @@ impl Runtime {
         let mut mempools = HashMap::new();
         mempools.insert(socket_id, mempool);
 
-        let cores = [CoreId(0), CoreId(1), CoreId(2)];
+        let cores = [CoreId::new(0), CoreId::new(1), CoreId::new(2)];
 
         let map = CoreMapBuilder::new()
             .cores(&cores)
