@@ -55,7 +55,7 @@ impl<'a> CoreMapBuilder<'a> {
     pub fn new() -> Self {
         CoreMapBuilder {
             cores: Default::default(),
-            master_core: CoreId(0),
+            master_core: CoreId::new(0),
             mempools: Default::default(),
         }
     }
@@ -84,7 +84,7 @@ impl<'a> CoreMapBuilder<'a> {
         let mempool = self
             .mempools
             .get_mut(&socket_id)
-            .ok_or_else(|| MempoolNotFound(socket_id.0))?
+            .ok_or_else(|| MempoolNotFound(socket_id.raw()))?
             .raw_mut();
 
         let (master_thread, core_executor) = init_core(&self.master_core, mempool)?;
@@ -108,7 +108,7 @@ impl<'a> CoreMapBuilder<'a> {
             let mempool = self
                 .mempools
                 .get_mut(&socket_id)
-                .ok_or_else(|| MempoolNotFound(socket_id.0))?
+                .ok_or_else(|| MempoolNotFound(socket_id.raw()))?
                 .raw_mut();
             let ptr = SendablePtr(mempool);
 

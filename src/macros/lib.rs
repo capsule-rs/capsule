@@ -28,6 +28,10 @@ use syn::{parse_macro_input, ItemFn};
 
 /// Procedural macro for running DPDK based tests.
 ///
+/// Each test will create a new one-use `Mempool` with a maximum capacity
+/// of 15. The `Mempool` is not shared with other tests, allowing tests to
+/// run in isolation and in parallel.
+///
 /// # Example
 ///
 /// ```
@@ -54,12 +58,12 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
         #[test]
         fn #name(#inputs) #ret {
             ::capsule::testil::cargo_test_init();
-            let mut mempool = ::capsule::dpdk::mempool::Mempool::create(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
-            ::capsule::dpdk::mempool::MEMPOOL.with(|tl| tl.set(mempool.raw_mut()));
+            let mut mempool = ::capsule::dpdk::mempool::Mempool::new(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
+            ::capsule::dpdk::mempool::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
             #body
 
-            ::capsule::dpdk::mempool::MEMPOOL.with(|tl| tl.replace(::std::ptr::null_mut()));
+            ::capsule::dpdk::mempool::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
             drop(mempool);
         }
     };
