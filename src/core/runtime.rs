@@ -13,6 +13,7 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn init(config: RuntimeSettings) -> Result<Self> {
+        info!("initializing EAL...");
         eal_init(config.to_eal_args())?;
 
         let cores = config.all_cores();
@@ -39,7 +40,7 @@ impl Runtime {
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
                 .finish()?;
 
-            debug!("{:?}", port);
+            debug!(?port);
             ports.push(port);
         }
 

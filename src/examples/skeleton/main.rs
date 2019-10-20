@@ -1,31 +1,23 @@
-extern crate failure;
-extern crate log;
-extern crate nb2;
-extern crate simplelog;
-
-use log::{debug, info};
 use nb2::settings::load_config;
 use nb2::{Mbuf, Result, Runtime};
-use simplelog::*;
+use tracing::{debug, info, Level};
+use tracing_subscriber::fmt;
 
 fn main() -> Result<()> {
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Trace,
-        Config::default(),
-        TerminalMode::Mixed,
-    )
-    .unwrap()])
-    .unwrap();
+    let subscriber = fmt::Subscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     let settings = load_config()?;
-    debug!("settings: {:?}", settings);
+    debug!(config = ?settings);
 
     let runtime = Runtime::init(settings)?;
 
     info!("HOORAY!!!");
 
     let mbuf = Mbuf::new()?;
-    debug!("{:?}", mbuf);
+    debug!(?mbuf);
 
     drop(mbuf);
     drop(runtime);
