@@ -251,11 +251,15 @@ impl<'a> PortBuilder<'a> {
 
         info!(
             cond: rxd2 != rxd as u16,
-            "adjusted rxd from {} to {}.", rxd, rxd2
+            message = "adjusted rxd.",
+            before = rxd,
+            after = rxd2
         );
         info!(
             cond: txd2 != txd as u16,
-            "adjusted txd from {} to {}.", txd, txd2
+            message = "adjusted txd.",
+            before = txd,
+            after = txd2
         );
 
         self.rxd = rxd2;
@@ -299,10 +303,10 @@ impl<'a> PortBuilder<'a> {
             // the same socket.
             warn!(
                 cond: core_id.socket_id() != socket_id,
-                "{:?}'s socket '{}' does not match port socket '{}'.",
-                core_id,
-                core_id.socket_id().0,
-                socket_id.0
+                message = "core socket does not match port socket.",
+                core = ?core_id,
+                core_socket = core_id.socket_id().0,
+                port_socket = socket_id.0
             );
 
             // configures the RX queue with defaults

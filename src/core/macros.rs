@@ -49,7 +49,7 @@ macro_rules! error {
         }
     );
     ($($arg:tt)+) => (
-        ::log::error!($($arg)+);
+        ::tracing::error!($($arg)+);
     )
 }
 
@@ -60,7 +60,7 @@ macro_rules! warn {
         }
     );
     ($($arg:tt)+) => (
-        ::log::warn!($($arg)+);
+        ::tracing::warn!($($arg)+);
     )
 }
 
@@ -71,7 +71,7 @@ macro_rules! info {
         }
     );
     ($($arg:tt)+) => (
-        ::log::info!($($arg)+);
+        ::tracing::info!($($arg)+);
     )
 }
 
@@ -82,7 +82,7 @@ macro_rules! debug {
         }
     );
     ($($arg:tt)+) => (
-        ::log::debug!($($arg)+);
+        ::tracing::debug!($($arg)+);
     )
 }
 
@@ -94,6 +94,6 @@ macro_rules! trace {
         }
     );
     ($($arg:tt)+) => (
-        ::log::trace!($($arg)+);
+        ::tracing::trace!($($arg)+);
     )
 }

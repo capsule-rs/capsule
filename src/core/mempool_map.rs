@@ -40,7 +40,7 @@ impl MempoolMap {
         for &socket_id in sockets.iter() {
             let pool = Mempool::new(capacity, cache_size, socket_id)?;
             info!("created {}.", pool.name());
-            debug!("{:?}", pool);
+            debug!(?pool);
 
             inner.insert(socket_id, pool);
         }

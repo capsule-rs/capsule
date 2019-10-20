@@ -16,33 +16,26 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-extern crate capsule;
-extern crate failure;
-extern crate simplelog;
-
 use capsule::settings::load_config;
 use capsule::{Mbuf, Result, Runtime};
-use log::{debug, info};
-use simplelog::*;
+use tracing::{debug, info, Level};
+use tracing_subscriber::fmt;
 
 fn main() -> Result<()> {
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Trace,
-        Config::default(),
-        TerminalMode::Mixed,
-    )
-    .unwrap()])
-    .unwrap();
+    let subscriber = fmt::Subscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     let settings = load_config()?;
-    debug!("settings: {:?}", settings);
+    debug!(config = ?settings);
 
     let runtime = Runtime::init(settings)?;
 
     info!("HOORAY!!!");
 
     let mbuf = Mbuf::new()?;
-    debug!("{:?}", mbuf);
+    debug!(?mbuf);
 
     drop(mbuf);
     drop(runtime);
