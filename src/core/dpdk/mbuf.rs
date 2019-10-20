@@ -5,23 +5,47 @@ use std::convert::From;
 use std::fmt;
 use std::ptr::NonNull;
 
+/// A DPDK message buffer that carries the network packet.
+///
+/// # Remarks
+///
+/// Multi-segment Mbuf is not supported. It's the application's responsibilty
+/// to ensure that the ethernet device's MTU is less than the default size
+/// of a single Mbuf segment (`RTE_MBUF_DEFAULT_DATAROOM` = 2048).
 pub struct Mbuf {
     raw: NonNull<ffi::rte_mbuf>,
 }
 
 impl Mbuf {
+    /// Creates a new Mbuf.
+    ///
+    /// The Mbuf is allocated from the `Mempool` assigned to the current
+    /// executing thread by the `Runtime`. The call will fail if invoked
+    /// from a thread not managed by the `Runtime`.
     pub fn new() -> Result<Self> {
-        let mempool = MEMPOOL.with(|tl| tl.get());
+        let mempool = MEMPOOL.with(|tls| tls.get());
         let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
         Ok(raw.into())
     }
 
+    /// Returns the raw struct needed for FFI calls.
     fn raw(&self) -> &ffi::rte_mbuf {
         unsafe { self.raw.as_ref() }
     }
 
+    /// Returns the raw struct needed for FFI calls.
     fn raw_mut(&mut self) -> &mut ffi::rte_mbuf {
         unsafe { self.raw.as_mut() }
+    }
+
+    /// Acquires the underlying raw struct pointer.
+    ///
+    /// It is the caller's the responsibility to free the raw pointer after
+    /// use. Otherwise the Mbuf is leaked.
+    pub(crate) fn into_ptr(self) -> *mut ffi::rte_mbuf {
+        let ptr = self.raw.as_ptr();
+        std::mem::forget(self);
+        ptr
     }
 }
 
@@ -45,7 +69,7 @@ impl fmt::Debug for Mbuf {
 
 impl Drop for Mbuf {
     fn drop(&mut self) {
-        debug!("freeing mbuf@{:p}.", self.raw().buf_addr);
+        trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
 
         unsafe {
             ffi::_rte_pktmbuf_free(self.raw_mut());

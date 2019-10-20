@@ -15,6 +15,7 @@
 ///     return Err(EmptyVecError::new().into());
 /// }
 /// ```
+#[allow(unused_macros)]
 macro_rules! ensure {
     ($cond:expr, $e:expr) => {
         if !($cond) {
@@ -35,6 +36,7 @@ macro_rules! error {
     )
 }
 
+#[allow(unused_macros)]
 macro_rules! warn {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -46,6 +48,7 @@ macro_rules! warn {
     )
 }
 
+#[allow(unused_macros)]
 macro_rules! info {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -57,6 +60,7 @@ macro_rules! info {
     )
 }
 
+#[allow(unused_macros)]
 macro_rules! debug {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
