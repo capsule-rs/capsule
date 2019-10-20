@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::{CoreId, SocketId};
+use crate::dpdk::{CoreId, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::mempool_map::MempoolMap2;
 use crate::net::MacAddr;
@@ -60,11 +60,71 @@ struct RxQueueIndex(u16);
 /// The index of a transmit queue.
 struct TxQueueIndex(u16);
 
-/// TODO:
+/// The receive and transmit queue abstraction. Instead of modeling them
+/// as two standalone queues, in the run-to-completion mode, they are modeled
+/// as a queue pair associated with the core that runs the pipeline from
+/// receive to send.
 pub struct PortQueue {
     port_id: PortId,
     rxq_index: RxQueueIndex,
     txq_index: TxQueueIndex,
+}
+
+impl PortQueue {
+    /// Receives a burst of packets from the receive queue, up to a maximum
+    /// of 32 packets.
+    pub fn receive(&self) -> Vec<Mbuf> {
+        const RX_BURST_MAX: usize = 32;
+        let mut packets = Vec::with_capacity(RX_BURST_MAX);
+
+        let len = unsafe {
+            ffi::_rte_eth_rx_burst(
+                self.port_id.0,
+                self.rxq_index.0,
+                packets.as_mut_ptr(),
+                RX_BURST_MAX as u16,
+            )
+        };
+
+        unsafe {
+            packets.set_len(len as usize);
+        }
+
+        packets
+            .into_iter()
+            // should not have null pointers from rx burst
+            .map(|ptr| unsafe { ptr::NonNull::new_unchecked(ptr).into() })
+            .collect::<Vec<_>>()
+    }
+
+    /// Sends the packets to the transmit queue.
+    pub fn send(&self, packets: Vec<Mbuf>) {
+        let mut packets = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
+
+        let mut to_send = packets.len() as u16;
+        while to_send > 0 {
+            let sent = unsafe {
+                ffi::_rte_eth_tx_burst(
+                    self.port_id.0,
+                    self.txq_index.0,
+                    packets.as_mut_ptr(),
+                    to_send,
+                )
+            };
+
+            to_send -= sent;
+
+            // still have packets. the transmit queue is full. we will keep trying
+            // until all packets are sent.
+            if to_send > 0 {
+                packets.drain(..sent as usize);
+            }
+        }
+
+        unsafe {
+            packets.set_len(0);
+        }
+    }
 }
 
 /// Error indicating failed to initialize the port.
@@ -84,7 +144,7 @@ pub enum PortError {
 pub struct Port {
     id: PortId,
     name: String,
-    queues: HashMap<CoreId, PortQueue>,
+    pub queues: HashMap<CoreId, PortQueue>,
     dev_info: ffi::rte_eth_dev_info,
 }
 
@@ -356,33 +416,3 @@ impl<'a> PortBuilder<'a> {
         })
     }
 }
-
-// impl PmdPort {
-//     pub fn receive(&self) -> Vec<MBuf> {
-//         unsafe {
-//             let batch_size = 32;
-//             let mut buffer = Vec::with_capacity(batch_size);
-//             let len =
-//                 ffi::_rte_eth_rx_burst(self.port_id, 0, buffer.as_mut_ptr(), batch_size as u16);
-//             println!("{} received.", len);
-//             buffer
-//                 .iter()
-//                 .take(len as usize)
-//                 .map(|&ptr| MBuf::new(ptr))
-//                 .collect::<Vec<_>>()
-//         }
-//     }
-
-//     pub fn send(&self, mbufs: Vec<MBuf>) {
-//         unsafe {
-//             let mut buffer = mbufs.iter().map(|mbuf| mbuf.raw_ptr()).collect::<Vec<_>>();
-//             let len = ffi::_rte_eth_tx_burst(
-//                 self.port_id,
-//                 0,
-//                 buffer.as_mut_ptr(),
-//                 min(mbufs.len(), 32) as u16,
-//             );
-//             println!("{} sent.", len);
-//         }
-//     }
-// }

@@ -15,7 +15,7 @@ dpdk_args = "-v --log-level eal:8"
 
 [[ports]]
     name = "net_pcap0"
-    args = "rx_iface=lo,tx_pcap=tx.pcap"
+    args = "rx_pcap=rx.pcap,tx_pcap=tx.pcap"
     cores = [2]
     rxd = 128
     txd = 128
