@@ -1,10 +1,10 @@
-use crate::common::Result;
-use crate::native::mbuf::MBuf;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{buffer, CondRc, Ethernet, Fixed, Header, Packet};
+use crate::packets::{CondRc, Ethernet, Header, Packet};
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc791#section-3.1
     Internet Datagram Header
@@ -127,11 +127,11 @@ const ECN: u8 = !DSCP;
 const FLAGS_DF: u16 = 0b0100_0000_0000_0000;
 const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 
-/// IPv4 header
+/// IPv4 header.
 ///
 /// The header only include the fixed portion of the IPv4 header.
 /// Options are parsed separately.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct Ipv4Header {
     version_ihl: u8,
@@ -165,13 +165,12 @@ impl Default for Ipv4Header {
 
 impl Header for Ipv4Header {}
 
-/// IPv4 packet
-#[derive(Debug)]
+/// IPv4 packet.
+#[derive(Clone)]
 pub struct Ipv4 {
     envelope: CondRc<Ethernet>,
-    mbuf: *mut MBuf,
+    header: NonNull<Ipv4Header>,
     offset: usize,
-    header: *mut Ipv4Header,
 }
 
 impl Ipv4 {
@@ -336,36 +335,26 @@ impl Ipv4 {
     }
 }
 
-impl fmt::Display for Ipv4 {
+impl fmt::Debug for Ipv4 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} > {} version: {}, ihl: {}, dscp: {}, ecn: {}, len: {}, dont_fragment: {}, more_fragments: {}, fragment_offset: {}, ttl: {}, protocol: {}, checksum: {}",
-            self.src(),
-            self.dst(),
-            self.version(),
-            self.ihl(),
-            self.dscp(),
-            self.ecn(),
-            self.total_length(),
-            self.dont_fragment(),
-            self.more_fragments(),
-            self.fragment_offset(),
-            self.ttl(),
-            self.protocol(),
-            self.checksum()
-        )
-    }
-}
-
-impl Clone for Ipv4 {
-    fn clone(&self) -> Ipv4 {
-        Ipv4 {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-        }
+        f.debug_struct("ipv4")
+            .field("src", &self.src())
+            .field("dst", &self.dst())
+            .field("version", &self.version())
+            .field("ihl", &self.ihl())
+            .field("dscp", &self.dscp())
+            .field("ecn", &self.ecn())
+            .field("total_length", &self.total_length())
+            .field("dont_fragment", &self.dont_fragment())
+            .field("more_fragments", &self.more_fragments())
+            .field("fragment_offset", &self.fragment_offset())
+            .field("ttl", &self.ttl())
+            .field("protocol", &self.protocol())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
@@ -375,18 +364,24 @@ impl Packet for Ipv4 {
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -396,56 +391,39 @@ impl Packet for Ipv4 {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Ipv4 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Ipv4 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
     }
 
@@ -516,17 +494,16 @@ impl IpPacket for Ipv4 {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Ethernet, RawPacket, Udp, UDP_PACKET};
-    use crate::testing::dpdk_test;
+    use crate::packets::UDP_PACKET;
 
     #[test]
     fn size_of_ipv4_header() {
-        assert_eq!(20, Ipv4Header::size());
+        assert_eq!(20, Ipv4Header::size_of());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_ipv4_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -546,9 +523,9 @@ mod tests {
         assert_eq!("139.133.233.2", ipv4.dst().to_string());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_ipv4_setter_checks() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -574,22 +551,13 @@ mod tests {
         assert_eq!(3, ipv4.ecn());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn push_ipv4_packet() {
-        let packet = RawPacket::new().unwrap();
+        let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ipv4 = ethernet.push::<Ipv4>().unwrap();
 
         assert_eq!(4, ipv4.version());
-        assert_eq!(Ipv4Header::size(), ipv4.len());
-    }
-
-    #[dpdk_test]
-    fn peek_udp_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let v4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
-        assert_eq!(39376, udp.src_port());
+        assert_eq!(Ipv4Header::size_of(), ipv4.len());
     }
 }

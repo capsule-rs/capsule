@@ -1,12 +1,8 @@
-use crate::common::Result;
-use crate::native::mbuf::MBuf;
-use crate::packets::{buffer, CondRc, Fixed, Header, Packet, RawPacket};
-use failure::Fail;
-use hex;
-use serde::{de, Deserialize, Deserializer};
-use std::convert::From;
+use crate::net::MacAddr;
+use crate::packets::{CondRc, Header, Packet};
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
-use std::str::FromStr;
+use std::ptr::NonNull;
 
 /* Ethernet Type II Frame
 
@@ -28,72 +24,8 @@ use std::str::FromStr;
                         encapsulated in the payload of the frame.
 */
 
-/// MAC address
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-#[repr(C, packed)]
-pub struct MacAddr([u8; 6]);
-
-impl MacAddr {
-    pub const UNSPECIFIED: Self = MacAddr([0, 0, 0, 0, 0, 0]);
-
-    #[allow(clippy::many_single_char_names)]
-    pub fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> Self {
-        MacAddr([a, b, c, d, e, f])
-    }
-
-    /// Returns the six bytes the MAC address consists of
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn octets(&self) -> [u8; 6] {
-        self.0
-    }
-}
-
-impl fmt::Display for MacAddr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
-        )
-    }
-}
-
-impl From<[u8; 6]> for MacAddr {
-    fn from(octets: [u8; 6]) -> MacAddr {
-        MacAddr(octets)
-    }
-}
-
-#[derive(Debug, Fail)]
-#[fail(display = "Failed to parse '{}' as MAC address.", _0)]
-pub struct MacParseError(String);
-
-impl FromStr for MacAddr {
-    type Err = MacParseError;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match hex::decode(s.replace(":", "").replace("-", "")) {
-            Ok(ref v) if v.len() == 6 => {
-                let mut octets = [0; 6];
-                octets.copy_from_slice(&v[..]);
-                Ok(octets.into())
-            }
-            _ => Err(MacParseError(s.to_owned())),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for MacAddr {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = <String>::deserialize(deserializer)?;
-        MacAddr::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-/// The protocol type in the ethernet packet payload
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+/// The protocol type in the ethernet packet payload.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct EtherType(pub u16);
 
@@ -103,7 +35,7 @@ impl EtherType {
     }
 }
 
-/// Supported ethernet payload protocol types
+/// Supported ethernet payload protocol types.
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
 pub mod EtherTypes {
@@ -132,8 +64,8 @@ impl fmt::Display for EtherType {
     }
 }
 
-/// Ethernet header
-#[derive(Clone, Copy, Default, Debug)]
+/// Ethernet header.
+#[derive(Debug, Default)]
 #[repr(C, packed)]
 pub struct EthernetHeader {
     dst: MacAddr,
@@ -143,13 +75,12 @@ pub struct EthernetHeader {
 
 impl Header for EthernetHeader {}
 
-/// Ethernet packet
-#[derive(Debug)]
+/// Ethernet packet.
+#[derive(Clone)]
 pub struct Ethernet {
-    envelope: CondRc<RawPacket>,
-    mbuf: *mut MBuf,
+    envelope: CondRc<Mbuf>,
+    header: NonNull<EthernetHeader>,
     offset: usize,
-    header: *mut EthernetHeader,
 }
 
 impl Ethernet {
@@ -192,47 +123,43 @@ impl Ethernet {
     }
 }
 
-impl fmt::Display for Ethernet {
+impl fmt::Debug for Ethernet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} > {}, ether_type: {}",
-            self.src(),
-            self.dst(),
-            self.ether_type()
-        )
-    }
-}
-
-impl Clone for Ethernet {
-    fn clone(&self) -> Ethernet {
-        Ethernet {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-        }
+        f.debug_struct("ethernet")
+            .field("src", &self.src())
+            .field("dst", &self.dst())
+            .field("ether_type", &self.ether_type())
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
 impl Packet for Ethernet {
     type Header = EthernetHeader;
-    type Envelope = RawPacket;
+    type Envelope = Mbuf;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -242,62 +169,40 @@ impl Packet for Ethernet {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Ethernet {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Ethernet {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
-        self.envelope_mut().cascade();
     }
 
     #[inline]
@@ -309,45 +214,11 @@ impl Packet for Ethernet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Udp, UDP_PACKET};
-    use crate::testing::dpdk_test;
+    use crate::packets::UDP_PACKET;
 
     #[test]
     fn size_of_ethernet_header() {
-        assert_eq!(14, EthernetHeader::size());
-    }
-
-    #[test]
-    fn mac_addr_to_string() {
-        assert_eq!(
-            "00:00:00:00:00:00",
-            MacAddr::new(0, 0, 0, 0, 0, 0).to_string()
-        );
-        assert_eq!(
-            "ff:ff:ff:ff:ff:ff",
-            MacAddr::new(255, 255, 255, 255, 255, 255).to_string()
-        );
-        assert_eq!(
-            "12:34:56:ab:cd:ef",
-            MacAddr::new(0x12, 0x34, 0x56, 0xAB, 0xCD, 0xEF).to_string()
-        );
-    }
-
-    #[test]
-    fn string_to_mac_addr() {
-        assert_eq!(
-            MacAddr::new(0, 0, 0, 0, 0, 0),
-            "00:00:00:00:00:00".parse().unwrap()
-        );
-        assert_eq!(
-            MacAddr::new(255, 255, 255, 255, 255, 255),
-            "ff:ff:ff:ff:ff:ff".parse().unwrap()
-        );
-        assert_eq!(
-            MacAddr::new(0x12, 0x34, 0x56, 0xAB, 0xCD, 0xEF),
-            "12:34:56:ab:cd:ef".parse().unwrap()
-        );
+        assert_eq!(14, EthernetHeader::size_of());
     }
 
     #[test]
@@ -357,9 +228,9 @@ mod tests {
         assert_eq!("0x0000", EtherType::new(0).to_string());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_ethernet_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
@@ -367,21 +238,9 @@ mod tests {
         assert_eq!(EtherTypes::Ipv4, ethernet.ether_type());
     }
 
-    #[dpdk_test]
-    fn reset_reparse_ethernet_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let reset = ethernet.reset();
-        let reset_ethernet = reset.parse::<Ethernet>().unwrap();
-
-        assert_eq!("00:00:00:00:00:01", reset_ethernet.dst().to_string());
-        assert_eq!("00:00:00:00:00:02", reset_ethernet.src().to_string());
-        assert_eq!(EtherTypes::Ipv4, reset_ethernet.ether_type());
-    }
-
-    #[dpdk_test]
+    #[nb2::test]
     fn swap_addresses() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
         ethernet.swap_addresses();
 
@@ -389,24 +248,11 @@ mod tests {
         assert_eq!("00:00:00:00:00:01", ethernet.src().to_string());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn push_ethernet_packet() {
-        let packet = RawPacket::new().unwrap();
+        let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
 
-        assert_eq!(EthernetHeader::size(), ethernet.len());
-    }
-
-    #[dpdk_test]
-    fn peek_v4_udp_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-
-        let v4 = ethernet.peek::<Ipv4>().unwrap();
-        assert_eq!(255, v4.ttl());
-        assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), v4.envelope().src());
-
-        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
-        assert_eq!(39376, udp.src_port());
+        assert_eq!(EthernetHeader::size_of(), ethernet.len());
     }
 }

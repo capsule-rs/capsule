@@ -1,17 +1,17 @@
 pub mod v4;
 pub mod v6;
 
-use crate::common::Result;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::Packet;
+use crate::Result;
 use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
-/// Assigned internet protocol number
+/// Assigned internet protocol number.
 ///
 /// From https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct ProtocolNumber(pub u8);
 
@@ -21,25 +21,25 @@ impl ProtocolNumber {
     }
 }
 
-/// Supported protocol numbers
+/// Supported protocol numbers.
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
 pub mod ProtocolNumbers {
     use super::ProtocolNumber;
 
-    // Transmission Control Protocol
+    // Transmission Control Protocol.
     pub const Tcp: ProtocolNumber = ProtocolNumber(0x06);
 
-    // User Datagram Protocol
+    // User Datagram Protocol.
     pub const Udp: ProtocolNumber = ProtocolNumber(0x11);
 
-    // Routing Header for IPv6
+    // Routing Header for IPv6.
     pub const Ipv6Route: ProtocolNumber = ProtocolNumber(0x2B);
 
-    // Internet Control Message Protocol for IPv6
+    // Internet Control Message Protocol for IPv6.
     pub const Icmpv6: ProtocolNumber = ProtocolNumber(0x3A);
 
-    // Internet Control Message Protocol for IPv4
+    // Internet Control Message Protocol for IPv4.
     pub const Icmpv4: ProtocolNumber = ProtocolNumber(0x01);
 }
 
@@ -59,9 +59,9 @@ impl fmt::Display for ProtocolNumber {
     }
 }
 
-/// Common behaviors shared by IPv4 and IPv6 packets
+/// Common behaviors shared by IPv4 and IPv6 packets.
 pub trait IpPacket: Packet {
-    /// Returns the assigned protocol number of the header immediately follows
+    /// Returns the assigned protocol number of the header immediately follows.
     ///
     /// For IPv4 headers, this should be the `protocol` field.
     /// For IPv6 and extension headers, this should be the `next header` field.
@@ -72,25 +72,25 @@ pub trait IpPacket: Packet {
 
     /// Sets the source IP address
     ///
-    /// This lets an upper layer packet like TCP set the source IP address
+    /// This lets an upper layer packet like TCP set the source IP address.
     /// on a lower layer packet.
     fn set_src(&mut self, src: IpAddr) -> Result<()>;
 
     /// Returns the destination IP address
     fn dst(&self) -> IpAddr;
 
-    /// Sets the destination IP address
+    /// Sets the destination IP address.
     ///
     /// This lets an upper layer packet like TCP set the destination IP address
     /// on a lower layer packet.
     fn set_dst(&mut self, dst: IpAddr) -> Result<()>;
 
-    /// Returns the pseudo-header for layer 4 checksum computation
+    /// Returns the pseudo-header for layer 4 checksum computation.
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader;
 }
 
-/// 5-tuple IP connection identifier
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+/// 5-tuple IP connection identifier.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Flow {
     src_ip: IpAddr,
@@ -191,20 +191,19 @@ impl Flow {
     }
 }
 
-impl fmt::Display for Flow {
+impl fmt::Debug for Flow {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "src_ip: {}, src_port: {}, dst_ip: {}, dst_port: {}, proto: {}",
-            self.src_ip(),
-            self.src_port(),
-            self.dst_ip(),
-            self.dst_port(),
-            self.protocol()
-        )
+        f.debug_struct("flow")
+            .field("src_ip", &self.src_ip())
+            .field("src_port", &self.src_port())
+            .field("dst_ip", &self.dst_ip())
+            .field("dst_port", &self.dst_port())
+            .field("protocol", &self.protocol())
+            .finish()
     }
 }
 
+/// Error indicating mixing IPv4 and IPv6 addresses in a flow.
 #[derive(Debug, Fail)]
 #[fail(display = "Cannot mix IPv4 and IPv6 addresses")]
 pub struct IpAddrMismatchError;

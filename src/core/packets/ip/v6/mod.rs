@@ -1,25 +1,25 @@
-mod srh;
+//mod srh;
 
-pub use self::srh::*;
+//pub use self::srh::*;
 
-use crate::common::Result;
-use crate::native::mbuf::MBuf;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{buffer, CondRc, Ethernet, Fixed, Header, Packet};
+use crate::packets::{CondRc, Ethernet, Header, Packet};
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
+use std::ptr::NonNull;
 
-/// Common behaviors shared by IPv6 and extension packets
+/// Common behaviors shared by IPv6 and extension packets.
 pub trait Ipv6Packet: IpPacket {
-    /// Returns the next header type
+    /// Returns the next header type.
     fn next_header(&self) -> ProtocolNumber;
 
-    /// Sets the next header type
+    /// Sets the next header type.
     fn set_next_header(&mut self, next_header: ProtocolNumber);
 }
 
-/// The minimum IPv6 MTU
+/// The minimum IPv6 MTU.
 ///
 /// https://tools.ietf.org/html/rfc2460#section-5
 pub const IPV6_MIN_MTU: usize = 1280;
@@ -110,8 +110,8 @@ const DSCP: u32 = 0x0fc0_0000;
 const ECN: u32 = 0x0030_0000;
 const FLOW: u32 = 0xfffff;
 
-/// IPv6 header
-#[derive(Debug, Copy, Clone)]
+/// IPv6 header.
+#[derive(Debug)]
 #[repr(C)]
 pub struct Ipv6Header {
     version_to_flow_label: u32,
@@ -137,13 +137,12 @@ impl Default for Ipv6Header {
 
 impl Header for Ipv6Header {}
 
-/// IPv6 packet
-#[derive(Debug)]
+/// IPv6 packet.
+#[derive(Clone)]
 pub struct Ipv6 {
     envelope: CondRc<Ethernet>,
-    mbuf: *mut MBuf,
+    header: NonNull<Ipv6Header>,
     offset: usize,
-    header: *mut Ipv6Header,
 }
 
 impl Ipv6 {
@@ -232,32 +231,21 @@ impl Ipv6 {
     }
 }
 
-impl fmt::Display for Ipv6 {
+impl fmt::Debug for Ipv6 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} > {}, version: {}, dscp: {}, ecn: {}, flow_label: {}, len: {}, next_header: {}, hop_limit: {}",
-            self.src(),
-            self.dst(),
-            self.version(),
-            self.dscp(),
-            self.ecn(),
-            self.flow_label(),
-            self.payload_len(),
-            self.next_header(),
-            self.hop_limit()
-        )
-    }
-}
-
-impl Clone for Ipv6 {
-    fn clone(&self) -> Ipv6 {
-        Ipv6 {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-        }
+        f.debug_struct("ipv6")
+            .field("src", &self.src())
+            .field("dst", &self.dst())
+            .field("dscp", &self.dscp())
+            .field("ecn", &self.ecn())
+            .field("flow_label", &self.flow_label())
+            .field("total_length", &self.len())
+            .field("next_header", &self.next_header())
+            .field("hop_limit", &self.hop_limit())
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
@@ -267,18 +255,24 @@ impl Packet for Ipv6 {
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -288,56 +282,39 @@ impl Packet for Ipv6 {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Ipv6 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Ipv6 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
     }
 
@@ -454,17 +431,15 @@ pub const IPV6_PACKET: [u8; 78] = [
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{RawPacket, Tcp};
-    use crate::testing::dpdk_test;
 
     #[test]
     fn size_of_ipv6_header() {
-        assert_eq!(40, Ipv6Header::size());
+        assert_eq!(40, Ipv6Header::size_of());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_ipv6_packet() {
-        let packet = RawPacket::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -479,9 +454,9 @@ mod tests {
         assert_eq!("2001:db8:85a3::8a2e:370:7334", ipv6.dst().to_string());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_ipv6_setter_checks() {
-        let packet = RawPacket::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -497,22 +472,13 @@ mod tests {
         assert_eq!(0, ipv6.flow_label());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn push_ipv6_packet() {
-        let packet = RawPacket::new().unwrap();
+        let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ipv6 = ethernet.push::<Ipv6>().unwrap();
 
         assert_eq!(6, ipv6.version());
-        assert_eq!(Ipv6Header::size(), ipv6.len());
-    }
-
-    #[dpdk_test]
-    fn peek_tcp_packet() {
-        let packet = RawPacket::from_bytes(&IPV6_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let v6 = ethernet.parse::<Ipv6>().unwrap();
-        let tcp = v6.peek::<Tcp<Ipv6>>().unwrap();
-        assert_eq!(36869, tcp.src_port());
+        assert_eq!(Ipv6Header::size_of(), ipv6.len());
     }
 }

@@ -10,6 +10,7 @@ mod dpdk;
 mod ffi;
 mod mempool_map;
 pub mod net;
+pub mod packets;
 mod runtime;
 pub mod settings;
 mod testil;

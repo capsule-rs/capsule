@@ -53,7 +53,7 @@ pub struct Mbuf {
 }
 
 impl Mbuf {
-    /// Creates a new Mbuf.
+    /// Creates a new message buffer.
     ///
     /// The Mbuf is allocated from the `Mempool` assigned to the current
     /// executing thread by the `Runtime`. The call will fail if invoked
@@ -63,6 +63,15 @@ impl Mbuf {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
         Ok(raw.into())
+    }
+
+    /// Creates a new message buffer from a byte array.
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Result<Self> {
+        let mut mbuf = Mbuf::new()?;
+        mbuf.extend(0, data.len())?;
+        mbuf.write_data_slice(0, data)?;
+        Ok(mbuf)
     }
 
     /// Returns the raw struct needed for FFI calls.
@@ -79,7 +88,7 @@ impl Mbuf {
 
     /// Returns amount of data stored in the buffer.
     #[inline]
-    fn data_len(&self) -> usize {
+    pub fn data_len(&self) -> usize {
         self.raw().data_len as usize
     }
 
@@ -289,6 +298,13 @@ impl fmt::Debug for Mbuf {
     }
 }
 
+// TODO: revisit clone/drop and ref count.
+impl Clone for Mbuf {
+    fn clone(&self) -> Self {
+        self.raw.into()
+    }
+}
+
 impl Drop for Mbuf {
     fn drop(&mut self) {
         trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
@@ -299,11 +315,25 @@ impl Drop for Mbuf {
     }
 }
 
+// because `Mbuf` holds a raw pointer, by default, rust will deem the struct
+// to be not sendable. explicitly implement the `Send` trait to ensure it
+// can go across thread boundaries.
+//unsafe impl Send for Mbuf {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const BUFFER: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+    #[nb2::test]
+    fn new_from_bytes() {
+        let mbuf = Mbuf::from_bytes(&BUFFER).unwrap();
+
+        let slice = mbuf.read_data_slice::<u8>(0, 16).unwrap();
+        let slice = unsafe { slice.as_ref() };
+        assert_eq!(BUFFER, slice);
+    }
 
     #[nb2::test]
     fn extend_data_buffer_tail() {
