@@ -56,12 +56,12 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
         #[test]
         fn #name(#inputs) #ret {
             ::capsule::testil::cargo_test_init();
-            let mut mempool = ::capsule::dpdk::mempool::Mempool::new(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
-            ::capsule::dpdk::mempool::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+            let mut mempool = ::capsule::dpdk::Mempool::new(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
+            ::capsule::dpdk::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
             #body
 
-            ::capsule::dpdk::mempool::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
+            ::capsule::dpdk::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
             drop(mempool);
         }
     };

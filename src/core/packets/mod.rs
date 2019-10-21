@@ -16,108 +16,103 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-pub mod buffer;
 pub mod checksum;
 mod ethernet;
-pub mod icmp;
+// pub mod icmp;
 pub mod ip;
-mod raw;
-mod tcp;
+mod mbuf;
+// mod tcp;
 mod udp;
 
 pub use self::ethernet::*;
-pub use self::raw::*;
-pub use self::tcp::*;
+// pub use self::tcp::*;
 pub use self::udp::*;
 
+use crate::{Mbuf, Result, SizeOf};
 use failure::Fail;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-/// Type that has a fixed size
-///
-/// Size of the structs are used for buffer bound check when parsing packets
-pub trait Fixed {
-    /// Returns the size of the type
-    fn size() -> usize;
-}
-
-impl<T> Fixed for T {
-    #[inline]
-    fn size() -> usize {
-        std::mem::size_of::<T>()
-    }
-}
-
-/// Fixed packet header marker trait
+/// Packet header marker trait.
 ///
 /// Some packet headers are variable in length, such as the IPv6
 /// segment routing header. The fixed portion can be statically
 /// defined, but the variable portion has to be parsed separately.
-pub trait Header: Fixed {}
+pub trait Header: SizeOf {}
 
-/// Common behaviors shared by all packets
+/// Common behaviors shared by all packets.
 pub trait Packet: Clone {
-    /// The header type of the packet
+    /// The header type of the packet.
     type Header: Header;
-    /// The outer packet type that encapsulates the packet
+    /// The outer packet type that encapsulates the packet.
     type Envelope: Packet;
 
-    /// Returns a reference to the encapsulating packet
+    /// Returns a reference to the DPDK message buffer.
+    #[doc(hidden)]
+    #[inline]
+    fn mbuf(&self) -> &Mbuf {
+        self.envelope().mbuf()
+    }
+
+    /// Returns a mutable reference to the DPDK message buffer.
+    #[doc(hidden)]
+    #[inline]
+    fn mbuf_mut(&mut self) -> &mut Mbuf {
+        self.envelope_mut().mbuf_mut()
+    }
+
+    /// Returns a reference to the encapsulating packet.
     fn envelope(&self) -> &Self::Envelope;
 
-    /// Returns a mutable reference to the encapsulating packet
+    /// Returns a mutable reference to the encapsulating packet.
     fn envelope_mut(&mut self) -> &mut Self::Envelope;
 
-    /// Returns a pointer to the DPDK message buffer
-    #[doc(hidden)]
-    fn mbuf(&self) -> *mut MBuf;
-
-    /// Returns the buffer offset where the packet header begins
-    fn offset(&self) -> usize;
-
-    /// Returns a reference to the packet header
+    /// Returns a reference to the packet header.
     #[doc(hidden)]
     fn header(&self) -> &Self::Header;
 
-    /// Returns a mutable reference to the packet header
+    /// Returns a mutable reference to the packet header.
     #[doc(hidden)]
     fn header_mut(&mut self) -> &mut Self::Header;
 
-    /// Returns the length of the packet header
-    ///
-    /// Includes both the fixed and variable portion of the header
-    fn header_len(&self) -> usize;
+    /// Returns the buffer offset where the packet header begins.
+    fn offset(&self) -> usize;
 
-    /// Returns the length of the packet
+    /// Returns the length of the packet header.
+    ///
+    /// Includes both the fixed and variable portion of the header.
+    #[inline]
+    fn header_len(&self) -> usize {
+        Self::Header::size_of()
+    }
+
+    /// Returns the length of the packet.
     #[inline]
     fn len(&self) -> usize {
-        unsafe { (*self.mbuf()).data_len() - self.offset() }
+        self.mbuf().data_len() - self.offset()
     }
 
-    /// Returns if the length of the packet is empty or not
-    #[inline]
-    fn is_empty(&self) -> bool {
-        {
-            self.len() == 0
-        }
-    }
+    /// Returns if the length of the packet is empty or not.
+    // #[inline]
+    // fn is_empty(&self) -> bool {
+    //     self.len() == 0
+    // }
 
-    /// Returns the buffer offset where the packet payload begins
+    /// Returns the buffer offset where the packet payload begins.
     #[inline]
     fn payload_offset(&self) -> usize {
         self.offset() + self.header_len()
     }
 
-    /// Returns the length of the packet payload
+    /// Returns the length of the packet payload.
     #[inline]
     fn payload_len(&self) -> usize {
         self.len() - self.header_len()
     }
 
-    /// Parses the payload as packet of `T`
+    /// Parses the payload as packet of `T`.
     ///
     /// The ownership of the packet is moved after invocation. To retain
     /// ownership, use `Packet::peek` instead to gain immutable access
@@ -130,13 +125,13 @@ pub trait Packet: Clone {
         T::do_parse(self)
     }
 
-    // the public `parse::<T>` delegates to this function
+    // the public `parse::<T>` delegates to this function.
     #[doc(hidden)]
     fn do_parse(envelope: Self::Envelope) -> Result<Self>
     where
         Self: Sized;
 
-    /// Peeks into the payload as packet of `T`
+    /// Peeks into the payload as packet of `T`.
     ///
     /// `Packet::peek` returns an immutable reference to the payload. Use
     /// `Packet::parse` instead to gain mutable access to the packet payload.
@@ -148,7 +143,7 @@ pub trait Packet: Clone {
         self.clone().parse::<T>().map(Immutable::new)
     }
 
-    /// Pushes a new packet `T` as the payload
+    /// Pushes a new packet `T` as the payload.
     #[inline]
     fn push<T: Packet<Envelope = Self>>(self) -> Result<T>
     where
@@ -157,13 +152,13 @@ pub trait Packet: Clone {
         T::do_push(self)
     }
 
-    // the public `push::<T>` delegates to this function
+    // the public `push::<T>` delegates to this function.
     #[doc(hidden)]
     fn do_push(envelope: Self::Envelope) -> Result<Self>
     where
         Self: Sized;
 
-    /// Removes this packet's header from the message buffer
+    /// Removes this packet's header from the message buffer.
     ///
     /// The packet's payload becomes the payload of its envelope. The
     /// result of the removal is not guaranteed to be a valid packet.
@@ -171,18 +166,21 @@ pub trait Packet: Clone {
     where
         Self: Sized;
 
-    /// Cascades the changes recursively through the layers
+    /// Cascades the changes recursively through the layers.
     ///
     /// An upper layer change to message buffer size can have cascading
     /// effects on a lower layer packet header. This call recursively ensures
     /// such changes are propogated through all the layers.
-    fn cascade(&mut self);
+    #[inline]
+    fn cascade(&mut self) {
+        self.envelope_mut().cascade();
+    }
 
-    /// Deparses the packet and returns its envelope
+    /// Deparses the packet and returns its envelope.
     fn deparse(self) -> Self::Envelope;
 
-    /// Resets the parsed packet back to raw packet
-    fn reset(self) -> RawPacket
+    /// Resets the parsed packet back to raw packet.
+    fn reset(self) -> Mbuf
     where
         Self: Sized,
     {
@@ -190,7 +188,7 @@ pub trait Packet: Clone {
     }
 }
 
-/// Immutable smart pointer to a packet
+/// Immutable smart pointer to a packet.
 ///
 /// A smart pointer that prevents the packet from being modified. The main
 /// use is allow safe lookahead of packet payload while retaining ownership
@@ -225,7 +223,7 @@ impl<'a, T: Packet> Deref for Immutable<'a, T> {
     }
 }
 
-/// Conditional reference counted smart pointer
+/// Conditional reference counted smart pointer.
 ///
 /// The content of the pointer will be deep-copied the first time `clone` is
 /// invoked. Subsequent calls to `clone` will clone a `std::rc::Rc` pointer,
@@ -283,7 +281,7 @@ impl<T: Packet> DerefMut for CondRc<T> {
     }
 }
 
-/// Error when packet failed to parse
+/// Error when packet failed to parse.
 #[derive(Debug, Fail)]
 #[fail(display = "{}", _0)]
 pub struct ParseError(String);
@@ -291,5 +289,38 @@ pub struct ParseError(String);
 impl ParseError {
     pub fn new(msg: &str) -> ParseError {
         ParseError(msg.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::net::MacAddr;
+    use crate::packets::ip::v4::Ipv4;
+    use crate::packets::Udp;
+
+    #[capsule::test]
+    fn parse_and_reset_packet() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let len = packet.data_len();
+
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
+        let reset = udp.reset();
+
+        assert_eq!(len, reset.data_len());
+    }
+
+    #[capsule::test]
+    fn peek_packet() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+
+        let ethernet = packet.peek::<Ethernet>().unwrap();
+        assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
+        let v4 = ethernet.peek::<Ipv4>().unwrap();
+        assert_eq!(255, v4.ttl());
+        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
+        assert_eq!(39376, udp.src_port());
     }
 }

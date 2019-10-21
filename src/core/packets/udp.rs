@@ -17,9 +17,11 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{buffer, checksum, CondRc, Fixed, Header, Packet};
+use crate::packets::{checksum, CondRc, Header, Packet};
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
 use std::net::IpAddr;
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc768
     User Datagram Header Format
@@ -73,8 +75,8 @@ use std::net::IpAddr;
     debugging or for higher level protocols that don't care).
 */
 
-/// UDP header
-#[derive(Debug, Default, Copy, Clone)]
+/// UDP header.
+#[derive(Debug, Default)]
 #[repr(C)]
 pub struct UdpHeader {
     src_port: u16,
@@ -85,13 +87,12 @@ pub struct UdpHeader {
 
 impl Header for UdpHeader {}
 
-/// UDP packet
-#[derive(Debug)]
+/// UDP packet.
+#[derive(Clone)]
 pub struct Udp<E: IpPacket> {
     envelope: CondRc<E>,
-    mbuf: *mut MBuf,
+    header: NonNull<UdpHeader>,
     offset: usize,
-    header: *mut UdpHeader,
 }
 
 impl<E: IpPacket> Udp<E> {
@@ -142,7 +143,7 @@ impl<E: IpPacket> Udp<E> {
         }
     }
 
-    /// Sets checksum to 0 indicating no checksum generated
+    /// Sets checksum to 0 indicating no checksum generated.
     #[inline]
     pub fn no_checksum(&mut self) {
         self.header_mut().checksum = 0;
@@ -159,7 +160,7 @@ impl<E: IpPacket> Udp<E> {
         )
     }
 
-    /// Sets the layer-3 source address and recomputes the checksum
+    /// Sets the layer-3 source address and recomputes the checksum.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().src();
@@ -169,7 +170,7 @@ impl<E: IpPacket> Udp<E> {
         Ok(())
     }
 
-    /// Sets the layer-3 destination address and recomputes the checksum
+    /// Sets the layer-3 destination address and recomputes the checksum.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().dst();
@@ -183,8 +184,8 @@ impl<E: IpPacket> Udp<E> {
     fn compute_checksum(&mut self) {
         self.no_checksum();
 
-        if let Ok(data) = buffer::read_slice(self.mbuf, self.offset, self.len()) {
-            let data = unsafe { &(*data) };
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
+            let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
                 .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Udp)
@@ -198,27 +199,17 @@ impl<E: IpPacket> Udp<E> {
     }
 }
 
-impl<E: IpPacket> fmt::Display for Udp<E> {
+impl<E: IpPacket> fmt::Debug for Udp<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "src_port: {}, dst_port: {}, length: {}, checksum: {}",
-            self.src_port(),
-            self.dst_port(),
-            self.length(),
-            self.checksum()
-        )
-    }
-}
-
-impl<E: IpPacket> Clone for Udp<E> {
-    fn clone(&self) -> Udp<E> {
-        Udp {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-        }
+        f.debug_struct("udp")
+            .field("src_port", &self.src_port())
+            .field("dst_port", &self.dst_port())
+            .field("length", &self.length())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
@@ -228,18 +219,24 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -249,56 +246,39 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Udp {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Udp {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
     }
 
@@ -348,18 +328,17 @@ pub const UDP_PACKET: [u8; 52] = [
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Ethernet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::Ethernet;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn size_of_udp_header() {
-        assert_eq!(8, UdpHeader::size());
+        assert_eq!(8, UdpHeader::size_of());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn parse_udp_packet() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -370,9 +349,9 @@ mod tests {
         assert_eq!(0x7228, udp.checksum());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn udp_flow_v4() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -385,9 +364,9 @@ mod tests {
         assert_eq!(ProtocolNumbers::Udp, flow.protocol());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn set_src_dst_ip() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -408,9 +387,9 @@ mod tests {
         assert!(udp.set_src_ip(Ipv6Addr::UNSPECIFIED.into()).is_err());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn compute_checksum() {
-        let packet = RawPacket::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -421,13 +400,13 @@ mod tests {
         assert_eq!(expected, udp.checksum());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn push_udp_packet() {
-        let packet = RawPacket::new().unwrap();
+        let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ipv4 = ethernet.push::<Ipv4>().unwrap();
         let udp = ipv4.push::<Udp<Ipv4>>().unwrap();
 
-        assert_eq!(UdpHeader::size(), udp.len());
+        assert_eq!(UdpHeader::size_of(), udp.len());
     }
 }

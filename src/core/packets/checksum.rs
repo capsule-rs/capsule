@@ -16,9 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![allow(clippy::cast_ptr_alignment)]
-
 use crate::packets::ip::{IpAddrMismatchError, ProtocolNumber};
+use crate::Result;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::slice;
 
@@ -129,7 +128,7 @@ impl PseudoHeader {
     }
 }
 
-/// Computes the internet checksum
+/// Computes the internet checksum.
 /// https://tools.ietf.org/html/rfc1071
 ///
 /// (1) Adjacent octets to be checksummed are paired to form 16-bit
@@ -171,7 +170,7 @@ pub fn compute(pseudo_header_sum: u16, payload: &[u8]) -> u16 {
     !(checksum as u16)
 }
 
-/// Computes the internet checksum via incremental update
+/// Computes the internet checksum via incremental update.
 /// https://tools.ietf.org/html/rfc1624
 ///
 /// Given the following notation:
@@ -196,7 +195,7 @@ pub fn compute_inc(old_checksum: u16, old_value: &[u16], new_value: &[u16]) -> u
     !(checksum as u16)
 }
 
-/// Incrementally computes the new checksum for an IP address change
+/// Incrementally computes the new checksum for an IP address change.
 pub fn compute_with_ipaddr(
     old_checksum: u16,
     old_value: &IpAddr,
