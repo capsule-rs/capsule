@@ -16,9 +16,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//mod srh;
+mod srh;
 
-//pub use self::srh::*;
+pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
@@ -129,7 +129,7 @@ const ECN: u32 = 0x0030_0000;
 const FLOW: u32 = 0xfffff;
 
 /// IPv6 header.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Ipv6Header {
     version_to_flow_label: u32,

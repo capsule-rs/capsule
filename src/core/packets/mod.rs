@@ -21,11 +21,11 @@ mod ethernet;
 // pub mod icmp;
 pub mod ip;
 mod mbuf;
-// mod tcp;
+mod tcp;
 mod udp;
 
 pub use self::ethernet::*;
-// pub use self::tcp::*;
+pub use self::tcp::*;
 pub use self::udp::*;
 
 use crate::{Mbuf, Result, SizeOf};

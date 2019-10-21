@@ -19,7 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
 use crate::packets::{CondRc, Ethernet, Header, Packet};
-use crate::{Mbuf, Result, SizeOf};
+use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
@@ -149,8 +149,8 @@ const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 ///
 /// The header only include the fixed portion of the IPv4 header.
 /// Options are parsed separately.
-#[derive(Debug)]
-#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
 pub struct Ipv4Header {
     version_ihl: u8,
     dscp_ecn: u8,
@@ -513,6 +513,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::UDP_PACKET;
+    use crate::Mbuf;
 
     #[test]
     fn size_of_ipv4_header() {
