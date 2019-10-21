@@ -1,9 +1,9 @@
-use crate::common::Result;
-use crate::native::mbuf::MBuf;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{buffer, checksum, CondRc, Fixed, Header, Packet};
+use crate::packets::{checksum, CondRc, Header, Packet};
+use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::IpAddr;
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc793#section-3.1
     TCP Header Format
@@ -108,11 +108,11 @@ use std::net::IpAddr;
         checksum.
 */
 
-/// TCP header
+/// TCP header.
 ///
 /// The header only include the fixed portion of the TCP header.
 /// Options are parsed separately.
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C, packed)]
 pub struct TcpHeader {
     src_port: u16,
@@ -153,13 +153,12 @@ const RST: u8 = 0b0000_0100;
 const SYN: u8 = 0b0000_0010;
 const FIN: u8 = 0b0000_0001;
 
-/// TCP packet
-#[derive(Debug)]
+/// TCP packet.
+#[derive(Clone)]
 pub struct Tcp<E: IpPacket> {
     envelope: CondRc<E>,
-    mbuf: *mut MBuf,
+    header: NonNull<TcpHeader>,
     offset: usize,
-    header: *mut TcpHeader,
 }
 
 impl<E: IpPacket> Tcp<E> {
@@ -208,7 +207,7 @@ impl<E: IpPacket> Tcp<E> {
         (self.header().offset_to_ns & 0xf0) >> 4
     }
 
-    // TODO: support tcp header options
+    // TODO: support tcp header options.
     #[allow(dead_code)]
     #[inline]
     fn set_data_offset(&mut self, data_offset: u8) {
@@ -396,7 +395,7 @@ impl<E: IpPacket> Tcp<E> {
         )
     }
 
-    /// Sets the layer-3 source address and recomputes the checksum
+    /// Sets the layer-3 source address and recomputes the checksum.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().src();
@@ -406,7 +405,7 @@ impl<E: IpPacket> Tcp<E> {
         Ok(())
     }
 
-    /// Sets the layer-3 destination address and recomputes the checksum
+    /// Sets the layer-3 destination address and recomputes the checksum.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().dst();
@@ -420,8 +419,8 @@ impl<E: IpPacket> Tcp<E> {
     fn compute_checksum(&mut self) {
         self.set_checksum(0);
 
-        if let Ok(data) = buffer::read_slice(self.mbuf, self.offset, self.len()) {
-            let data = unsafe { &(*data) };
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
+            let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
                 .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Tcp)
@@ -435,41 +434,30 @@ impl<E: IpPacket> Tcp<E> {
     }
 }
 
-impl<E: IpPacket> fmt::Display for Tcp<E> {
+impl<E: IpPacket> fmt::Debug for Tcp<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "src_port: {}, dst_port: {}, seq_no: {}, ack_no: {}, data_offset: {}, window: {}, checksum {}, urgent: {}, \
-            NS: {}, CWR: {}, ECE: {}, URG: {}, ACK: {}, PSH: {}, RST: {}, SYN: {}, FIN: {}",
-            self.src_port(),
-            self.dst_port(),
-            self.seq_no(),
-            self.ack_no(),
-            self.data_offset(),
-            self.window(),
-            self.checksum(),
-            self.urgent_pointer(),
-            self.ns(),
-            self.cwr(),
-            self.ece(),
-            self.urg(),
-            self.ack(),
-            self.psh(),
-            self.rst(),
-            self.syn(),
-            self.fin()
-        )
-    }
-}
-
-impl<E: IpPacket> Clone for Tcp<E> {
-    fn clone(&self) -> Tcp<E> {
-        Tcp {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-        }
+        f.debug_struct("tcp")
+            .field("src_port", &self.src_port())
+            .field("dst_port", &self.dst_port())
+            .field("seq_no", &self.seq_no())
+            .field("ack_no", &self.ack_no())
+            .field("data_offset", &self.data_offset())
+            .field("window", &self.window())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("urgent pointer", &self.urgent_pointer())
+            .field("ns", &self.ns())
+            .field("cwr", &self.cwr())
+            .field("ece", &self.ece())
+            .field("urg", &self.urg())
+            .field("ack", &self.ack())
+            .field("psh", &self.psh())
+            .field("rst", &self.rst())
+            .field("syn", &self.syn())
+            .field("fin", &self.fin())
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
@@ -479,18 +467,24 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -500,56 +494,39 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Tcp {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Tcp {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
     }
 
@@ -604,18 +581,18 @@ mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::ip::v6::{Ipv6, SegmentRouting, SRH_PACKET};
-    use crate::packets::{Ethernet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::Ethernet;
+    use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn size_of_tcp_header() {
-        assert_eq!(20, TcpHeader::size());
+        assert_eq!(20, TcpHeader::size_of());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_tcp_packet() {
-        let packet = RawPacket::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -639,9 +616,9 @@ mod tests {
         assert!(!tcp.fin());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn tcp_flow_v4() {
-        let packet = RawPacket::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -654,9 +631,9 @@ mod tests {
         assert_eq!(ProtocolNumbers::Tcp, flow.protocol());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn tcp_flow_v6() {
-        let packet = RawPacket::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
@@ -670,9 +647,9 @@ mod tests {
         assert_eq!(ProtocolNumbers::Tcp, flow.protocol());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn set_src_dst_ip() {
-        let packet = RawPacket::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -693,9 +670,9 @@ mod tests {
         assert!(tcp.set_src_ip(Ipv6Addr::UNSPECIFIED.into()).is_err());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn compute_checksum() {
-        let packet = RawPacket::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -706,14 +683,14 @@ mod tests {
         assert_eq!(expected, tcp.checksum());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn push_tcp_packet() {
-        let packet = RawPacket::new().unwrap();
+        let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ipv4 = ethernet.push::<Ipv4>().unwrap();
         let tcp = ipv4.push::<Tcp<Ipv4>>().unwrap();
 
-        assert_eq!(TcpHeader::size(), tcp.len());
+        assert_eq!(TcpHeader::size_of(), tcp.len());
         assert_eq!(5, tcp.data_offset());
     }
 }

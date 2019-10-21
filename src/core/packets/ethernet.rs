@@ -65,7 +65,7 @@ impl fmt::Display for EtherType {
 }
 
 /// Ethernet header.
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EthernetHeader {
     dst: MacAddr,

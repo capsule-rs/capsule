@@ -1,6 +1,6 @@
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, CondRc, Header, Packet};
-use crate::{Mbuf, Result, SizeOf};
+use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -58,7 +58,7 @@ use std::ptr::NonNull;
 */
 
 /// UDP header.
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub struct UdpHeader {
     src_port: u16,
@@ -311,6 +311,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::Ethernet;
+    use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
