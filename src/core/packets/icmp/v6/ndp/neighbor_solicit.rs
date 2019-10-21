@@ -61,8 +61,8 @@ use std::net::Ipv6Addr;
                     unicast solicitations.
 */
 
-/// NDP neighbor solicitation message
-#[derive(Debug)]
+/// NDP neighbor solicitation message.
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct NeighborSolicitation {
     reserved: u32,
@@ -87,7 +87,7 @@ impl Icmpv6Payload for NeighborSolicitation {
 
 impl NdpPayload for NeighborSolicitation {}
 
-/// NDP neighbor solicitation packet
+/// NDP neighbor solicitation packet.
 impl<E: Ipv6Packet> Icmpv6<E, NeighborSolicitation> {
     #[inline]
     pub fn reserved(&self) -> u32 {
@@ -105,27 +105,25 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborSolicitation> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, NeighborSolicitation> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborSolicitation> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, reserved: {}, target address: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.reserved(),
-            self.target_addr()
-        )
+        f.debug_struct("neighbor solicit")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("reserved", &self.reserved())
+            .field("target_addr", &self.target_addr())
+            .finish()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use packets::Fixed;
+    use crate::SizeOf;
 
     #[test]
     fn size_of_neighbor_solicitation() {
-        assert_eq!(20, NeighborSolicitation::size());
+        assert_eq!(20, NeighborSolicitation::size_of());
     }
 }

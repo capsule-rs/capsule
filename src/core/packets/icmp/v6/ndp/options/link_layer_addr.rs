@@ -16,11 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![allow(clippy::not_unsafe_ptr_arg_deref, clippy::mut_from_ref)]
-
-use crate::packets::{buffer, Fixed, MacAddr, ParseError};
-use packets::icmp::v6::ndp::options::{NdpOption, SOURCE_LINK_LAYER_ADDR, TARGET_LINK_LAYER_ADDR};
+use super::{NdpOption, SOURCE_LINK_LAYER_ADDR, TARGET_LINK_LAYER_ADDR};
+use crate::net::MacAddr;
+use crate::packets::ParseError;
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc4861#section-4.6.1
     Source/Target Link-layer Address
@@ -47,7 +48,7 @@ use std::fmt;
                     operates over different link layers.
 */
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C, packed)]
 struct LinkLayerAddressFields {
     option_type: u8,
@@ -65,54 +66,39 @@ impl Default for LinkLayerAddressFields {
     }
 }
 
-impl NdpOption for LinkLayerAddress {
-    #![allow(clippy::not_unsafe_ptr_arg_deref)]
-    #[inline]
-    fn do_push(mbuf: *mut MBuf) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let offset = unsafe { (*mbuf).data_len() };
-
-        buffer::alloc(mbuf, offset, LinkLayerAddressFields::size())?;
-
-        let fields =
-            buffer::write_item::<LinkLayerAddressFields>(mbuf, offset, &Default::default())?;
-        Ok(LinkLayerAddress { fields, offset })
-    }
-}
-
 /// Link-layer address option
 pub struct LinkLayerAddress {
-    fields: *mut LinkLayerAddressFields,
+    fields: NonNull<LinkLayerAddressFields>,
     offset: usize,
 }
 
 impl LinkLayerAddress {
-    /// Parses the link-layer address option from the message buffer at offset
+    /// Parses the link-layer address option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: *mut MBuf, offset: usize) -> Result<LinkLayerAddress> {
-        let fields = buffer::read_item::<LinkLayerAddressFields>(mbuf, offset)?;
-        if unsafe { (*fields).length } != (LinkLayerAddressFields::size() as u8 / 8) {
-            Err(ParseError::new("Invalid link-layer address option length").into())
-        } else {
-            Ok(LinkLayerAddress { fields, offset })
-        }
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<LinkLayerAddress> {
+        let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
+
+        ensure!(
+            unsafe { fields.as_ref().length } == (LinkLayerAddressFields::size_of() as u8 / 8),
+            ParseError::new("Invalid link-layer address option length.")
+        );
+
+        Ok(LinkLayerAddress { fields, offset })
     }
 
-    /// Returns the message buffer offset for this option
+    /// Returns the message buffer offset for this option.
     pub fn offset(&self) -> usize {
         self.offset
     }
 
     #[inline]
     fn fields(&self) -> &LinkLayerAddressFields {
-        unsafe { &(*self.fields) }
+        unsafe { self.fields.as_ref() }
     }
 
     #[inline]
     fn fields_mut(&mut self) -> &mut LinkLayerAddressFields {
-        unsafe { &mut (*self.fields) }
+        unsafe { self.fields.as_mut() }
     }
 
     #[inline]
@@ -145,15 +131,26 @@ impl LinkLayerAddress {
     }
 }
 
-impl fmt::Display for LinkLayerAddress {
+impl fmt::Debug for LinkLayerAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, length: {}, addr: {}",
-            self.option_type(),
-            self.length(),
-            self.addr()
-        )
+        f.debug_struct("link layer address")
+            .field("type", &self.option_type())
+            .field("length", &self.length())
+            .field("addr", &self.addr())
+            .finish()
+    }
+}
+
+impl NdpOption for LinkLayerAddress {
+    #[inline]
+    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let offset = mbuf.data_len();
+        mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
+        let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
+        Ok(LinkLayerAddress { fields, offset })
     }
 }
 
@@ -163,6 +160,6 @@ mod tests {
 
     #[test]
     fn size_of_link_layer_address() {
-        assert_eq!(8, LinkLayerAddressFields::size());
+        assert_eq!(8, LinkLayerAddressFields::size_of());
     }
 }

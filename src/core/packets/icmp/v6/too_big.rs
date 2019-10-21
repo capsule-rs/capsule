@@ -18,7 +18,8 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::{buffer, EthernetHeader, Fixed, Packet};
+use crate::packets::{EthernetHeader, Packet};
+use crate::SizeOf;
 use std::fmt;
 
 /*  From https://tools.ietf.org/html/rfc4443#section-3.2
@@ -39,7 +40,7 @@ use std::fmt;
 */
 
 /// Packet too big message
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct PacketTooBig {
     mtu: u32,
@@ -65,29 +66,33 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
 
 impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, PacketTooBig> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, mtu: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.mtu()
-        )
+        f.debug_struct("icmpv6")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("mtu", &self.mtu())
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
-impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
-    #[inline]
-    fn cascade(&mut self) {
-        // assuming inside an ethernet frame
-        let max_len = self.mtu() as usize + EthernetHeader::size();
-        // only err if nothing to trim, ignore the result
-        let _ = buffer::trim(self.mbuf(), max_len);
+// TODO: need specialization to get this back
+// https://github.com/rust-lang/rust/issues/31844
 
-        self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-}
+// impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
+//     #[inline]
+//     fn cascade(&mut self) {
+//         // assuming inside an ethernet frame
+//         let max_len = self.mtu() as usize + EthernetHeader::size_of();
+//         // only err if nothing to trim, ignore the result
+//         let _ = self.mbuf_mut().truncate(max_len);
+
+//         self.compute_checksum();
+//         self.envelope_mut().cascade();
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -95,6 +100,6 @@ mod tests {
 
     #[test]
     fn size_of_packet_too_big() {
-        assert_eq!(4, PacketTooBig::size());
+        assert_eq!(4, PacketTooBig::size_of());
     }
 }

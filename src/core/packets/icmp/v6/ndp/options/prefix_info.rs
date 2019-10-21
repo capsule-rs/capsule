@@ -16,13 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![allow(clippy::mut_from_ref)]
-
-use super::PREFIX_INFORMATION;
-use crate::packets::icmp::v6::ndp::NdpOption;
-use crate::packets::{buffer, Fixed, ParseError};
+use super::{NdpOption, PREFIX_INFORMATION};
+use crate::packets::ParseError;
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
 use std::net::Ipv6Addr;
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc4861#section-4.6.2
     Prefix Information
@@ -114,7 +113,7 @@ use std::net::Ipv6Addr;
 const ONLINK: u8 = 0b1000_0000;
 const AUTO: u8 = 0b0100_0000;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct PrefixInformationFields {
     option_type: u8,
@@ -142,37 +141,39 @@ impl Default for PrefixInformationFields {
     }
 }
 
-/// Prefix information option
+/// Prefix information option.
 pub struct PrefixInformation {
-    fields: *mut PrefixInformationFields,
+    fields: NonNull<PrefixInformationFields>,
     offset: usize,
 }
 
 impl PrefixInformation {
-    /// Parses the prefix information option from the message buffer at offset
+    /// Parses the prefix information option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: *mut MBuf, offset: usize) -> Result<PrefixInformation> {
-        let fields = buffer::read_item::<PrefixInformationFields>(mbuf, offset)?;
-        if unsafe { (*fields).length } != (PrefixInformationFields::size() as u8 / 8) {
-            Err(ParseError::new("Invalid prefix information option length").into())
-        } else {
-            Ok(PrefixInformation { fields, offset })
-        }
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<PrefixInformation> {
+        let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
+
+        ensure!(
+            unsafe { fields.as_ref().length } == (PrefixInformationFields::size_of() as u8 / 8),
+            ParseError::new("Invalid prefix information option length.")
+        );
+
+        Ok(PrefixInformation { fields, offset })
     }
 
-    /// Returns the message buffer offset for this option
+    /// Returns the message buffer offset for this option.
     pub fn offset(&self) -> usize {
         self.offset
     }
 
     #[inline]
     fn fields(&self) -> &PrefixInformationFields {
-        unsafe { &(*self.fields) }
+        unsafe { self.fields.as_ref() }
     }
 
     #[inline]
     fn fields_mut(&mut self) -> &mut PrefixInformationFields {
-        unsafe { &mut (*self.fields) }
+        unsafe { self.fields.as_mut() }
     }
 
     #[inline]
@@ -256,36 +257,30 @@ impl PrefixInformation {
     }
 }
 
-impl fmt::Display for PrefixInformation {
+impl fmt::Debug for PrefixInformation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, length: {}, prefix_length: {}, on_link: {}, autonomous: {}, valid_lifetime: {}, preferred_lifetime: {}, prefix: {}",
-            self.option_type(),
-            self.length(),
-            self.prefix_length(),
-            self.on_link(),
-            self.autonomous(),
-            self.valid_lifetime(),
-            self.preferred_lifetime(),
-            self.prefix()
-        )
+        f.debug_struct("prefix information")
+            .field("type", &self.option_type())
+            .field("length", &self.length())
+            .field("prefix_length", &self.prefix_length())
+            .field("on_link", &self.on_link())
+            .field("autonomous", &self.autonomous())
+            .field("valid_lifetime", &self.valid_lifetime())
+            .field("preferred_lifetime", &self.preferred_lifetime())
+            .field("prefix", &self.prefix())
+            .finish()
     }
 }
 
 impl NdpOption for PrefixInformation {
-    #![allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline]
-    fn do_push(mbuf: *mut MBuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
     where
         Self: Sized,
     {
-        let offset = unsafe { (*mbuf).data_len() };
-
-        buffer::alloc(mbuf, offset, PrefixInformationFields::size())?;
-
-        let fields =
-            buffer::write_item::<PrefixInformationFields>(mbuf, offset, &Default::default())?;
+        let offset = mbuf.data_len();
+        mbuf.extend(offset, PrefixInformationFields::size_of())?;
+        let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
         Ok(PrefixInformation { fields, offset })
     }
 }
@@ -296,6 +291,6 @@ mod tests {
 
     #[test]
     fn size_of_prefix_information() {
-        assert_eq!(32, PrefixInformationFields::size());
+        assert_eq!(32, PrefixInformationFields::size_of());
     }
 }

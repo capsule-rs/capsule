@@ -16,12 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![allow(clippy::mut_from_ref)]
-
-use super::MTU;
-use crate::packets::icmp::v6::ndp::NdpOption;
-use crate::packets::{buffer, Fixed, ParseError};
+use super::{NdpOption, MTU};
+use crate::packets::ParseError;
+use crate::{Mbuf, Result, SizeOf};
 use std::fmt;
+use std::ptr::NonNull;
 
 /*  From https://tools.ietf.org/html/rfc4861#section-4.6.4
     MTU
@@ -66,22 +65,24 @@ impl Default for MtuFields {
     }
 }
 
-/// Maximum transmission unit option
+/// Maximum transmission unit option.
 pub struct Mtu {
-    fields: *mut MtuFields,
+    fields: NonNull<MtuFields>,
     offset: usize,
 }
 
 impl Mtu {
-    /// Parses the MTU option from the message buffer at offset
+    /// Parses the MTU option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: *mut MBuf, offset: usize) -> Result<Mtu> {
-        let fields = buffer::read_item::<MtuFields>(mbuf, offset)?;
-        if unsafe { (*fields).length } != (MtuFields::size() as u8 / 8) {
-            Err(ParseError::new("Invalid MTU option length").into())
-        } else {
-            Ok(Mtu { fields, offset })
-        }
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<Mtu> {
+        let fields = mbuf.read_data::<MtuFields>(offset)?;
+
+        ensure!(
+            unsafe { fields.as_ref().length } == (MtuFields::size_of() as u8 / 8),
+            ParseError::new("Invalid MTU option length.")
+        );
+
+        Ok(Mtu { fields, offset })
     }
 
     /// Returns the message buffer offset for this option
@@ -91,12 +92,12 @@ impl Mtu {
 
     #[inline]
     fn fields(&self) -> &MtuFields {
-        unsafe { &(*self.fields) }
+        unsafe { self.fields.as_ref() }
     }
 
     #[inline]
     fn fields_mut(&mut self) -> &mut MtuFields {
-        unsafe { &mut (*self.fields) }
+        unsafe { self.fields.as_mut() }
     }
 
     #[inline]
@@ -117,30 +118,25 @@ impl Mtu {
     }
 }
 
-impl fmt::Display for Mtu {
+impl fmt::Debug for Mtu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, length: {}, mtu: {}",
-            self.option_type(),
-            self.length(),
-            self.mtu()
-        )
+        f.debug_struct("link layer address")
+            .field("type", &self.option_type())
+            .field("length", &self.length())
+            .field("mtu", &self.mtu())
+            .finish()
     }
 }
 
 impl NdpOption for Mtu {
-    #![allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline]
-    fn do_push(mbuf: *mut MBuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
     where
         Self: Sized,
     {
-        let offset = unsafe { (*mbuf).data_len() };
-
-        buffer::alloc(mbuf, offset, MtuFields::size())?;
-
-        let fields = buffer::write_item::<MtuFields>(mbuf, offset, &Default::default())?;
+        let offset = mbuf.data_len();
+        mbuf.extend(offset, MtuFields::size_of())?;
+        let fields = mbuf.write_data(offset, &MtuFields::default())?;
         Ok(Mtu { fields, offset })
     }
 }
@@ -151,6 +147,6 @@ mod tests {
 
     #[test]
     fn size_of_mtu() {
-        assert_eq!(8, MtuFields::size());
+        assert_eq!(8, MtuFields::size_of());
     }
 }

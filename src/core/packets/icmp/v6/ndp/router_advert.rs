@@ -121,8 +121,8 @@ use std::fmt;
                     neighbors.
 */
 
-/// NDP router advertisement message
-#[derive(Clone, Copy, Default, Debug)]
+/// NDP router advertisement message.
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct RouterAdvertisement {
     current_hop_limit: u8,
@@ -144,7 +144,7 @@ impl NdpPayload for RouterAdvertisement {}
 const M_FLAG: u8 = 0b1000_0000;
 const O_FLAG: u8 = 0b0100_0000;
 
-/// NDP router advertisement packet
+/// NDP router advertisement packet.
 impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     #[inline]
     pub fn current_hop_limit(&self) -> u8 {
@@ -218,21 +218,19 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, RouterAdvertisement> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, current_hop_limit: {}, managed address cfg: {}, other cfg: {}, router_lifetime: {}, reachable_time: {}, retrans_timer: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.current_hop_limit(),
-            self.managed_addr_cfg(),
-            self.other_cfg(),
-            self.router_lifetime(),
-            self.reachable_time(),
-            self.retrans_timer()
-        )
+        f.debug_struct("router advertisement")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("current_hop_limit", &self.current_hop_limit())
+            .field("managed_addr_cfg", &self.managed_addr_cfg())
+            .field("other_cfg", &self.other_cfg())
+            .field("router_lifetime", &self.router_lifetime())
+            .field("reachable_time", &self.reachable_time())
+            .field("retrans_timer", &self.retrans_timer())
+            .finish()
     }
 }
 
@@ -284,25 +282,25 @@ pub const ROUTER_ADVERT_PACKET: [u8; 142] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ethernet::MacAddr;
+    use crate::net::MacAddr;
     use crate::packets::icmp::v6::ndp::{
         LinkLayerAddress, NdpOptions, NdpPacket, SOURCE_LINK_LAYER_ADDR,
     };
     use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Fixed, Packet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::{Ethernet, Packet};
+    use crate::{Mbuf, SizeOf};
     use fallible_iterator::FallibleIterator;
     use std::str::FromStr;
 
     #[test]
     fn size_of_router_advertisement() {
-        assert_eq!(12, RouterAdvertisement::size());
+        assert_eq!(12, RouterAdvertisement::size_of());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn parse_router_advertisement_packet() {
-        let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -321,13 +319,13 @@ mod tests {
         }
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn find_source_link_layer_address() {
-        let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
-        if let Ok(Icmpv6Message::RouterAdvertisement(advert)) = ipv6.parse_icmpv6() {
+        if let Ok(Icmpv6Message::RouterAdvertisement(mut advert)) = ipv6.parse_icmpv6() {
             let mut source_link_address: LinkLayerAddress = advert.push_option().unwrap();
             source_link_address.set_addr(MacAddr::from_str("70:3a:cb:1b:f9:7a").unwrap());
             source_link_address.set_option_type(SOURCE_LINK_LAYER_ADDR);

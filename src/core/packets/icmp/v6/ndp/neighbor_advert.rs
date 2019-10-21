@@ -95,7 +95,7 @@ const R_FLAG: u8 = 0b1000_0000;
 const S_FLAG: u8 = 0b0100_0000;
 const O_FLAG: u8 = 0b0010_0000;
 
-/// NDP neighbor advertisement message
+/// NDP neighbor advertisement message.
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct NeighborAdvertisement {
@@ -125,7 +125,7 @@ impl Icmpv6Payload for NeighborAdvertisement {
 
 impl NdpPayload for NeighborAdvertisement {}
 
-/// NDP neighbor advertisement packet
+/// NDP neighbor advertisement packet.
 impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     #[inline]
     pub fn router(&self) -> bool {
@@ -183,29 +183,27 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborAdvertisement> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, NeighborAdvertisement> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborAdvertisement> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, router: {}, solicited: {}, override: {}, target address: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.router(),
-            self.solicited(),
-            self.r#override(),
-            self.target_addr()
-        )
+        f.debug_struct("neighbor advertisement")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("router", &self.router())
+            .field("solicited", &self.solicited())
+            .field("override", &self.r#override())
+            .field("target_addr", &self.target_addr())
+            .finish()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::Fixed;
+    use crate::SizeOf;
 
     #[test]
     fn size_of_neighbor_advertisement() {
-        assert_eq!(20, NeighborAdvertisement::size());
+        assert_eq!(20, NeighborAdvertisement::size_of());
     }
 }

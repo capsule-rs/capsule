@@ -28,8 +28,10 @@ pub use self::too_big::*;
 
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{buffer, checksum, CondRc, Fixed, Header, Packet, ParseError};
+use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::{Result, SizeOf};
 use std::fmt;
+use std::ptr::NonNull;
 
 /*  From (https://tools.ietf.org/html/rfc4443)
     The ICMPv6 messages have the following general format:
@@ -53,8 +55,8 @@ use std::fmt;
     message and parts of the IPv6 header.
 */
 
-/// Type of ICMPv6 message
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+/// Type of ICMPv6 message.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Icmpv6Type(pub u8);
 
@@ -64,7 +66,7 @@ impl Icmpv6Type {
     }
 }
 
-/// Supported ICMPv6 message types
+/// Supported ICMPv6 message types.
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
 pub mod Icmpv6Types {
@@ -102,8 +104,8 @@ impl fmt::Display for Icmpv6Type {
     }
 }
 
-/// ICMPv6 packet header
-#[derive(Clone, Copy, Default, Debug)]
+/// ICMPv6 packet header.
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct Icmpv6Header {
     msg_type: u8,
@@ -113,17 +115,17 @@ pub struct Icmpv6Header {
 
 impl Header for Icmpv6Header {}
 
-/// ICMPv6 packet payload
+/// ICMPv6 packet payload.
 ///
 /// The ICMPv6 packet may contain a variable length payload. This
 /// is only the fixed portion. The variable length portion has to
 /// be parsed separately.
-pub trait Icmpv6Payload: Fixed + Default {
+pub trait Icmpv6Payload: Clone + Default + SizeOf {
     /// Returns the ICMPv6 message type that corresponds to the payload
     fn msg_type() -> Icmpv6Type;
 }
 
-/// ICMPv6 unit payload `()`
+/// ICMPv6 unit payload `()`.
 impl Icmpv6Payload for () {
     fn msg_type() -> Icmpv6Type {
         // Unit payload does not have a type
@@ -131,7 +133,7 @@ impl Icmpv6Payload for () {
     }
 }
 
-/// Common behaviors shared by ICMPv6 packets
+/// Common behaviors shared by ICMPv6 packets.
 pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     Packet<Header = Icmpv6Header, Envelope = E>
 {
@@ -165,8 +167,8 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     fn compute_checksum(&mut self) {
         self.header_mut().checksum = 0;
 
-        if let Ok(data) = buffer::read_slice(self.mbuf(), self.offset(), self.len()) {
-            let data = unsafe { &(*data) };
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
+            let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
                 .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Icmpv6)
@@ -180,17 +182,16 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     }
 }
 
-/// ICMPv6 packet
-#[derive(Debug)]
+/// ICMPv6 packet.
+#[derive(Clone)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     envelope: CondRc<E>,
-    mbuf: *mut MBuf,
+    header: NonNull<Icmpv6Header>,
+    payload: NonNull<P>,
     offset: usize,
-    header: *mut Icmpv6Header,
-    payload: *mut P,
 }
 
-/// ICMPv6 packet with unit payload
+/// ICMPv6 packet with unit payload.
 ///
 /// Use unit payload `()` when the payload type is not known yet.
 ///
@@ -216,37 +217,26 @@ impl<E: Ipv6Packet> Icmpv6<E, ()> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, ()> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}",
-            self.msg_type(),
-            self.code(),
-            self.checksum()
-        )
+        f.debug_struct("icmpv6")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
 impl<E: Ipv6Packet, P: Icmpv6Payload> Icmpv6Packet<E, P> for Icmpv6<E, P> {
     fn payload(&self) -> &P {
-        unsafe { &(*self.payload) }
+        unsafe { self.payload.as_ref() }
     }
 
     fn payload_mut(&mut self) -> &mut P {
-        unsafe { &mut (*self.payload) }
-    }
-}
-
-impl<E: Ipv6Packet, P: Icmpv6Payload> Clone for Icmpv6<E, P> {
-    fn clone(&self) -> Icmpv6<E, P> {
-        Icmpv6 {
-            envelope: self.envelope.clone(),
-            mbuf: self.mbuf,
-            offset: self.offset,
-            header: self.header,
-            payload: self.payload,
-        }
+        unsafe { self.payload.as_mut() }
     }
 }
 
@@ -256,18 +246,24 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
-        &*self.envelope
+        &self.envelope
     }
 
     #[inline]
     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut *self.envelope
+        &mut self.envelope
     }
 
     #[doc(hidden)]
     #[inline]
-    fn mbuf(&self) -> *mut MBuf {
-        self.mbuf
+    fn header(&self) -> &Self::Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    fn header_mut(&mut self) -> &mut Self::Header {
+        unsafe { self.header.as_mut() }
     }
 
     #[inline]
@@ -277,70 +273,52 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
 
     #[doc(hidden)]
     #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { &(*self.header) }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { &mut (*self.header) }
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size()
-    }
-
-    #[doc(hidden)]
-    #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = buffer::read_item::<Self::Header>(mbuf, offset)?;
-        let payload = buffer::read_item::<P>(mbuf, offset + Self::Header::size())?;
+        let header = mbuf.read_data(offset)?;
+        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
 
         Ok(Icmpv6 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
             payload,
+            offset,
         })
     }
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self> {
-        let mbuf = envelope.mbuf();
+    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-        buffer::alloc(mbuf, offset, Self::Header::size() + P::size())?;
-        let header = buffer::write_item::<Self::Header>(mbuf, offset, &Default::default())?;
-        let payload =
-            buffer::write_item::<P>(mbuf, offset + Self::Header::size(), &Default::default())?;
+        mbuf.extend(offset, Self::Header::size_of() + P::size_of())?;
+        let mut header = mbuf.write_data(offset, &Self::Header::default())?;
+        let payload = mbuf.write_data(offset + Self::Header::size_of(), &P::default())?;
 
         unsafe {
-            (*header).msg_type = P::msg_type().0;
+            header.as_mut().msg_type = P::msg_type().0;
         }
 
         Ok(Icmpv6 {
             envelope: CondRc::new(envelope),
-            mbuf,
-            offset,
             header,
             payload,
+            offset,
         })
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
-        buffer::dealloc(self.mbuf, self.offset, self.header_len())?;
+    fn remove(mut self) -> Result<Self::Envelope> {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
         Ok(self.envelope.into_owned())
     }
 
     #[inline]
-    default fn cascade(&mut self) {
+    fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
     }
@@ -351,7 +329,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     }
 }
 
-/// An ICMPv6 message with parsed payload
+/// An ICMPv6 message with parsed payload.
 pub enum Icmpv6Message<E: Ipv6Packet> {
     EchoRequest(Icmpv6<E, EchoRequest>),
     EchoReply(Icmpv6<E, EchoReply>),
@@ -453,17 +431,17 @@ pub const ICMPV6_PACKET: [u8; 62] = [
 mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::Ethernet;
+    use crate::Mbuf;
 
     #[test]
     fn size_of_icmpv6_header() {
-        assert_eq!(4, Icmpv6Header::size());
+        assert_eq!(4, Icmpv6Header::size_of());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn parse_icmpv6_packet() {
-        let packet = RawPacket::from_bytes(&ICMPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
@@ -473,9 +451,9 @@ mod tests {
         assert_eq!(0x01f0, icmpv6.checksum());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn downcast_icmpv6() {
-        let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
@@ -485,9 +463,9 @@ mod tests {
         assert_eq!(64, advert.current_hop_limit());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn compute_checksum() {
-        let packet = RawPacket::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
@@ -498,9 +476,9 @@ mod tests {
         assert_eq!(expected, icmpv6.checksum());
     }
 
-    #[dpdk_test]
+    #[capsule::test]
     fn matchable_icmpv6_packets() {
-        let packet = RawPacket::from_bytes(&ICMPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         if let Ok(Icmpv6Message::Undefined(icmpv6)) = ipv6.parse_icmpv6() {

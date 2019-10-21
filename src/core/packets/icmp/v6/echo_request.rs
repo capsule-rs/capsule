@@ -18,7 +18,8 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::{buffer, Fixed, Packet};
+use crate::packets::Packet;
+use crate::{Result, SizeOf};
 use std::fmt;
 
 /*  From https://tools.ietf.org/html/rfc4443#section-4.1
@@ -45,7 +46,7 @@ use std::fmt;
 */
 
 /// Echo request message
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoRequest {
     identifier: u16,
@@ -82,19 +83,23 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoRequest> {
     /// Returns the offset where the data field in the message body starts
     #[inline]
     fn data_offset(&self) -> usize {
-        self.payload_offset() + EchoRequest::size()
+        self.payload_offset() + EchoRequest::size_of()
     }
 
     /// Returns the length of the data field in the message body
     #[inline]
     fn data_len(&self) -> usize {
-        self.payload_len() - EchoRequest::size()
+        self.payload_len() - EchoRequest::size_of()
     }
 
     #[inline]
     pub fn data(&self) -> &[u8] {
-        if let Ok(data) = buffer::read_slice(self.mbuf(), self.data_offset(), self.data_len()) {
-            unsafe { &(*data) }
+        if let Ok(data) = self
+            .mbuf()
+            .read_data_slice(self.data_offset(), self.data_len())
+        {
+            // TODO: fix this unowned reference
+            unsafe { &*data.as_ptr() }
         } else {
             unreachable!()
         }
@@ -102,27 +107,26 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoRequest> {
 
     #[inline]
     pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
-        buffer::realloc(
-            self.mbuf(),
-            self.data_offset(),
-            data.len() as isize - self.data_len() as isize,
-        )?;
-        buffer::write_slice(self.mbuf(), self.data_offset(), data)?;
+        let offset = self.data_offset();
+        let len = data.len() as isize - self.data_len() as isize;
+        self.mbuf_mut().resize(offset, len)?;
+        self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
     }
 }
 
 impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, EchoRequest> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, identifier: {}, seq_no: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.identifier(),
-            self.seq_no(),
-        )
+        f.debug_struct("icmpv6")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("identifier", &self.identifier())
+            .field("seq_no", &self.seq_no())
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
     }
 }
 
@@ -132,6 +136,6 @@ mod tests {
 
     #[test]
     fn size_of_echo_request() {
-        assert_eq!(4, EchoRequest::size());
+        assert_eq!(4, EchoRequest::size_of());
     }
 }
