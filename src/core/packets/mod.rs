@@ -1,6 +1,6 @@
 pub mod checksum;
 mod ethernet;
-// pub mod icmp;
+pub mod icmp;
 pub mod ip;
 mod mbuf;
 mod tcp;

@@ -29,8 +29,8 @@ use std::fmt;
                     be included on link layers that have addresses.
 */
 
-/// NDP router solicitation message
-#[derive(Clone, Copy, Default, Debug)]
+/// NDP router solicitation message.
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
     reserved: u32,
@@ -45,7 +45,7 @@ impl Icmpv6Payload for RouterSolicitation {
 
 impl NdpPayload for RouterSolicitation {}
 
-/// NDP router solicitation packet
+/// NDP router solicitation packet.
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
     pub fn reserved(&self) -> u32 {
@@ -53,16 +53,14 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, RouterSolicitation> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "type: {}, code: {}, checksum: 0x{:04x}, reserved: {}",
-            self.msg_type(),
-            self.code(),
-            self.checksum(),
-            self.reserved()
-        )
+        f.debug_struct("router solicit")
+            .field("type", &self.msg_type())
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("reserved", &self.reserved())
+            .finish()
     }
 }
 
@@ -100,17 +98,17 @@ mod tests {
     use super::*;
     use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Fixed, Packet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::{Ethernet, Packet};
+    use crate::{Mbuf, SizeOf};
 
     #[test]
     fn size_of_router_solicitation() {
-        assert_eq!(4, RouterSolicitation::size());
+        assert_eq!(4, RouterSolicitation::size_of());
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn parse_router_solicitation_packet() {
-        let packet = RawPacket::from_bytes(&ROUTER_SOLICIT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_SOLICIT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 

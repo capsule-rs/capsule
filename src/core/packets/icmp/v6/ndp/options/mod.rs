@@ -6,8 +6,8 @@ pub use self::link_layer_addr::*;
 pub use self::mtu::*;
 pub use self::prefix_info::*;
 
-use crate::native::mbuf::MBuf;
-use crate::packets::{buffer, ParseError};
+use crate::packets::ParseError;
+use crate::{Mbuf, Result};
 use fallible_iterator::FallibleIterator;
 
 pub const SOURCE_LINK_LAYER_ADDR: u8 = 1;
@@ -16,48 +16,48 @@ pub const PREFIX_INFORMATION: u8 = 3;
 //const REDIRECTED_HEADER: u8 = 4;
 pub const MTU: u8 = 5;
 
-/// A parsed NDP option
+/// A parsed NDP option.
 pub enum NdpOptions {
     SourceLinkLayerAddress(LinkLayerAddress),
     TargetLinkLayerAddress(LinkLayerAddress),
     PrefixInformation(PrefixInformation),
     Mtu(Mtu),
-    /// An undefined NDP option
+    /// An undefined NDP option.
     Undefined(u8, u8),
 }
 
 pub trait NdpOption {
     #[doc(hidden)]
-    fn do_push(mbuf: *mut MBuf) -> crate::common::Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
     where
         Self: Sized;
 }
 
-/// NDP options iterator
-pub struct NdpOptionsIterator {
-    mbuf: *mut MBuf,
+/// NDP options iterator.
+pub struct NdpOptionsIterator<'a> {
+    mbuf: &'a Mbuf,
     offset: usize,
 }
 
-impl NdpOptionsIterator {
-    pub fn new(mbuf: *mut MBuf, offset: usize) -> NdpOptionsIterator {
+impl<'a> NdpOptionsIterator<'a> {
+    pub fn new(mbuf: &'a Mbuf, offset: usize) -> NdpOptionsIterator<'a> {
         NdpOptionsIterator { mbuf, offset }
     }
 }
 
-impl FallibleIterator for NdpOptionsIterator {
+impl<'a> FallibleIterator for NdpOptionsIterator<'a> {
     type Item = NdpOptions;
     type Error = failure::Error;
 
-    fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
-        let buffer_len = unsafe { (*self.mbuf).data_len() };
+    fn next(&mut self) -> std::result::Result<Option<Self::Item>, Self::Error> {
+        let buffer_len = self.mbuf.data_len();
 
         if self.offset <= buffer_len {
-            let [option_type, length] =
-                unsafe { *(buffer::read_item::<[u8; 2]>(self.mbuf, self.offset)?) };
+            let &[option_type, length] =
+                unsafe { self.mbuf.read_data::<[u8; 2]>(self.offset)?.as_ref() };
 
             if length == 0 {
-                Err(ParseError::new("NDP option has zero length").into())
+                Err(ParseError::new("NDP option has zero length.").into())
             } else {
                 let option = match option_type {
                     SOURCE_LINK_LAYER_ADDR => {
@@ -166,12 +166,11 @@ mod tests {
     use crate::packets::icmp::v6::ndp::NdpPacket;
     use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet, RawPacket};
-    use crate::testing::dpdk_test;
+    use crate::packets::{Ethernet, Packet};
 
-    #[dpdk_test]
+    #[nb2::test]
     fn invalid_ndp_option_length() {
-        let packet = RawPacket::from_bytes(&INVALID_OPTION_LENGTH).unwrap();
+        let packet = Mbuf::from_bytes(&INVALID_OPTION_LENGTH).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -182,9 +181,9 @@ mod tests {
         }
     }
 
-    #[dpdk_test]
+    #[nb2::test]
     fn undefined_ndp_option() {
-        let packet = RawPacket::from_bytes(&UNDEFINED_OPTION).unwrap();
+        let packet = Mbuf::from_bytes(&UNDEFINED_OPTION).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
