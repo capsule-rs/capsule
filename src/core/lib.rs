@@ -32,12 +32,9 @@ mod runtime;
 pub mod settings;
 mod testil;
 
-pub use crate::dpdk::Mbuf;
+pub use crate::dpdk::{Mbuf, SizeOf};
 pub use crate::runtime::Runtime;
 pub use capsule_macros::test;
 
-use failure::Error;
-use std::result;
-
 /// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, failure::Error>;
