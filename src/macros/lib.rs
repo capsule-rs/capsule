@@ -55,7 +55,7 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
     let result = quote! {
         #[test]
         fn #name(#inputs) #ret {
-            ::capsule::testil::cargo_test_init();
+            ::capsule::testils::cargo_test_init();
             let mut mempool = ::capsule::dpdk::Mempool::new(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
             ::capsule::dpdk::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 

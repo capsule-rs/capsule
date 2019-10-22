@@ -16,27 +16,19 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-// alias for the test macro
-#[cfg(test)]
-extern crate self as capsule;
+mod packet;
+pub mod proptest;
 
-// make sure macros are defined before other mods
-mod macros;
+pub use self::packet::*;
 
-mod core_map;
-mod dpdk;
-mod ffi;
-mod mempool_map;
-pub mod net;
-pub mod packets;
-mod runtime;
-pub mod settings;
-#[cfg(any(test, feature = "testils"))]
-pub mod testils;
+use crate::dpdk::eal_init;
+use std::sync::Once;
 
-pub use crate::dpdk::{Mbuf, SizeOf};
-pub use crate::runtime::Runtime;
-pub use capsule_macros::test;
+static TEST_INIT: Once = Once::new();
 
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+/// Run once initialization of EAL for `cargo test`
+pub fn cargo_test_init() {
+    TEST_INIT.call_once(|| {
+        eal_init(vec!["nb2_test".to_owned()]).unwrap();
+    });
+}
