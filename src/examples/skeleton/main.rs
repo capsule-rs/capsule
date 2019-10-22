@@ -27,10 +27,10 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let settings = load_config()?;
-    debug!(config = ?settings);
+    let config = load_config()?;
+    debug!(?config);
 
-    let runtime = Runtime::init(settings)?;
+    let runtime = Runtime::init(config)?;
 
     info!("HOORAY!!!");
 

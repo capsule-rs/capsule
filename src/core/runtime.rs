@@ -30,6 +30,7 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    #[allow(clippy::cognitive_complexity)]
     pub fn init(config: RuntimeSettings) -> Result<Self> {
         info!("initializing EAL...");
         eal_init(config.to_eal_args())?;
@@ -45,7 +46,7 @@ impl Runtime {
         info!("intializing cores...");
         let core_map = CoreMapBuilder::new()
             .cores(&cores)
-            .master_core(&CoreId::new(config.master_core))
+            .master_core(CoreId::new(config.master_core))
             .mempools(mempools.borrow_mut())
             .finish()?;
 

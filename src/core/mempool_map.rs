@@ -70,10 +70,10 @@ impl<'a> MempoolMap2<'a> {
     /// # Errors
     ///
     /// If the value is not found, `MempoolNotFound` is returned.
-    pub fn get_raw(&mut self, socket_id: &SocketId) -> Result<&mut ffi::rte_mempool> {
+    pub fn get_raw(&mut self, socket_id: SocketId) -> Result<&mut ffi::rte_mempool> {
         self.inner
-            .get_mut(socket_id)
-            .ok_or_else(|| MempoolNotFound(*socket_id).into())
+            .get_mut(&socket_id)
+            .ok_or_else(|| MempoolNotFound(socket_id).into())
             .map(|pool| pool.raw_mut())
     }
 }

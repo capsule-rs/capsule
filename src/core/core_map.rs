@@ -66,8 +66,8 @@ impl<'a> CoreMapBuilder<'a> {
         self
     }
 
-    pub fn master_core(&mut self, master_core: &CoreId) -> &mut Self {
-        self.master_core = master_core.clone();
+    pub fn master_core(&mut self, master_core: CoreId) -> &mut Self {
+        self.master_core = master_core;
         self
     }
 
@@ -76,15 +76,16 @@ impl<'a> CoreMapBuilder<'a> {
         self
     }
 
+    #[allow(clippy::cognitive_complexity)]
     pub fn finish(&'a mut self) -> Result<CoreMap> {
         let mut map = HashMap::new();
 
         // first initializes the master core, which the current running
         // thread should be affinitized to.
         let socket_id = self.master_core.socket_id();
-        let mempool = self.mempools.get_raw(&socket_id)?;
+        let mempool = self.mempools.get_raw(socket_id)?;
 
-        let (master_thread, core_executor) = init_core(&self.master_core, mempool)?;
+        let (master_thread, core_executor) = init_core(self.master_core, mempool)?;
 
         // adds the master core to the map. tasks can be spawned onto the
         // master core like any other cores.
@@ -102,7 +103,7 @@ impl<'a> CoreMapBuilder<'a> {
             // reference in a sendable pointer because we are sending it to
             // a background thread
             let socket_id = core_id.socket_id();
-            let mempool = self.mempools.get_raw(&socket_id)?;
+            let mempool = self.mempools.get_raw(socket_id)?;
             let ptr = SendablePtr(mempool);
 
             // creates a synchronous channel so we can retrieve the executor for
@@ -114,7 +115,7 @@ impl<'a> CoreMapBuilder<'a> {
             let _ = thread::spawn(move || {
                 debug!("spawned background thread {:?}.", thread::current().id());
 
-                match init_core(&core_id, ptr.0) {
+                match init_core(core_id, ptr.0) {
                     Ok((mut thread, executor)) => {
                         info!("initialized thread on {:?}.", core_id);
                         // sends the executor back to the master core. it's safe to unwrap
@@ -156,7 +157,7 @@ impl<'a> CoreMapBuilder<'a> {
     }
 }
 
-fn init_core(id: &CoreId, mempool: *mut ffi::rte_mempool) -> Result<(CurrentThread, CoreExecutor)> {
+fn init_core(id: CoreId, mempool: *mut ffi::rte_mempool) -> Result<(CurrentThread, CoreExecutor)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 

@@ -334,6 +334,7 @@ impl<'a> PortBuilder<'a> {
     }
 
     /// Creates the `Port`.
+    #[allow(clippy::cognitive_complexity)]
     pub fn finish(&mut self) -> Result<Port> {
         let len = self.cores.len() as u16;
         let conf = ffi::rte_eth_conf::default();
@@ -352,7 +353,7 @@ impl<'a> PortBuilder<'a> {
         debug!("{} connected to {:?}.", self.name, socket_id);
 
         // the socket determines which pool to allocate mbufs from.
-        let mempool = self.mempools.get_raw(&socket_id)?;
+        let mempool = self.mempools.get_raw(socket_id)?;
 
         let mut queues = HashMap::new();
 
