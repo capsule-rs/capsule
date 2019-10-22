@@ -16,53 +16,53 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, PacketError};
+use super::{Batch, Disposition};
 use crate::packets::Packet;
 
-/// Lazily-evaluated filter operator
+/// A batch that filters the packets of the underlying batch.
 ///
-/// If the predicate evaluates to `false`, the packet is marked as
-/// dropped and will short-circuit the remainder of the pipeline.
-pub struct FilterBatch<B: Batch, P>
+/// If the predicate evaluates to `false`, the packet is marked as dropped
+/// and will short-circuit the remainder of the pipeline.
+pub struct Filter<B: Batch, P>
 where
-    P: Fn(&B::Item) -> bool,
+    P: FnMut(&B::Item) -> bool,
 {
-    source: B,
+    batch: B,
     predicate: P,
 }
 
-impl<B: Batch, P> FilterBatch<B, P>
+impl<B: Batch, P> Filter<B, P>
 where
-    P: Fn(&B::Item) -> bool,
+    P: FnMut(&B::Item) -> bool,
 {
     #[inline]
-    pub fn new(source: B, predicate: P) -> Self {
-        FilterBatch { source, predicate }
+    pub fn new(batch: B, predicate: P) -> Self {
+        Filter { batch, predicate }
     }
 }
 
-impl<B: Batch, P> Batch for FilterBatch<B, P>
+impl<B: Batch, P> Batch for Filter<B, P>
 where
-    P: Fn(&B::Item) -> bool,
+    P: FnMut(&B::Item) -> bool,
 {
     type Item = B::Item;
 
     #[inline]
-    fn next(&mut self) -> Option<Result<Self::Item, PacketError>> {
-        self.source.next().map(|item| match item {
-            Ok(packet) => {
-                if (self.predicate)(&packet) {
-                    Ok(packet)
-                } else {
-                    Err(PacketError::Drop(packet.mbuf()))
-                }
-            }
-            e @ Err(_) => e,
-        })
+    fn replenish(&mut self) {
+        self.batch.replenish();
     }
 
     #[inline]
-    fn receive(&mut self) {
-        self.source.receive();
+    fn next(&mut self) -> Option<Disposition<Self::Item>> {
+        self.batch.next().map(|disp| match disp {
+            Disposition::Act(packet) => {
+                if (self.predicate)(&packet) {
+                    Disposition::Act(packet)
+                } else {
+                    Disposition::Drop(packet.reset())
+                }
+            }
+            _ => disp,
+        })
     }
 }

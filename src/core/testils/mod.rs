@@ -19,6 +19,14 @@
 mod packet;
 pub mod proptest;
 
+pub mod byte_arrays {
+    pub use crate::packets::icmp::v4::ICMPV4_PACKET;
+    pub use crate::packets::icmp::v6::ICMPV6_PACKET;
+    pub use crate::packets::ip::v6::{IPV6_PACKET, SRH_PACKET};
+    pub use crate::packets::TCP_PACKET;
+    pub use crate::packets::UDP_PACKET;
+}
+
 pub use self::packet::*;
 
 use crate::dpdk::eal_init;

@@ -16,28 +16,23 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-// alias for the test macro
-#[cfg(test)]
-extern crate self as capsule;
+//! Implementations of `PacketRx` and `PacketTx`.
+//!
+//! Implemented for VecDeque so it can be used as a packet RX or TX
+//! in tests.
 
-// make sure macros are defined before other mods
-mod macros;
+use super::{PacketRx, PacketTx};
+use crate::Mbuf;
+use std::collections::VecDeque;
 
-mod batch;
-mod core_map;
-mod dpdk;
-mod ffi;
-mod mempool_map;
-pub mod net;
-pub mod packets;
-mod runtime;
-pub mod settings;
-#[cfg(any(test, feature = "testils"))]
-pub mod testils;
+impl PacketRx for VecDeque<Mbuf> {
+    fn receive(&mut self) -> Vec<Mbuf> {
+        self.drain(..).collect()
+    }
+}
 
-pub use crate::dpdk::{Mbuf, SizeOf};
-pub use crate::runtime::Runtime;
-pub use capsule_macros::test;
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+impl PacketTx for VecDeque<Mbuf> {
+    fn transmit(&mut self, packets: Vec<Mbuf>) {
+        self.extend(packets)
+    }
+}

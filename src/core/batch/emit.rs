@@ -16,36 +16,34 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, PacketError};
+use super::{Batch, Disposition};
 use crate::packets::Packet;
 
-/// Lazily-evaluated emit operator
-///
-/// Interrupts processing with a short-circuit error that simply emits the packet
-pub struct EmitBatch<B: Batch> {
-    source: B,
+/// A batch that short-circuits the remainder of the pipeline and marks
+/// all packets for transmit.
+pub struct Emit<B: Batch> {
+    batch: B,
 }
 
-impl<B: Batch> EmitBatch<B> {
+impl<B: Batch> Emit<B> {
     #[inline]
-    pub fn new(source: B) -> Self {
-        EmitBatch { source }
+    pub fn new(batch: B) -> Self {
+        Emit { batch }
     }
 }
 
-impl<B: Batch> Batch for EmitBatch<B> {
+impl<B: Batch> Batch for Emit<B> {
     type Item = B::Item;
 
     #[inline]
-    fn next(&mut self) -> Option<Result<Self::Item, PacketError>> {
-        self.source.next().map(|item| match item {
-            Ok(packet) => Err(PacketError::Emit(packet.mbuf())),
-            e @ Err(_) => e,
-        })
+    fn replenish(&mut self) {
+        self.batch.replenish();
     }
 
     #[inline]
-    fn receive(&mut self) {
-        self.source.receive();
+    fn next(&mut self) -> Option<Disposition<Self::Item>> {
+        self.batch
+            .next()
+            .map(|disp| disp.map(|pkt| Disposition::Emit(pkt.reset())))
     }
 }

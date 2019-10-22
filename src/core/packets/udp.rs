@@ -296,7 +296,7 @@ impl<E: IpPacket> Packet for Udp<E> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const UDP_PACKET: [u8; 52] = [
     // ** ethernet header

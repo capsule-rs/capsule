@@ -560,7 +560,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const TCP_PACKET: [u8; 58] = [
     // ** ethernet header

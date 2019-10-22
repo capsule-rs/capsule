@@ -448,7 +448,7 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const SRH_PACKET: [u8; 170] = [
     // ** ethernet header
