@@ -5,7 +5,7 @@ pub use self::srh::*;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
 use crate::packets::{CondRc, Ethernet, Header, Packet};
-use crate::{Mbuf, Result, SizeOf};
+use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
@@ -431,6 +431,7 @@ pub const IPV6_PACKET: [u8; 78] = [
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::Mbuf;
 
     #[test]
     fn size_of_ipv6_header() {

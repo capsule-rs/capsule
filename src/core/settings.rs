@@ -91,11 +91,12 @@ impl RuntimeSettings {
         eal_args.push(self.master_core.to_string());
 
         // add the assigned cores
-        let mut cores = self.all_cores();
-        let acc = cores.remove(0).raw().to_string();
-        let cores = cores
+        let cores = self
+            .all_cores()
             .into_iter()
-            .fold(acc, |acc, core| format!("{},{}", acc, core.raw()));
+            .map(|id| id.raw().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
         eal_args.push("-l".to_owned());
         eal_args.push(cores);
 
@@ -263,4 +264,58 @@ pub fn load_config() -> Result<RuntimeSettings, ConfigError> {
     config.merge(File::from_str(DEFAULT_TOML, FileFormat::Toml))?;
     config.merge(File::with_name(filename))?;
     config.try_into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_to_eal_args() {
+        let config = RuntimeSettings {
+            app_name: "myapp".to_owned(),
+            master_core: 0,
+            cores: vec![1],
+            mempool: MempoolSettings {
+                capacity: 255,
+                cache_size: 16,
+            },
+            ports: vec![
+                PortSettings {
+                    name: "0000:00:01.0".to_owned(),
+                    args: None,
+                    cores: vec![2, 3],
+                    rxd: 32,
+                    txd: 32,
+                },
+                PortSettings {
+                    name: "net_ring0".to_owned(),
+                    args: Some("param1=value1".to_owned()),
+                    cores: vec![0, 4],
+                    rxd: 32,
+                    txd: 32,
+                },
+            ],
+            dpdk_args: Some("-v --log-level eal:8".to_owned()),
+            duration: None,
+        };
+
+        assert_eq!(
+            &[
+                "myapp",
+                "--pci-whitelist",
+                "0000:00:01.0",
+                "--vdev",
+                "net_ring0,param1=value1",
+                "--master-lcore",
+                "0",
+                "-l",
+                "0, 1, 2, 3, 4",
+                "-v",
+                "--log-level",
+                "eal:8"
+            ],
+            config.to_eal_args().as_slice(),
+        )
+    }
 }

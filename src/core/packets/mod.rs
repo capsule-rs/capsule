@@ -25,6 +25,7 @@ use std::rc::Rc;
 pub trait Header: SizeOf {}
 
 /// Common behaviors shared by all packets.
+#[allow(clippy::len_without_is_empty)]
 pub trait Packet: Clone {
     /// The header type of the packet.
     type Header: Header;

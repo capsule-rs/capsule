@@ -69,6 +69,7 @@ impl SocketId {
     }
 
     /// Returns the raw value needed for FFI calls.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub(crate) fn raw(&self) -> raw::c_int {
         self.0
@@ -100,18 +101,21 @@ impl CoreId {
     }
 
     /// Returns the ID of the socket the core is on.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub fn socket_id(&self) -> SocketId {
         unsafe { SocketId(ffi::_rte_lcore_to_socket_id(self.0) as raw::c_int) }
     }
 
     /// Returns the raw value needed for FFI calls.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub(crate) fn raw(&self) -> raw::c_uint {
         self.0
     }
 
     /// Sets the current thread's affinity to this core.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub(crate) fn set_thread_affinity(&self) -> Result<()> {
         unsafe {
