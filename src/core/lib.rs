@@ -13,7 +13,8 @@ pub mod net;
 pub mod packets;
 mod runtime;
 pub mod settings;
-mod testil;
+#[cfg(any(test, feature = "testils"))]
+pub mod testils;
 
 pub use crate::dpdk::{Mbuf, SizeOf};
 pub use crate::runtime::Runtime;

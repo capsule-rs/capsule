@@ -19,9 +19,17 @@ fallible-iterator = "0.2"
 libc = "0.2"
 nb2-ffi = { path = "../ffi" }
 nb2-macros = { path = "../macros" }
+proptest = { version = "0.9", optional = true }
 regex = "1"
 serde = { version = "1.0", features = ["derive"] }
 tokio = "=0.2.0-alpha.6"
 tokio-executor = { version = "=0.2.0-alpha.6", features = ["current-thread", "threadpool"] }
 tokio-timer = "=0.3.0-alpha.6"
 tracing = "0.1"
+
+[dev-dependencies]
+proptest = "0.9"
+
+[features]
+default = []
+testils = ["proptest"]

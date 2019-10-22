@@ -37,7 +37,7 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
     let result = quote! {
         #[test]
         fn #name(#inputs) #ret {
-            ::nb2::testil::cargo_test_init();
+            ::nb2::testils::cargo_test_init();
             let mut mempool = ::nb2::dpdk::Mempool::new(15, 0, ::nb2::dpdk::SocketId::ANY).unwrap();
             ::nb2::dpdk::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
