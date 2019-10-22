@@ -383,7 +383,7 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const ICMPV6_PACKET: [u8; 62] = [
     // ** ethernet header

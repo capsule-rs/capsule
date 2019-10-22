@@ -392,7 +392,7 @@ impl Ipv6Packet for Ipv6 {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const IPV6_PACKET: [u8; 78] = [
     // ** ethernet header

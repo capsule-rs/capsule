@@ -5,6 +5,7 @@ extern crate self as nb2;
 // make sure macros are defined before other mods
 mod macros;
 
+mod batch;
 mod core_map;
 mod dpdk;
 mod ffi;

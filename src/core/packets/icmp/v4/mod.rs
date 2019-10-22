@@ -1,6 +1,6 @@
 //TODO: Fill Out
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const ICMPV4_PACKET: [u8; 74] = [
     // ** ethernet header

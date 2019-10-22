@@ -28,6 +28,14 @@ struct rte_mbuf *_rte_pktmbuf_alloc(struct rte_mempool *mp);
 void _rte_pktmbuf_free(struct rte_mbuf *m);
 
 /**
+ * Put several objects back in the mempool.
+ */
+void _rte_mempool_put_bulk(
+    struct rte_mempool *mp,
+    void *const *obj_table,
+    unsigned int n);
+
+/**
  * Retrieve a burst of input packets from a receive queue of an Ethernet
  * device. The retrieved packets are stored in *rte_mbuf* structures whose
  * pointers are supplied in the *rx_pkts* array.

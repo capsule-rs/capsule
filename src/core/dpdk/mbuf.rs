@@ -4,6 +4,7 @@ use crate::Result;
 use failure::Fail;
 use std::convert::From;
 use std::fmt;
+use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
 
@@ -276,6 +277,34 @@ impl Mbuf {
         let ptr = self.raw.as_ptr();
         std::mem::forget(self);
         ptr
+    }
+
+    /// Frees the message buffers in bulk.
+    pub(crate) fn free_bulk(mbufs: Vec<Mbuf>) {
+        assert!(!mbufs.is_empty());
+
+        let mut to_free = Vec::with_capacity(mbufs.len());
+        let pool = mbufs[0].raw().pool;
+
+        for mbuf in mbufs.into_iter() {
+            if pool == mbuf.raw().pool {
+                to_free.push(mbuf.into_ptr() as *mut raw::c_void);
+            } else {
+                unsafe {
+                    let len = to_free.len();
+                    ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
+                    to_free.set_len(0);
+                }
+
+                to_free.push(mbuf.into_ptr() as *mut raw::c_void);
+            }
+        }
+
+        unsafe {
+            let len = to_free.len();
+            ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
+            to_free.set_len(0);
+        }
     }
 }
 
