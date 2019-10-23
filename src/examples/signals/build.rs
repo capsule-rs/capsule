@@ -16,19 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::settings::load_config;
-use capsule::{Result, Runtime};
-use tracing::{debug, Level};
-use tracing_subscriber::fmt;
+// https://github.com/rust-lang/rust/issues/56306
+// must statically link dpdk to the final binary, otherwise rustc
+// will decide to not link functions not explicitly called but
+// must be included in the final binary.
 
-fn main() -> Result<()> {
-    let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
-
-    let config = load_config()?;
-    debug!(?config);
-
-    Runtime::build(config)?.execute()
+fn main() {
+    println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
+    println!("cargo:rustc-link-lib=static=dpdk");
 }

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/core",
+    "src/examples/signals",
     "src/examples/skeleton",
     "src/ffi",
     "src/macros",
