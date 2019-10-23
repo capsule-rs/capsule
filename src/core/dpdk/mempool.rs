@@ -1,4 +1,4 @@
-use crate::dpdk::SocketId;
+use super::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, Result};
 use std::cell::Cell;

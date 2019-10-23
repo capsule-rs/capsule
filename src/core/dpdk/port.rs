@@ -1,7 +1,7 @@
-use crate::dpdk::{CoreId, Mbuf, SocketId};
+use super::{CoreId, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
-use crate::mempool_map::MempoolMap2;
 use crate::net::MacAddr;
+use crate::runtime::MempoolMap2;
 use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
