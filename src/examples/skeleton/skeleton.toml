@@ -2,20 +2,14 @@ app_name = "skeleton"
 master_core = 0
 cores = []
 dpdk_args = "-v --log-level eal:8"
+duration = 5
 
 [mempool]
     capacity = 65535
     cache_size = 256
 
 [[ports]]
-    name = "0000:00:08.0"
+    name = "net_ring0"
     cores = [1]
     rxd = 256
     txd = 256
-
-[[ports]]
-    name = "net_pcap0"
-    args = "rx_pcap=rx.pcap,tx_pcap=tx.pcap"
-    cores = [2]
-    rxd = 128
-    txd = 128

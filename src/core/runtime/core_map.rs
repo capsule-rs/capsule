@@ -4,29 +4,55 @@ use crate::{debug, error, ffi, info, Result};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 use std::thread;
-use tokio_executor::current_thread;
+use tokio_executor::current_thread::{self, CurrentThread};
 use tokio_executor::park::{Park, ParkThread, UnparkThread};
+use tokio_net::driver::{self, Reactor};
 use tokio_timer::timer::{self, Timer};
 
-type CurrentThread = current_thread::CurrentThread<Timer<ParkThread>>;
-
-struct CoreExecutor {
-    unpark: UnparkThread,
-    timer: timer::Handle,
-    thread: current_thread::Handle,
+/// A abstraction used to interact with the master/main thread.
+///
+/// This is an additional handle to the master thread for performing tasks.
+/// Use this `thread` handle to run the main loop. Use the `reactor` handle
+/// to catch Unix signals to terminate the main loop. Use the `timer` handle
+/// to create new time based tasks with either a `Delay` or `Interval`.
+pub struct MasterExecutor {
+    pub reactor: driver::Handle,
+    pub timer: timer::Handle,
+    pub thread: CurrentThread<Timer<Reactor>>,
 }
 
+/// A thread/core abstraction used to interact with a background thread
+/// from the master/main thread.
+///
+/// When a background thread is first spawned, it is parked and waiting for
+/// tasks. Use the `timer` handle to create new time based tasks with either
+/// a `Delay` or `Interval`. Use the thread handle to spawn tasks onto the
+/// background thread. Use `unpark` when they are ready to execute tasks.
+///
+/// The master thread also has an associated `CoreExecutor`, but `unpark`
+/// won't do anything because the thread is not parked. Tasks can be spawned
+/// onto it with this handle just like a background thread.
+pub struct CoreExecutor {
+    pub unpark: UnparkThread,
+    pub timer: timer::Handle,
+    pub thread: current_thread::Handle,
+}
+
+/// Map of all the core handles.
 pub struct CoreMap {
-    master_core: CurrentThread,
-    cores: HashMap<CoreId, CoreExecutor>,
+    pub master_core: MasterExecutor,
+    pub cores: HashMap<CoreId, CoreExecutor>,
 }
 
-impl CoreMap {}
-
+/// By default, raw pointers do not implement `Send`. We need a simple
+/// wrapper so we can send the mempool pointer to a background thread and
+/// assigned it to that thread. Otherwise, we wont' be able to create new
+/// `Mbuf`s on the background threads.
 struct SendablePtr(*mut ffi::rte_mempool);
 
 unsafe impl std::marker::Send for SendablePtr {}
 
+/// Builder for core map.
 pub struct CoreMapBuilder<'a> {
     cores: HashSet<CoreId>,
     master_core: CoreId,
@@ -66,7 +92,7 @@ impl<'a> CoreMapBuilder<'a> {
         let socket_id = self.master_core.socket_id();
         let mempool = self.mempools.get_raw(socket_id)?;
 
-        let (master_thread, core_executor) = init_core(self.master_core, mempool)?;
+        let (master_thread, core_executor) = init_master_core(self.master_core, mempool)?;
 
         // adds the master core to the map. tasks can be spawned onto the
         // master core like any other cores.
@@ -96,7 +122,7 @@ impl<'a> CoreMapBuilder<'a> {
             let _ = thread::spawn(move || {
                 debug!("spawned background thread {:?}.", thread::current().id());
 
-                match init_core(core_id, ptr.0) {
+                match init_background_core(core_id, ptr.0) {
                     Ok((mut thread, executor)) => {
                         info!("initialized thread on {:?}.", core_id);
                         // sends the executor back to the master core. it's safe to unwrap
@@ -138,15 +164,62 @@ impl<'a> CoreMapBuilder<'a> {
     }
 }
 
-fn init_core(id: CoreId, mempool: *mut ffi::rte_mempool) -> Result<(CurrentThread, CoreExecutor)> {
+fn init_master_core(
+    id: CoreId,
+    mempool: *mut ffi::rte_mempool,
+) -> Result<(MasterExecutor, CoreExecutor)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 
     // sets the mempool
     MEMPOOL.with(|tls| tls.set(mempool));
 
-    // keeps a unpark handle so we can unpark the core when we
-    // are ready to execute the tasks scheduled on this core.
+    // start a reactor so we can receive signals on the master core.
+    let reactor = Reactor::new()?;
+    let reactor_handle = reactor.handle();
+
+    // starts a per-core timer so we can schedule timed tasks.
+    let timer = Timer::new(reactor);
+    let timer_handle = timer.handle();
+
+    // starts the single-threaded executor, we can use this handle
+    // to spawn tasks onto this core from the master core.
+    let thread = CurrentThread::new_with_park(timer);
+    let thread_handle = thread.handle();
+
+    let main = MasterExecutor {
+        reactor: reactor_handle,
+        timer: timer_handle.clone(),
+        thread,
+    };
+
+    // don't really use this but need to create one so we can treat
+    // master core like a regular core as well. trying to unpark it
+    // later won't do anything.
+    let park = ParkThread::new();
+    let unpark = park.unpark();
+
+    let executor = CoreExecutor {
+        unpark,
+        timer: timer_handle,
+        thread: thread_handle,
+    };
+
+    Ok((main, executor))
+}
+
+fn init_background_core(
+    id: CoreId,
+    mempool: *mut ffi::rte_mempool,
+) -> Result<(CurrentThread<Timer<ParkThread>>, CoreExecutor)> {
+    // affinitize the running thread to this core.
+    id.set_thread_affinity()?;
+
+    // sets the mempool
+    MEMPOOL.with(|tls| tls.set(mempool));
+
+    // keeps a unpark handle so we can unpark the core from the master
+    // core when we are ready to execute the tasks scheduled.
     let park = ParkThread::new();
     let unpark = park.unpark();
 

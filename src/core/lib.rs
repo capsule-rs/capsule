@@ -14,7 +14,7 @@ pub mod settings;
 pub mod testils;
 
 pub use self::dpdk::{Mbuf, SizeOf};
-pub use self::runtime::Runtime;
+pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
 pub use nb2_macros::test;
 

@@ -2,12 +2,23 @@ use crate::dpdk::CoreId;
 use clap::clap_app;
 use config::{Config, ConfigError, File, FileFormat};
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::fmt;
 
 pub const DEFAULT_MEMPOOL_CAPACITY: usize = 65535;
 pub const DEFAULT_PORT_RXD: usize = 128;
 pub const DEFAULT_PORT_TXD: usize = 128;
+
+// make `CoreId` serde deserializable.
+impl<'de> Deserialize<'de> for CoreId {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let i = <usize>::deserialize(deserializer)?;
+        Ok(CoreId::new(i))
+    }
+}
 
 /// Runtime settings.
 #[derive(Deserialize)]
@@ -18,13 +29,13 @@ pub struct RuntimeSettings {
 
     /// The identifier of the master core. This is the core the main thread
     /// will run on. The default value is `0`.
-    pub master_core: usize,
+    pub master_core: CoreId,
 
     /// Additional cores that are available to the application, and can be
     /// used for running general tasks. Packet pipelines cannot be run on
     /// these cores unless the core is also assigned to a port separately.
     /// The default is the empty list.
-    pub cores: Vec<usize>,
+    pub cores: Vec<CoreId>,
 
     /// Per mempool settings. On a system with multiple sockets, aka NUMA
     /// nodes, one mempool will be allocated for each socket the apllication
@@ -58,8 +69,7 @@ impl RuntimeSettings {
 
         cores.sort();
         cores.dedup();
-
-        cores.iter().map(|&i| CoreId::new(i)).collect::<Vec<_>>()
+        cores
     }
 
     /// Extracts the EAL arguments from runtime settings.
@@ -88,7 +98,7 @@ impl RuntimeSettings {
 
         // add the master core
         eal_args.push("--master-lcore".to_owned());
-        eal_args.push(self.master_core.to_string());
+        eal_args.push(self.master_core.raw().to_string());
 
         // add the assigned cores
         let cores = self
@@ -113,7 +123,7 @@ impl Default for RuntimeSettings {
     fn default() -> Self {
         RuntimeSettings {
             app_name: Default::default(),
-            master_core: 0,
+            master_core: CoreId::new(0),
             cores: vec![],
             mempool: Default::default(),
             ports: vec![],
@@ -188,7 +198,7 @@ pub struct PortSettings {
 
     /// The cores assigned to the port for running the pipelines. The values
     /// can overlap with the runtime cores. The default is [0].
-    pub cores: Vec<usize>,
+    pub cores: Vec<CoreId>,
 
     /// The receive queue capacity. The default is 128.
     pub rxd: usize,
@@ -197,22 +207,12 @@ pub struct PortSettings {
     pub txd: usize,
 }
 
-impl PortSettings {
-    /// Returns the assigned cores.
-    pub(crate) fn cores(&self) -> Vec<CoreId> {
-        self.cores
-            .iter()
-            .map(|&i| CoreId::new(i))
-            .collect::<Vec<_>>()
-    }
-}
-
 impl Default for PortSettings {
     fn default() -> Self {
         PortSettings {
             name: Default::default(),
             args: None,
-            cores: vec![0],
+            cores: vec![CoreId::new(0)],
             rxd: DEFAULT_PORT_RXD,
             txd: DEFAULT_PORT_TXD,
         }
@@ -272,33 +272,36 @@ mod tests {
 
     #[test]
     fn config_to_eal_args() {
-        let config = RuntimeSettings {
-            app_name: "myapp".to_owned(),
-            master_core: 0,
-            cores: vec![1],
-            mempool: MempoolSettings {
-                capacity: 255,
-                cache_size: 16,
-            },
-            ports: vec![
-                PortSettings {
-                    name: "0000:00:01.0".to_owned(),
-                    args: None,
-                    cores: vec![2, 3],
-                    rxd: 32,
-                    txd: 32,
-                },
-                PortSettings {
-                    name: "net_ring0".to_owned(),
-                    args: Some("param1=value1".to_owned()),
-                    cores: vec![0, 4],
-                    rxd: 32,
-                    txd: 32,
-                },
-            ],
-            dpdk_args: Some("-v --log-level eal:8".to_owned()),
-            duration: None,
-        };
+        let mut config = Config::new();
+        config
+            .merge(File::from_str(
+                r#"
+                    app_name = "myapp"
+                    master_core = 0
+                    cores = [1]
+                    dpdk_args = "-v --log-level eal:8"
+
+                    [mempool]
+                        capacity = 255
+                        cache_size = 16
+                    
+                    [[ports]]
+                        name = "0000:00:01.0"
+                        cores = [2, 3]
+                        rxd = 32
+                        txd = 32
+
+                    [[ports]]
+                        name = "net_pcap0"
+                        args = "rx=lo,tx=lo"
+                        cores = [0, 4]
+                        rxd = 32
+                        txd = 32
+                "#,
+                FileFormat::Toml,
+            ))
+            .unwrap();
+        let settings: RuntimeSettings = config.try_into().unwrap();
 
         assert_eq!(
             &[
@@ -306,7 +309,7 @@ mod tests {
                 "--pci-whitelist",
                 "0000:00:01.0",
                 "--vdev",
-                "net_ring0,param1=value1",
+                "net_pcap0,rx=lo,tx=lo",
                 "--master-lcore",
                 "0",
                 "-l",
@@ -315,7 +318,7 @@ mod tests {
                 "--log-level",
                 "eal:8"
             ],
-            config.to_eal_args().as_slice(),
+            settings.to_eal_args().as_slice(),
         )
     }
 }
