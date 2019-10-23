@@ -1,6 +1,6 @@
 use super::{NdpOption, PREFIX_INFORMATION};
 use crate::packets::ParseError;
-use crate::{Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::net::Ipv6Addr;
 use std::ptr::NonNull;

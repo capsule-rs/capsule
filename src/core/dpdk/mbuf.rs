@@ -1,6 +1,6 @@
 use crate::dpdk::MEMPOOL;
 use crate::ffi::{self, ToResult};
-use crate::Result;
+use crate::{ensure, trace, Result};
 use failure::Fail;
 use std::convert::From;
 use std::fmt;

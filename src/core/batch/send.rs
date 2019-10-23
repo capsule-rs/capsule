@@ -27,10 +27,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
                 Disposition::Act(packet) => transmit_q.push(packet.reset()),
                 Disposition::Emit(mbuf) => transmit_q.push(mbuf),
                 Disposition::Drop(mbuf) => drop_q.push(mbuf),
-                Disposition::Abort(mbuf, err) => {
-                    trace!(?err);
-                    drop_q.push(mbuf);
-                }
+                Disposition::Abort(mbuf, _) => drop_q.push(mbuf),
             }
         }
 

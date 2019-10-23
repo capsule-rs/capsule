@@ -1,7 +1,6 @@
 use crate::dpdk::{CoreId, MEMPOOL};
-use crate::ffi;
 use crate::mempool_map::MempoolMap2;
-use crate::Result;
+use crate::{debug, error, ffi, info, Result};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 use std::thread;

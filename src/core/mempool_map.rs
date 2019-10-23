@@ -1,6 +1,5 @@
 use crate::dpdk::{Mempool, SocketId};
-use crate::ffi;
-use crate::Result;
+use crate::{debug, ffi, info, Result};
 use failure::Fail;
 use std::collections::HashMap;
 

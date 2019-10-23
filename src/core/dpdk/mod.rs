@@ -7,7 +7,7 @@ pub use mempool::*;
 pub use port::*;
 
 use crate::ffi::{self, AsStr, ToCString, ToResult};
-use crate::Result;
+use crate::{debug, Result};
 use failure::Fail;
 use libc;
 use std::fmt;
