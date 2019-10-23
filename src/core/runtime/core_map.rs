@@ -16,8 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use super::MempoolMap2;
 use crate::dpdk::{CoreId, MEMPOOL};
-use crate::mempool_map::MempoolMap2;
 use crate::{debug, error, ffi, info, Result};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;

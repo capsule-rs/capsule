@@ -20,9 +20,9 @@ mod mbuf;
 mod mempool;
 mod port;
 
-pub use mbuf::*;
-pub use mempool::*;
-pub use port::*;
+pub use self::mbuf::*;
+pub use self::mempool::*;
+pub use self::port::*;
 
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, Result};

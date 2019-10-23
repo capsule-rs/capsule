@@ -16,9 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::core_map::{CoreMap, CoreMapBuilder};
+mod core_map;
+mod mempool_map;
+
+pub use self::core_map::*;
+pub use self::mempool_map::*;
+
 use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder};
-use crate::mempool_map::MempoolMap;
 use crate::settings::RuntimeSettings;
 use crate::{debug, info, Result};
 use std::collections::HashSet;

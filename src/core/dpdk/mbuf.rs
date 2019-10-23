@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::MEMPOOL;
+use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
 use crate::{ensure, trace, Result};
 use failure::Fail;
