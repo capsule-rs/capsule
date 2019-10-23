@@ -18,7 +18,7 @@
 
 use crate::dpdk::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
-use crate::Result;
+use crate::{debug, Result};
 use std::cell::Cell;
 use std::fmt;
 use std::os::raw;

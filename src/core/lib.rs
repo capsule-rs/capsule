@@ -20,13 +20,11 @@
 #[cfg(test)]
 extern crate self as capsule;
 
-// make sure macros are defined before other mods
-mod macros;
-
 mod batch;
 mod core_map;
 mod dpdk;
 mod ffi;
+mod macros;
 mod mempool_map;
 pub mod net;
 pub mod packets;

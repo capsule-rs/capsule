@@ -16,8 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![macro_use]
-
 /// Exits a function early with an `Error` if the condition is not satisfied.
 ///
 /// # Example
@@ -33,7 +31,7 @@
 ///     return Err(EmptyVecError::new().into());
 /// }
 /// ```
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! ensure {
     ($cond:expr, $e:expr) => {
         if !($cond) {
@@ -42,7 +40,8 @@ macro_rules! ensure {
     };
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! error {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -54,7 +53,8 @@ macro_rules! error {
     )
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! warn {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -66,7 +66,8 @@ macro_rules! warn {
     )
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! info {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -78,7 +79,8 @@ macro_rules! info {
     )
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! debug {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {
@@ -90,7 +92,8 @@ macro_rules! debug {
     )
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! trace {
     (cond: $cond:expr, $($arg:tt)+) => (
         if $cond {

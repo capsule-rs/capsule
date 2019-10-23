@@ -18,7 +18,7 @@
 
 use super::{NdpOption, MTU};
 use crate::packets::ParseError;
-use crate::{Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 

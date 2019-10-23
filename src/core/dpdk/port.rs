@@ -20,7 +20,7 @@ use crate::dpdk::{CoreId, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::mempool_map::MempoolMap2;
 use crate::net::MacAddr;
-use crate::Result;
+use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
 use std::fmt;

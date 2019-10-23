@@ -20,7 +20,7 @@ use crate::core_map::{CoreMap, CoreMapBuilder};
 use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder};
 use crate::mempool_map::MempoolMap;
 use crate::settings::RuntimeSettings;
-use crate::Result;
+use crate::{debug, info, Result};
 use std::collections::HashSet;
 
 pub struct Runtime {
