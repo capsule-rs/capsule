@@ -8,6 +8,7 @@ use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder};
 use crate::settings::RuntimeSettings;
 use crate::{debug, info, Result};
 use futures::{future, stream, StreamExt};
+use libc;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -15,10 +16,11 @@ use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 
 /// Supported Unix signals.
+#[derive(Debug)]
 pub enum UnixSignal {
-    SIGHUP,
-    SIGINT,
-    SIGTERM,
+    SIGHUP = libc::SIGHUP as isize,
+    SIGINT = libc::SIGINT as isize,
+    SIGTERM = libc::SIGTERM as isize,
 }
 
 pub struct Runtime {

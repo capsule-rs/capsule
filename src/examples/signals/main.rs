@@ -1,18 +1,14 @@
 use nb2::settings::load_config;
-use nb2::{Result, Runtime, UnixSignal};
+use nb2::UnixSignal::{self, *};
+use nb2::{Result, Runtime};
 use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
 fn on_signal(signal: UnixSignal) -> bool {
+    info!(?signal);
     match signal {
-        UnixSignal::SIGHUP => {
-            info!("SIGHUP");
-            false
-        }
-        UnixSignal::SIGINT | UnixSignal::SIGTERM => {
-            info!("SIGINT");
-            true
-        }
+        SIGHUP => false,
+        SIGINT | SIGTERM => true,
     }
 }
 
