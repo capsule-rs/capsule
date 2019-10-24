@@ -17,20 +17,16 @@
 */
 
 use capsule::settings::load_config;
-use capsule::{Result, Runtime, UnixSignal};
+use capsule::UnixSignal::{self, *};
+use capsule::{Result, Runtime};
 use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
 fn on_signal(signal: UnixSignal) -> bool {
+    info!(?signal);
     match signal {
-        UnixSignal::SIGHUP => {
-            info!("SIGHUP");
-            false
-        }
-        UnixSignal::SIGINT | UnixSignal::SIGTERM => {
-            info!("SIGINT");
-            true
-        }
+        SIGHUP => false,
+        SIGINT | SIGTERM => true,
     }
 }
 
