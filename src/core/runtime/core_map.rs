@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 use std::thread;
 use tokio_executor::current_thread::{self, CurrentThread};
-use tokio_executor::park::{Park, ParkThread, UnparkThread};
+use tokio_executor::park::Park;
+use tokio_executor::threadpool::park::{DefaultPark, DefaultUnpark};
 use tokio_net::driver::{self, Reactor};
 use tokio_timer::timer::{self, Timer};
 
@@ -33,7 +34,7 @@ pub struct MasterExecutor {
 /// won't do anything because the thread is not parked. Tasks can be spawned
 /// onto it with this handle just like a background thread.
 pub struct CoreExecutor {
-    pub unpark: UnparkThread,
+    pub unpark: DefaultUnpark,
     pub timer: timer::Handle,
     pub thread: current_thread::Handle,
 }
@@ -125,6 +126,10 @@ impl<'a> CoreMapBuilder<'a> {
                 match init_background_core(core_id, ptr.0) {
                     Ok((mut thread, executor)) => {
                         info!("initialized thread on {:?}.", core_id);
+
+                        // keeps a timer handle for later use.
+                        let timer_handle = executor.timer.clone();
+
                         // sends the executor back to the master core. it's safe to unwrap
                         // the result because the receiving end is guaranteed to be in scope.
                         sender.send(Ok(executor)).unwrap();
@@ -134,12 +139,13 @@ impl<'a> CoreMapBuilder<'a> {
                         // sleeps the thread for now since there's nothing to be done yet.
                         // once new tasks are spawned, the master core can unpark this and
                         // let the execution continue.
-                        let _ = ParkThread::new().park();
+                        let _ = thread.get_park_mut().park();
 
                         info!("unparked {:?}.", core_id);
 
                         // once the thread wakes up, we will run all the spawned tasks to
                         // completion or log the failure.
+                        let _timer = timer::set_default(&timer_handle);
                         if let Err(err) = thread.run() {
                             error!("{}", err);
                         }
@@ -174,7 +180,7 @@ fn init_master_core(
     // sets the mempool
     MEMPOOL.with(|tls| tls.set(mempool));
 
-    // start a reactor so we can receive signals on the master core.
+    // starts a reactor so we can receive signals on the master core.
     let reactor = Reactor::new()?;
     let reactor_handle = reactor.handle();
 
@@ -196,7 +202,7 @@ fn init_master_core(
     // don't really use this but need to create one so we can treat
     // master core like a regular core as well. trying to unpark it
     // later won't do anything.
-    let park = ParkThread::new();
+    let park = DefaultPark::new();
     let unpark = park.unpark();
 
     let executor = CoreExecutor {
@@ -211,7 +217,7 @@ fn init_master_core(
 fn init_background_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Result<(CurrentThread<Timer<ParkThread>>, CoreExecutor)> {
+) -> Result<(CurrentThread<Timer<DefaultPark>>, CoreExecutor)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 
@@ -220,7 +226,7 @@ fn init_background_core(
 
     // keeps a unpark handle so we can unpark the core from the master
     // core when we are ready to execute the tasks scheduled.
-    let park = ParkThread::new();
+    let park = DefaultPark::new();
     let unpark = park.unpark();
 
     // starts a per-core timer so we can schedule timed tasks.

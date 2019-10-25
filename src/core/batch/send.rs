@@ -1,4 +1,4 @@
-use super::{Batch, Disposition, PacketTx};
+use super::{Batch, Disposition, Executable, PacketTx};
 use crate::packets::Packet;
 use crate::Mbuf;
 
@@ -13,8 +13,10 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
     pub fn new(batch: B, tx: Tx) -> Self {
         Send { batch, tx }
     }
+}
 
-    pub fn execute(&mut self) {
+impl<B: Batch, Tx: PacketTx> Executable for Send<B, Tx> {
+    fn execute(&mut self) {
         // let's get a new batch
         self.batch.replenish();
 

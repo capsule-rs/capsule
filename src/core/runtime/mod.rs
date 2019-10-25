@@ -4,14 +4,16 @@ mod mempool_map;
 pub use self::core_map::*;
 pub use self::mempool_map::*;
 
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder};
+use crate::batch::Executable;
+use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
-use crate::{debug, info, Result};
+use crate::{debug, ensure, error, info, Result};
 use futures::{future, stream, StreamExt};
 use libc;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::timer::Interval;
 use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 
@@ -98,12 +100,53 @@ impl Runtime {
     ///     })
     ///     .execute();
     /// ```
-    pub fn set_on_signal<T>(&mut self, on_signal: T) -> &mut Self
+    pub fn set_on_signal<F>(&mut self, f: F) -> &mut Self
     where
-        T: Fn(UnixSignal) -> bool + 'static,
+        F: Fn(UnixSignal) -> bool + 'static,
     {
-        self.on_signal = Arc::new(on_signal);
+        self.on_signal = Arc::new(f);
         self
+    }
+
+    pub fn add_pipeline_to_port<T: Executable + Send + 'static, F>(
+        &mut self,
+        index: usize,
+        mut f: F,
+    ) -> Result<&mut Self>
+    where
+        F: FnMut(PortQueue) -> T + Send + Sync + 'static,
+    {
+        ensure!(index < self.ports.len(), PortError::NotFound);
+
+        let port = &self.ports[index];
+        for (core_id, port_q) in port.queues() {
+            let thread = &self.core_map.cores[core_id].thread;
+            let t2 = thread.clone();
+
+            // let's turn port q into a batch executable.
+            let mut batch = f(port_q.clone());
+
+            // spawns the bootstrap. we need the bootstrapping to execute on the
+            // target core instead of the master core because we can't create
+            // an `Interval` with the correct `Timer` otherwise. The fn that
+            // we need is unfortunately internal to `tokio`.
+            thread.spawn(future::lazy(move |_| {
+                // turns the batch executable into a repeated task.
+                let task = Interval::new_interval(Duration::from_micros(1))
+                    .for_each(move |_| future::ready(batch.execute()));
+
+                // and schedule the task on the same core.
+                if let Err(err) = t2.spawn(task) {
+                    error!(message = "bootstap failed.", ?err);
+                }
+            }))?;
+
+            debug!("installed pipeline on port_q for {:?}.", core_id);
+        }
+
+        info!("installed pipeline for port {}.", index);
+
+        Ok(self)
     }
 
     /// Blocks the main thread until a timeout expires.
@@ -165,6 +208,10 @@ impl Runtime {
     }
 
     pub fn execute(&mut self) -> Result<()> {
+        for port in self.ports.iter_mut() {
+            port.start();
+        }
+
         match self.config.duration {
             None | Some(0) => self.wait_for_signal(),
             Some(d) => self.wait_for_timeout(d),

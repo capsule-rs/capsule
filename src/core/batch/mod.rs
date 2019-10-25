@@ -101,6 +101,11 @@ pub trait PacketTx {
     fn transmit(&mut self, packets: Vec<Mbuf>);
 }
 
+/// Types that can be executed.
+pub trait Executable {
+    fn execute(&mut self);
+}
+
 /// Batch of packets.
 pub trait Batch {
     /// The packet type.
