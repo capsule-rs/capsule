@@ -338,8 +338,8 @@ impl Ipv4 {
 impl fmt::Debug for Ipv4 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ipv4")
-            .field("src", &self.src())
-            .field("dst", &self.dst())
+            .field("src", &format!("{}", self.src()))
+            .field("dst", &format!("{}", self.dst()))
             .field("version", &self.version())
             .field("ihl", &self.ihl())
             .field("dscp", &self.dscp())
@@ -349,7 +349,7 @@ impl fmt::Debug for Ipv4 {
             .field("more_fragments", &self.more_fragments())
             .field("fragment_offset", &self.fragment_offset())
             .field("ttl", &self.ttl())
-            .field("protocol", &self.protocol())
+            .field("protocol", &format!("{}", self.protocol()))
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("$offset", &self.offset())
             .field("$len", &self.len())

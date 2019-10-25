@@ -194,11 +194,11 @@ impl Flow {
 impl fmt::Debug for Flow {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("flow")
-            .field("src_ip", &self.src_ip())
+            .field("src_ip", &format!("{}", self.src_ip()))
             .field("src_port", &self.src_port())
-            .field("dst_ip", &self.dst_ip())
+            .field("dst_ip", &format!("{}", self.dst_ip()))
             .field("dst_port", &self.dst_port())
-            .field("protocol", &self.protocol())
+            .field("protocol", &format!("{}", self.protocol()))
             .finish()
     }
 }

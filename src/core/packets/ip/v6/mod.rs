@@ -234,13 +234,13 @@ impl Ipv6 {
 impl fmt::Debug for Ipv6 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ipv6")
-            .field("src", &self.src())
-            .field("dst", &self.dst())
+            .field("src", &format!("{}", self.src()))
+            .field("dst", &format!("{}", self.dst()))
             .field("dscp", &self.dscp())
             .field("ecn", &self.ecn())
             .field("flow_label", &self.flow_label())
             .field("total_length", &self.len())
-            .field("next_header", &self.next_header())
+            .field("next_header", &format!("{}", self.next_header()))
             .field("hop_limit", &self.hop_limit())
             .field("$offset", &self.offset())
             .field("$len", &self.len())
