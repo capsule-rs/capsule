@@ -25,13 +25,14 @@ pub use self::mempool_map::*;
 use crate::batch::Executable;
 use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
-use crate::{debug, ensure, error, info, Result};
+use crate::{debug, ensure, info, Result};
 use futures::{future, stream, StreamExt};
 use libc;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::timer::Interval;
+use tokio_executor::current_thread;
 use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 
@@ -126,37 +127,38 @@ impl Runtime {
         self
     }
 
-    pub fn add_pipeline_to_port<T: Executable + Send + 'static, F>(
+    pub fn add_pipeline_to_port<T: Executable + 'static, F>(
         &mut self,
         index: usize,
-        mut f: F,
+        f: F,
     ) -> Result<&mut Self>
     where
-        F: FnMut(PortQueue) -> T + Send + Sync + 'static,
+        F: Fn(PortQueue) -> T + Send + Sync + 'static,
     {
         ensure!(index < self.ports.len(), PortError::NotFound);
 
+        let f = Arc::new(f);
         let port = &self.ports[index];
-        for (core_id, port_q) in port.queues() {
-            let thread = &self.core_map.cores[core_id].thread;
-            let t2 = thread.clone();
 
-            // let's turn port q into a batch executable.
-            let mut batch = f(port_q.clone());
+        for (core_id, port_q) in port.queues() {
+            let f = f.clone();
+            let port_q = port_q.clone();
+            let thread = &self.core_map.cores[core_id].thread;
 
             // spawns the bootstrap. we need the bootstrapping to execute on the
             // target core instead of the master core because we can't create
             // an `Interval` with the correct `Timer` otherwise. The fn that
             // we need is unfortunately internal to `tokio`.
             thread.spawn(future::lazy(move |_| {
+                // let's turn port q into a batch executable.
+                let mut batch = f(port_q);
+
                 // turns the batch executable into a repeated task.
-                let task = Interval::new_interval(Duration::from_micros(1))
+                let task = Interval::new_interval(Duration::from_micros(10))
                     .for_each(move |_| future::ready(batch.execute()));
 
-                // and schedule the task on the same core.
-                if let Err(err) = t2.spawn(task) {
-                    error!(message = "bootstap failed.", ?err);
-                }
+                // and schedules the task on the same core.
+                current_thread::spawn(task);
             }))?;
 
             debug!("installed pipeline on port_q for {:?}.", core_id);
@@ -183,8 +185,8 @@ impl Runtime {
 
         debug!("waiting for {} seconds...", timeout);
         thread.block_on(main_loop);
-
         info!("timed out after {} seconds.", timeout);
+
         Ok(())
     }
 
@@ -220,20 +222,49 @@ impl Runtime {
         debug!("waiting for a Unix signal...");
         let _guard = driver::set_default(&reactor);
         let _ = thread.block_on(main_loop);
-
         info!("signaled to stop.");
+
         Ok(())
     }
 
     pub fn execute(&mut self) -> Result<()> {
+        // starts all the ports so we can receive packets.
         for port in self.ports.iter_mut() {
-            port.start();
+            port.start()?;
         }
 
+        // unparks all the cores to start task execution.
+        for (_, core) in &self.core_map.cores {
+            match &core.unpark {
+                Some(unpark) => unpark.unpark(),
+                _ => (), // this is master core no unpark.
+            }
+        }
+
+        // runs the app until main loop finishes.
         match self.config.duration {
             None | Some(0) => self.wait_for_signal(),
             Some(d) => self.wait_for_timeout(d),
+        }?;
+
+        // shuts down all the cores.
+        for (_, core) in &mut self.core_map.cores {
+            match &core.shutdown {
+                Some(trigger) => {
+                    trigger.shutdown();
+                    let handle = core.join.take().unwrap();
+                    let _ = handle.join();
+                }
+                _ => (), // this is master core no shutdown.
+            }
         }
+
+        // stops all the ports.
+        for port in self.ports.iter_mut() {
+            port.stop();
+        }
+
+        Ok(())
     }
 }
 

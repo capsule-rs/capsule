@@ -19,14 +19,126 @@
 use super::MempoolMap2;
 use crate::dpdk::{CoreId, MEMPOOL};
 use crate::{debug, error, ffi, info, Result};
+use futures::Future;
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc;
-use std::thread;
+use std::pin::Pin;
+use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
+use std::task::{Context, Poll};
+use std::thread::{self, JoinHandle};
 use tokio_executor::current_thread::{self, CurrentThread};
-use tokio_executor::park::Park;
-use tokio_executor::threadpool::park::{DefaultPark, DefaultUnpark};
+use tokio_executor::park::ParkThread;
 use tokio_net::driver::{self, Reactor};
 use tokio_timer::timer::{self, Timer};
+
+/// A sync-channel based park handle.
+///
+/// This is designed to be a single use handle. We only need to park the
+/// core one time at initialization time. Once unparked, we will never
+/// park the core again.
+pub struct Park {
+    core_id: CoreId,
+    sender: SyncSender<()>,
+    receiver: Receiver<()>,
+}
+
+impl Park {
+    fn new(core_id: CoreId) -> Self {
+        let (sender, receiver) = mpsc::sync_channel(0);
+        Park {
+            core_id,
+            sender,
+            receiver,
+        }
+    }
+
+    fn unpark(&self) -> Unpark {
+        Unpark {
+            core_id: self.core_id,
+            sender: self.sender.clone(),
+        }
+    }
+
+    fn park(&self) {
+        if let Err(err) = self.receiver.recv() {
+            // we are not expecting failures, but we will log it in case.
+            error!(message = "park failed.", core=?self.core_id, ?err);
+        }
+    }
+}
+
+/// A sync-channel based unpark handle.
+///
+/// This is designed to be a single use handle. We will unpark a core one
+/// time after all initialization completes. Do not reinvoke this.
+pub struct Unpark {
+    core_id: CoreId,
+    sender: SyncSender<()>,
+}
+
+impl Unpark {
+    pub fn unpark(&self) {
+        if let Err(err) = self.sender.send(()) {
+            // we are not expecting failures, but we will log it in case.
+            error!(message = "unpark failed.", core=?self.core_id, ?err);
+        }
+    }
+}
+
+/// A sync-channel based shutdown mechanism.
+pub struct Shutdown {
+    core_id: CoreId,
+    sender: SyncSender<()>,
+    receiver: Receiver<()>,
+}
+
+impl Shutdown {
+    fn new(core_id: CoreId) -> Self {
+        let (sender, receiver) = mpsc::sync_channel(0);
+        Shutdown {
+            core_id,
+            sender,
+            receiver,
+        }
+    }
+
+    fn trigger(&self) -> ShutdownTrigger {
+        ShutdownTrigger {
+            core_id: self.core_id,
+            sender: self.sender.clone(),
+        }
+    }
+}
+
+impl Future for Shutdown {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
+        match self.receiver.try_recv() {
+            Ok(_) => Poll::Ready(()),
+            Err(TryRecvError::Empty) => Poll::Pending,
+            Err(TryRecvError::Disconnected) => {
+                // we are not expecting failures, but we will log it in case.
+                error!(message = "shutdown trigger disconnected.", core=?self.core_id);
+                Poll::Ready(())
+            }
+        }
+    }
+}
+
+/// A sync-channel based shutdown trigger to terminate a background thread.
+pub struct ShutdownTrigger {
+    core_id: CoreId,
+    sender: SyncSender<()>,
+}
+
+impl ShutdownTrigger {
+    pub fn shutdown(&self) {
+        if let Err(err) = self.sender.send(()) {
+            // we are not expecting failures, but we will log it in case.
+            error!(message = "shutdown failed.", core=?self.core_id, ?err);
+        }
+    }
+}
 
 /// A abstraction used to interact with the master/main thread.
 ///
@@ -52,9 +164,11 @@ pub struct MasterExecutor {
 /// won't do anything because the thread is not parked. Tasks can be spawned
 /// onto it with this handle just like a background thread.
 pub struct CoreExecutor {
-    pub unpark: DefaultUnpark,
     pub timer: timer::Handle,
     pub thread: current_thread::Handle,
+    pub unpark: Option<Unpark>,
+    pub shutdown: Option<ShutdownTrigger>,
+    pub join: Option<JoinHandle<()>>,
 }
 
 /// Map of all the core handles.
@@ -138,11 +252,11 @@ impl<'a> CoreMapBuilder<'a> {
 
             // spawns a new background thread and initializes a core executor on
             // that thread.
-            let _ = thread::spawn(move || {
+            let join = thread::spawn(move || {
                 debug!("spawned background thread {:?}.", thread::current().id());
 
                 match init_background_core(core_id, ptr.0) {
-                    Ok((mut thread, executor)) => {
+                    Ok((mut thread, park, shutdown, executor)) => {
                         info!("initialized thread on {:?}.", core_id);
 
                         // keeps a timer handle for later use.
@@ -157,16 +271,14 @@ impl<'a> CoreMapBuilder<'a> {
                         // sleeps the thread for now since there's nothing to be done yet.
                         // once new tasks are spawned, the master core can unpark this and
                         // let the execution continue.
-                        let _ = thread.get_park_mut().park();
+                        park.park();
 
                         info!("unparked {:?}.", core_id);
 
-                        // once the thread wakes up, we will run all the spawned tasks to
-                        // completion or log the failure.
+                        // once the thread wakes up, we will run all the spawned tasks and
+                        // wait until a shutdown is triggered from the master core.
                         let _timer = timer::set_default(&timer_handle);
-                        if let Err(err) = thread.run() {
-                            error!("{}", err);
-                        }
+                        let _ = thread.block_on(shutdown);
 
                         info!("shutting down {:?}.", core_id);
                     }
@@ -177,7 +289,8 @@ impl<'a> CoreMapBuilder<'a> {
 
             // blocks and waits for the background thread to finish initialize.
             // when done, we add the executor to the map.
-            let executor = receiver.recv().unwrap()?;
+            let mut executor = receiver.recv().unwrap()?;
+            executor.join = Some(join);
             map.insert(core_id, executor);
         }
 
@@ -217,16 +330,12 @@ fn init_master_core(
         thread,
     };
 
-    // don't really use this but need to create one so we can treat
-    // master core like a regular core as well. trying to unpark it
-    // later won't do anything.
-    let park = DefaultPark::new();
-    let unpark = park.unpark();
-
     let executor = CoreExecutor {
-        unpark,
         timer: timer_handle,
         thread: thread_handle,
+        unpark: None,
+        shutdown: None,
+        join: None,
     };
 
     Ok((main, executor))
@@ -235,19 +344,20 @@ fn init_master_core(
 fn init_background_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Result<(CurrentThread<Timer<DefaultPark>>, CoreExecutor)> {
+) -> Result<(
+    CurrentThread<Timer<ParkThread>>,
+    Park,
+    Shutdown,
+    CoreExecutor,
+)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 
     // sets the mempool
     MEMPOOL.with(|tls| tls.set(mempool));
 
-    // keeps a unpark handle so we can unpark the core from the master
-    // core when we are ready to execute the tasks scheduled.
-    let park = DefaultPark::new();
-    let unpark = park.unpark();
-
     // starts a per-core timer so we can schedule timed tasks.
+    let park = ParkThread::new();
     let timer = Timer::new(park);
     let timer_handle = timer.handle();
 
@@ -256,11 +366,23 @@ fn init_background_core(
     let thread = CurrentThread::new_with_park(timer);
     let thread_handle = thread.handle();
 
+    // problem with using the regular thread park is when a task is
+    // spawned, the handle will implicitly unpark the thread. we have
+    // no way to control that behavior. so instead, we use a channel
+    // based unpark mechanism to block the thread from further
+    // execution until we are ready to proceed.
+    let park = Park::new(id);
+
+    // shutdown handle for the core.
+    let shutdown = Shutdown::new(id);
+
     let executor = CoreExecutor {
-        unpark,
         timer: timer_handle,
         thread: thread_handle,
+        unpark: Some(park.unpark()),
+        shutdown: Some(shutdown.trigger()),
+        join: None,
     };
 
-    Ok((thread, executor))
+    Ok((thread, park, shutdown, executor))
 }
