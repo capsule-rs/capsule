@@ -1,0 +1,22 @@
+app_name = "pktdump"
+master_core = 0
+cores = []
+duration = 10
+
+[mempool]
+    capacity = 65535
+    cache_size = 256
+
+[[ports]]
+    name = "net_pcap0"
+    args = "rx_pcap=tcp4.pcap,tx_iface=lo"
+    cores = [1]
+    rxd = 256
+    txd = 256
+
+[[ports]]
+    name = "net_pcap1"
+    args = "rx_pcap=tcp6.pcap,tx_iface=lo"
+    cores = [1]
+    rxd = 256
+    txd = 256

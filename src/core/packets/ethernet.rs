@@ -144,9 +144,9 @@ impl Ethernet {
 impl fmt::Debug for Ethernet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ethernet")
-            .field("src", &self.src())
-            .field("dst", &self.dst())
-            .field("ether_type", &self.ether_type())
+            .field("src", &format!("{}", self.src()))
+            .field("dst", &format!("{}", self.dst()))
+            .field("ether_type", &format!("{}", self.ether_type()))
             .field("$offset", &self.offset())
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())

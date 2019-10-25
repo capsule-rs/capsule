@@ -195,13 +195,12 @@ pub trait Packet: Clone {
 /// use is allow safe lookahead of packet payload while retaining ownership
 /// of the original packet. The lifetime of the smart pointer is constrained
 /// by the original packet.
-#[derive(Debug)]
 pub struct Immutable<'a, T: Packet + 'a> {
     value: T,
     phantom: PhantomData<&'a T>,
 }
 
-impl<'a, T: Packet + fmt::Display> fmt::Display for Immutable<'a, T> {
+impl<'a, T: Packet + fmt::Debug> fmt::Debug for Immutable<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.value.fmt(f)
     }
