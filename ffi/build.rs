@@ -32,14 +32,14 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=z");
 
     cc::Build::new()
-        .file("shim.c")
+        .file("src/shim.c")
         .include("/opt/dpdk/build/include")
         .flag("-march=native")
         .compile("rte_shim");
 
     let bindings = bindgen::Builder::default()
-        .header("rte.h")
-        .header("shim.h")
+        .header("src/rte.h")
+        .header("src/shim.h")
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|cmdline|ether|eth|arp|vlan|vxlan)_.*")

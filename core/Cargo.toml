@@ -8,7 +8,6 @@ edition = "2018"
 
 [lib]
 name = "capsule"
-path = "lib.rs"
 doctest = false
 
 [dependencies]
@@ -30,8 +29,22 @@ tokio-timer = "=0.3.0-alpha.6"
 tracing = "0.1"
 
 [dev-dependencies]
+colored = ">= 1.6"
 proptest = "0.9"
+tracing-subscriber = "0.1"
 
 [features]
 default = []
 testils = ["proptest"]
+
+[[example]]
+name = "pktdump"
+crate-type = ["bin"]
+
+[[example]]
+name = "signals"
+crate-type = ["bin"]
+
+[[example]]
+name = "skeleton"
+crate-type = ["bin"]

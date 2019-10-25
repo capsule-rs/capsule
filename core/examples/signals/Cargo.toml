@@ -1,5 +1,5 @@
 [package]
-name = "pktdump"
+name = "signals"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
@@ -7,13 +7,12 @@ keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [[bin]]
-name = "pktdump"
+name = "signals"
 path = "main.rs"
 doctest = false
 
 [dependencies]
-capsule = { path = "../../core" }
-colored = ">= 1.6"
+capsule = { path = "../../" }
 failure = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.1"

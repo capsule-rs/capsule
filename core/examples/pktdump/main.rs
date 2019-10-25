@@ -37,7 +37,7 @@ fn dump_eth(packet: Mbuf) -> Result<Ethernet> {
 }
 
 #[inline]
-pub fn dump_v4(ethernet: &Ethernet) -> Result<()> {
+fn dump_v4(ethernet: &Ethernet) -> Result<()> {
     let v4 = ethernet.peek::<Ipv4>()?;
     let info_fmt = format!("{:?}", v4).yellow();
     println!("{}", info_fmt);
