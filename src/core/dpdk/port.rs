@@ -55,15 +55,18 @@ impl fmt::Debug for PortId {
 }
 
 /// The index of a receive queue.
+#[derive(Copy, Clone)]
 struct RxQueueIndex(u16);
 
 /// The index of a transmit queue.
+#[derive(Copy, Clone)]
 struct TxQueueIndex(u16);
 
 /// The receive and transmit queue abstraction. Instead of modeling them
 /// as two standalone queues, in the run-to-completion mode, they are modeled
 /// as a queue pair associated with the core that runs the pipeline from
 /// receive to send.
+#[derive(Copy, Clone)]
 pub struct PortQueue {
     port_id: PortId,
     rxq_index: RxQueueIndex,
@@ -98,7 +101,7 @@ impl PortQueue {
     }
 
     /// Sends the packets to the transmit queue.
-    pub fn send(&self, packets: Vec<Mbuf>) {
+    pub fn transmit(&self, packets: Vec<Mbuf>) {
         let mut packets = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
 
         let mut to_send = packets.len() as u16;
@@ -130,10 +133,14 @@ impl PortQueue {
 /// Error indicating failed to initialize the port.
 #[derive(Debug, Fail)]
 pub enum PortError {
+    #[fail(display = "Port is not found.")]
+    NotFound,
+
     /// The maximum number of RX queues is less than the number of cores
     /// assigned to the port.
     #[fail(display = "Insufficient number of RX queues '{}'.", _0)]
     InsufficientRxQueues(usize),
+
     /// The maximum number of TX queues is less than the number of cores
     /// assigned to the port.
     #[fail(display = "Insufficient number of TX queues '{}'.", _0)]
@@ -144,7 +151,7 @@ pub enum PortError {
 pub struct Port {
     id: PortId,
     name: String,
-    pub queues: HashMap<CoreId, PortQueue>,
+    queues: HashMap<CoreId, PortQueue>,
     dev_info: ffi::rte_eth_dev_info,
 }
 
@@ -161,6 +168,11 @@ impl Port {
             ffi::rte_eth_macaddr_get(self.id.0, &mut addr);
         }
         addr.addr_bytes.into()
+    }
+
+    /// Returns the available port queues.
+    pub(crate) fn queues(&self) -> &HashMap<CoreId, PortQueue> {
+        &self.queues
     }
 
     /// Starts the port. This is the final step before packets can be

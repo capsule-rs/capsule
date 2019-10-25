@@ -365,7 +365,7 @@ impl Drop for Mbuf {
 // because `Mbuf` holds a raw pointer, by default, rust will deem the struct
 // to be not sendable. explicitly implement the `Send` trait to ensure it
 // can go across thread boundaries.
-//unsafe impl Send for Mbuf {}
+unsafe impl Send for Mbuf {}
 
 #[cfg(test)]
 mod tests {

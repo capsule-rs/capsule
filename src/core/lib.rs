@@ -31,7 +31,8 @@ pub mod settings;
 #[cfg(any(test, feature = "testils"))]
 pub mod testils;
 
-pub use self::dpdk::{Mbuf, SizeOf};
+pub use self::batch::{Batch, Executable, Poll};
+pub use self::dpdk::{Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
 pub use capsule_macros::test;
