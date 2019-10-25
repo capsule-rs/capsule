@@ -1,18 +1,16 @@
 [package]
-name = "signals"
+name = "nb2-macros"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = ["dpdk", "nfv"]
 edition = "2018"
 
-[[bin]]
-name = "signals"
-path = "main.rs"
+[lib]
+name = "nb2_macros"
+proc-macro = true
 doctest = false
 
 [dependencies]
-failure = "0.1"
-nb2 = { path = "../../core" }
-tracing = "0.1"
-tracing-subscriber = "0.1"
+quote = "1"
+syn = { version = "1.0", features = ["full"] }

@@ -3,4 +3,4 @@
 **/target
 **/Cargo.lock
 **/*.pcap
-src/ffi/bindings.rs
+ffi/bindings.rs

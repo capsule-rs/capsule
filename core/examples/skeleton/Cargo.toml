@@ -1,17 +1,18 @@
 [package]
-name = "nb2-macros"
+name = "skeleton"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = ["dpdk", "nfv"]
 edition = "2018"
 
-[lib]
-name = "nb2_macros"
-path = "lib.rs"
-proc-macro = true
+[[bin]]
+name = "skeleton"
+path = "main.rs"
 doctest = false
 
 [dependencies]
-quote = "1"
-syn = { version = "1.0", features = ["full"] }
+failure = "0.1"
+nb2 = { path = "../../" }
+tracing = "0.1"
+tracing-subscriber = "0.1"
