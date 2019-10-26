@@ -3,10 +3,9 @@ use crate::dpdk::{CoreId, MEMPOOL};
 use crate::{debug, error, ffi, info, Result};
 use futures::Future;
 use std::collections::{HashMap, HashSet};
-use std::pin::Pin;
-use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
-use std::task::{Context, Poll};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread::{self, JoinHandle};
+use tokio::sync::oneshot;
 use tokio_executor::current_thread::{self, CurrentThread};
 use tokio_executor::park::ParkThread;
 use tokio_net::driver::{self, Reactor};
@@ -66,55 +65,32 @@ impl Unpark {
     }
 }
 
-/// A sync-channel based shutdown mechanism.
+/// A tokio oneshot channel based shutdown mechanism.
 pub struct Shutdown {
-    core_id: CoreId,
-    sender: SyncSender<()>,
-    receiver: Receiver<()>,
+    receiver: oneshot::Receiver<()>,
 }
 
 impl Shutdown {
-    fn new(core_id: CoreId) -> Self {
-        let (sender, receiver) = mpsc::sync_channel(0);
-        Shutdown {
-            core_id,
-            sender,
-            receiver,
-        }
+    fn new(core_id: CoreId) -> (Self, ShutdownTrigger) {
+        let (sender, receiver) = oneshot::channel();
+        let shutdown = Shutdown { receiver };
+        let trigger = ShutdownTrigger { core_id, sender };
+        (shutdown, trigger)
     }
 
-    fn trigger(&self) -> ShutdownTrigger {
-        ShutdownTrigger {
-            core_id: self.core_id,
-            sender: self.sender.clone(),
-        }
-    }
-}
-
-impl Future for Shutdown {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
-        match self.receiver.try_recv() {
-            Ok(_) => Poll::Ready(()),
-            Err(TryRecvError::Empty) => Poll::Pending,
-            Err(TryRecvError::Disconnected) => {
-                // we are not expecting failures, but we will log it in case.
-                error!(message = "shutdown trigger disconnected.", core=?self.core_id);
-                Poll::Ready(())
-            }
-        }
+    fn into_task(self) -> impl Future {
+        self.receiver
     }
 }
 
 /// A sync-channel based shutdown trigger to terminate a background thread.
 pub struct ShutdownTrigger {
     core_id: CoreId,
-    sender: SyncSender<()>,
+    sender: oneshot::Sender<()>,
 }
 
 impl ShutdownTrigger {
-    pub fn shutdown(&self) {
+    pub fn shutdown(self) {
         if let Err(err) = self.sender.send(()) {
             // we are not expecting failures, but we will log it in case.
             error!(message = "shutdown failed.", core=?self.core_id, ?err);
@@ -260,9 +236,9 @@ impl<'a> CoreMapBuilder<'a> {
                         // once the thread wakes up, we will run all the spawned tasks and
                         // wait until a shutdown is triggered from the master core.
                         let _timer = timer::set_default(&timer_handle);
-                        let _ = thread.block_on(shutdown);
+                        let _ = thread.block_on(shutdown.into_task());
 
-                        info!("shutting down {:?}.", core_id);
+                        info!("unblocked {:?}.", core_id);
                     }
                     // propogates the error back to the master core.
                     Err(err) => sender.send(Err(err)).unwrap(),
@@ -356,13 +332,13 @@ fn init_background_core(
     let park = Park::new(id);
 
     // shutdown handle for the core.
-    let shutdown = Shutdown::new(id);
+    let (shutdown, trigger) = Shutdown::new(id);
 
     let executor = CoreExecutor {
         timer: timer_handle,
         thread: thread_handle,
         unpark: Some(park.unpark()),
-        shutdown: Some(shutdown.trigger()),
+        shutdown: Some(trigger),
         join: None,
     };
 

@@ -9,7 +9,7 @@ use std::rc::Rc;
 /// created by the `GroupBy` combinator. Packets can be fed one at a time
 /// through the bridge. Because the pipeline execution is depth first,
 /// this is the most efficient way storage wise.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Bridge<T: Packet>(Rc<Cell<Option<T>>>);
 
 impl<T: Packet> Bridge<T> {

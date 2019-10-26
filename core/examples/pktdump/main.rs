@@ -1,10 +1,11 @@
 use colored::*;
+use futures::Future;
 use nb2::packets::{
     ip::{v4::Ipv4, v6::Ipv6, IpPacket},
     EtherTypes, Ethernet, Packet, Tcp,
 };
 use nb2::settings::load_config;
-use nb2::{compose, Batch, Executable, Mbuf, Poll, PortQueue, Result, Runtime};
+use nb2::{compose, Batch, Mbuf, Poll, PortQueue, Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
@@ -51,8 +52,8 @@ fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
     println!("{}", flow_fmt);
 }
 
-fn install(q: PortQueue) -> impl Executable {
-    Poll::new(q.clone())
+fn install(q: PortQueue) -> impl Future<Output = ()> {
+    Poll::new(q)
         .map(dump_eth)
         .group_by(
             |ethernet| ethernet.ether_type(),
@@ -68,7 +69,7 @@ fn install(q: PortQueue) -> impl Executable {
                 );
             },
         )
-        .send(q.clone())
+        .send(q)
 }
 
 fn main() -> Result<()> {
