@@ -16,9 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, Disposition, Executable, PacketTx};
+use super::{Batch, Disposition, PacketTx};
 use crate::packets::Packet;
 use crate::Mbuf;
+use futures::{future, Future};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio_executor::current_thread;
 
 /// Turns the batch pipeline into an executable task.
 pub struct Send<B: Batch, Tx: PacketTx> {
@@ -31,9 +35,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
     pub fn new(batch: B, tx: Tx) -> Self {
         Send { batch, tx }
     }
-}
 
-impl<B: Batch, Tx: PacketTx> Executable for Send<B, Tx> {
     fn execute(&mut self) {
         // let's get a new batch
         self.batch.replenish();
@@ -58,5 +60,24 @@ impl<B: Batch, Tx: PacketTx> Executable for Send<B, Tx> {
         if !drop_q.is_empty() {
             Mbuf::free_bulk(drop_q);
         }
+    }
+}
+
+/// By implementing the `Future` trait, `Send` can be spawned onto the tokio
+/// executor. Each time the future is polled, it processes one batch of
+/// packets before returning the `Poll::Pending` status and yields.
+impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        // executes a batch of packets.
+        self.get_mut().execute();
+
+        // now schedules the waker as a future and yields the core so other
+        // futures have a chance to run.
+        let waker = cx.waker().clone();
+        current_thread::spawn(future::lazy(|_| waker.wake()));
+
+        Poll::Pending
     }
 }

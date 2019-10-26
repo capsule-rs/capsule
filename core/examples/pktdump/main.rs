@@ -21,8 +21,9 @@ use capsule::packets::{
     EtherTypes, Ethernet, Packet, Tcp,
 };
 use capsule::settings::load_config;
-use capsule::{compose, Batch, Executable, Mbuf, Poll, PortQueue, Result, Runtime};
+use capsule::{compose, Batch, Mbuf, Poll, PortQueue, Result, Runtime};
 use colored::*;
+use futures::Future;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
@@ -69,8 +70,8 @@ fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
     println!("{}", flow_fmt);
 }
 
-fn install(q: PortQueue) -> impl Executable {
-    Poll::new(q.clone())
+fn install(q: PortQueue) -> impl Future<Output = ()> {
+    Poll::new(q)
         .map(dump_eth)
         .group_by(
             |ethernet| ethernet.ether_type(),
@@ -86,7 +87,7 @@ fn install(q: PortQueue) -> impl Executable {
                 );
             },
         )
-        .send(q.clone())
+        .send(q)
 }
 
 fn main() -> Result<()> {

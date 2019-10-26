@@ -22,22 +22,20 @@ mod mempool_map;
 pub use self::core_map::*;
 pub use self::mempool_map::*;
 
-use crate::batch::Executable;
 use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
-use futures::{future, stream, StreamExt};
+use futures::{future, stream, Future, StreamExt};
 use libc;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::timer::Interval;
 use tokio_executor::current_thread;
 use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 
 /// Supported Unix signals.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum UnixSignal {
     SIGHUP = libc::SIGHUP as isize,
     SIGINT = libc::SIGINT as isize,
@@ -127,7 +125,7 @@ impl Runtime {
         self
     }
 
-    pub fn add_pipeline_to_port<T: Executable + 'static, F>(
+    pub fn add_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
         &mut self,
         index: usize,
         f: F,
@@ -142,7 +140,7 @@ impl Runtime {
 
         for (core_id, port_q) in port.queues() {
             let f = f.clone();
-            let port_q = port_q.clone();
+            let port_q = *port_q;
             let thread = &self.core_map.cores[core_id].thread;
 
             // spawns the bootstrap. we need the bootstrapping to execute on the
@@ -150,14 +148,8 @@ impl Runtime {
             // an `Interval` with the correct `Timer` otherwise. The fn that
             // we need is unfortunately internal to `tokio`.
             thread.spawn(future::lazy(move |_| {
-                // let's turn port q into a batch executable.
-                let mut batch = f(port_q);
-
-                // turns the batch executable into a repeated task.
-                let task = Interval::new_interval(Duration::from_micros(10))
-                    .for_each(move |_| future::ready(batch.execute()));
-
-                // and schedules the task on the same core.
+                // let's turn port q into a future and spawn it on the core.
+                let task = f(port_q);
                 current_thread::spawn(task);
             }))?;
 
@@ -181,10 +173,10 @@ impl Runtime {
         } = self.core_map.master_core;
 
         let when = Instant::now() + Duration::from_secs(timeout);
-        let main_loop = timer.delay(when);
+        let delay = timer.delay(when);
 
         debug!("waiting for {} seconds...", timeout);
-        thread.block_on(main_loop);
+        thread.block_on(delay);
         info!("timed out after {} seconds.", timeout);
 
         Ok(())
@@ -192,24 +184,17 @@ impl Runtime {
 
     /// Blocks the main thread until receives a signal to terminate.
     fn wait_for_signal(&mut self) -> Result<()> {
-        // pass each signal stream through the `on_signal` closure,
-        // and discard any that shouldn't stop the execution.
-        let on_signal = &self.on_signal;
-        let sighup = unix::signal(SignalKind::hangup())?.filter(|_| {
-            let exit = on_signal(UnixSignal::SIGHUP);
-            future::ready(exit)
-        });
-        let sigint = unix::signal(SignalKind::interrupt())?.filter(|_| {
-            let exit = on_signal(UnixSignal::SIGINT);
-            future::ready(exit)
-        });
-        let sigterm = unix::signal(SignalKind::terminate())?.filter(|_| {
-            let exit = on_signal(UnixSignal::SIGTERM);
-            future::ready(exit)
-        });
+        let sighup = unix::signal(SignalKind::hangup())?.map(|_| UnixSignal::SIGHUP);
+        let sigint = unix::signal(SignalKind::interrupt())?.map(|_| UnixSignal::SIGINT);
+        let sigterm = unix::signal(SignalKind::terminate())?.map(|_| UnixSignal::SIGTERM);
 
-        // combine the signal streams and turn it into a future
-        let main_loop = stream::select(stream::select(sighup, sigint), sigterm).into_future();
+        // combines the streams together
+        let stream = stream::select(stream::select(sighup, sigint), sigterm);
+
+        // passes each signal through the `on_signal` closure, and discard
+        // any that shouldn't stop the execution.
+        let f = self.on_signal.clone();
+        let mut stream = stream.filter(|&signal| future::ready(f(signal)));
 
         let MasterExecutor {
             ref reactor,
@@ -217,16 +202,18 @@ impl Runtime {
             ..
         } = self.core_map.master_core;
 
-        // set the reactor so we can receive the signals and run the
-        // future on the master core.
+        // sets the reactor so we receive the signals and runs the future
+        // on the master core. the execution stops on the first signal that
+        // wasn't filtered out.
         debug!("waiting for a Unix signal...");
         let _guard = driver::set_default(&reactor);
-        let _ = thread.block_on(main_loop);
+        let _ = thread.block_on(stream.next());
         info!("signaled to stop.");
 
         Ok(())
     }
 
+    #[allow(clippy::cognitive_complexity)]
     pub fn execute(&mut self) -> Result<()> {
         // starts all the ports so we can receive packets.
         for port in self.ports.iter_mut() {
@@ -234,10 +221,9 @@ impl Runtime {
         }
 
         // unparks all the cores to start task execution.
-        for (_, core) in &self.core_map.cores {
-            match &core.unpark {
-                Some(unpark) => unpark.unpark(),
-                _ => (), // this is master core no unpark.
+        for core in self.core_map.cores.values() {
+            if let Some(unpark) = &core.unpark {
+                unpark.unpark();
             }
         }
 
@@ -248,14 +234,14 @@ impl Runtime {
         }?;
 
         // shuts down all the cores.
-        for (_, core) in &mut self.core_map.cores {
-            match &core.shutdown {
-                Some(trigger) => {
-                    trigger.shutdown();
-                    let handle = core.join.take().unwrap();
-                    let _ = handle.join();
-                }
-                _ => (), // this is master core no shutdown.
+        for (core_id, core) in &mut self.core_map.cores {
+            if let Some(trigger) = core.shutdown.take() {
+                debug!("shutting down {:?}.", core_id);
+                trigger.shutdown();
+                debug!("sent {:?} shutdown trigger.", core_id);
+                let handle = core.join.take().unwrap();
+                let _ = handle.join();
+                info!("terminated {:?}.", core_id);
             }
         }
 

@@ -31,7 +31,7 @@ pub mod settings;
 #[cfg(any(test, feature = "testils"))]
 pub mod testils;
 
-pub use self::batch::{Batch, Executable, Poll};
+pub use self::batch::{Batch, Poll};
 pub use self::dpdk::{Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
