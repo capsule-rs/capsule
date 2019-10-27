@@ -14,7 +14,6 @@ doctest = false
 [dependencies]
 colored = "1.8"
 failure = "0.1"
-futures-preview = "=0.3.0-alpha.19"
 nb2 = { path = "../../" }
 tracing = "0.1"
 tracing-subscriber = "0.1"

@@ -9,12 +9,13 @@ use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, Future, StreamExt};
 use libc;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_executor::current_thread;
 use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
+use tokio_timer::{timer, Interval};
 
 /// Supported Unix signals.
 #[derive(Copy, Clone, Debug)]
@@ -91,7 +92,7 @@ impl Runtime {
     /// ```
     /// Runtime::build(&config)?;
     ///     .set_on_signal(|signal| match signal {
-    ///         UnixSignal::SIGHUP => {
+    ///         SIGHUP => {
     ///             reload_config();
     ///             false
     ///         }
@@ -107,10 +108,16 @@ impl Runtime {
         self
     }
 
+    /// Installs a pipeline to a port. The pipeline will run on all the
+    /// cores assigned to the port.
+    ///
+    /// `port` is the logical name that identifies the port. The `installer`
+    /// is a closure that takes in a `PortQueue` and returns a `Pipeline`
+    /// that will be spawned onto the thread executor.
     pub fn add_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
         &mut self,
         port: &str,
-        f: F,
+        installer: F,
     ) -> Result<&mut Self>
     where
         F: Fn(PortQueue) -> T + Send + Sync + 'static,
@@ -119,21 +126,19 @@ impl Runtime {
             .ports
             .iter()
             .find(|p| p.name() == port)
-            .ok_or(PortError::NotFound)?;
+            .ok_or_else(|| PortError::NotFound(port.to_owned()))?;
 
-        let f = Arc::new(f);
+        let f = Arc::new(installer);
 
         for (core_id, port_q) in port.queues() {
             let f = f.clone();
             let port_q = *port_q;
             let thread = &self.core_map.cores[core_id].thread;
 
-            // spawns the bootstrap. we need the bootstrapping to execute on the
-            // target core instead of the master core because we can't create
-            // an `Interval` with the correct `Timer` otherwise. The fn that
-            // we need is unfortunately internal to `tokio`.
+            // spawns the bootstrap. we want the bootstrapping to execute on the
+            // target core instead of the master core. that way the actual task
+            // is spawned locally and the type bounds are less restricting.
             thread.spawn(future::lazy(move |_| {
-                // let's turn port q into a future and spawn it on the core.
                 let task = f(port_q);
                 current_thread::spawn(task);
             }))?;
@@ -142,6 +147,83 @@ impl Runtime {
         }
 
         info!("installed pipeline for port {}.", port.name());
+
+        Ok(self)
+    }
+
+    /// Installs a pipeline to a core. All the ports the core is assigned
+    /// to will be available to the pipeline.
+    ///
+    /// `core` is the logical id that identifies the core. The `installer`
+    /// is a closure that takes in a hashmap of `PortQueue`s and returns a
+    /// `Pipeline` that will be spawned onto the thread executor of the core.
+    pub fn add_pipeline_to_core<T: Future<Output = ()> + 'static, F>(
+        &mut self,
+        core: usize,
+        installer: F,
+    ) -> Result<&mut Self>
+    where
+        F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
+    {
+        let core_id = CoreId::new(core);
+
+        let thread = &self
+            .core_map
+            .cores
+            .get(&core_id)
+            .ok_or_else(|| CoreError::NotFound(core))?
+            .thread;
+
+        let port_qs = self
+            .ports
+            .iter()
+            .filter_map(|p| p.queues().get(&core_id).map(|q| (p.name().to_owned(), *q)))
+            .collect::<HashMap<_, _>>();
+
+        ensure!(!port_qs.is_empty(), CoreError::NotAssigned(core));
+
+        // spawns the bootstrap. we want the bootstrapping to execute on the
+        // target core instead of the master core.
+        thread.spawn(future::lazy(move |_| {
+            let task = installer(port_qs);
+            current_thread::spawn(task);
+        }))?;
+
+        info!("installed pipeline for core {:?}.", core_id);
+
+        Ok(self)
+    }
+
+    /// Installs a periodic task to a core.
+    ///
+    /// `core` is the logical id that identifies the core. `task` is the
+    /// closure to execute. The task will rerun every `dur` interval.
+    pub fn add_periodic_task_to_core<T>(
+        &mut self,
+        core: usize,
+        task: T,
+        dur: Duration,
+    ) -> Result<&mut Self>
+    where
+        T: Fn() -> () + Send + Sync + 'static,
+    {
+        let core_id = CoreId::new(core);
+
+        let thread = &self
+            .core_map
+            .cores
+            .get(&core_id)
+            .ok_or_else(|| CoreError::NotFound(core))?
+            .thread;
+
+        // spawns the bootstrap. we want the bootstrapping to execute on the
+        // target core instead of the master core so the periodic task is
+        // associated with the correct timer instance.
+        thread.spawn(future::lazy(move |_| {
+            #[allow(clippy::unit_arg)]
+            let task = Interval::new_interval(dur).for_each(move |_| future::ready(task()));
+            current_thread::spawn(task);
+        }))?;
 
         Ok(self)
     }
@@ -161,6 +243,7 @@ impl Runtime {
         let delay = timer.delay(when);
 
         debug!("waiting for {} seconds...", timeout);
+        let _timer = timer::set_default(&timer);
         thread.block_on(delay);
         info!("timed out after {} seconds.", timeout);
 
@@ -183,6 +266,7 @@ impl Runtime {
 
         let MasterExecutor {
             ref reactor,
+            ref timer,
             ref mut thread,
             ..
         } = self.core_map.master_core;
@@ -192,6 +276,7 @@ impl Runtime {
         // wasn't filtered out.
         debug!("waiting for a Unix signal...");
         let _guard = driver::set_default(&reactor);
+        let _timer = timer::set_default(&timer);
         let _ = thread.block_on(stream.next());
         info!("signaled to stop.");
 

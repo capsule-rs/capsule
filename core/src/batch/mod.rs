@@ -223,6 +223,19 @@ pub trait Batch {
     }
 }
 
+/// Marker trait bound for batch pipelines. Can be used as a convenience
+/// for writing pipeline installers. Avoid having to specify the exact
+/// underlying `Future` trait bound.
+///
+/// # Example
+///
+/// ```
+/// fn install(q: PortQueue) -> impl Pipeline {
+///     // install logic
+/// }
+/// ```
+pub trait Pipeline: futures::Future<Output = ()> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
