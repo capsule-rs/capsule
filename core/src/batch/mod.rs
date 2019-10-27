@@ -15,6 +15,7 @@ pub use self::for_each::*;
 pub use self::group_by::*;
 pub use self::map::*;
 pub use self::poll::*;
+pub use self::rxtx::*;
 pub use self::send::*;
 
 use crate::packets::Packet;
@@ -223,9 +224,8 @@ pub trait Batch {
     }
 }
 
-/// Marker trait bound for batch pipelines. Can be used as a convenience
-/// for writing pipeline installers. Avoid having to specify the exact
-/// underlying `Future` trait bound.
+/// Trait bound for batch pipelines. Can be used as a convenience for writing
+/// pipeline installers.
 ///
 /// # Example
 ///
@@ -234,7 +234,10 @@ pub trait Batch {
 ///     // install logic
 /// }
 /// ```
-pub trait Pipeline: futures::Future<Output = ()> {}
+pub trait Pipeline: futures::Future<Output = ()> {
+    /// Runs the pipeline once to process one batch of packets.
+    fn run_once(&mut self);
+}
 
 #[cfg(test)]
 mod tests {
@@ -244,13 +247,12 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
-    use std::collections::VecDeque;
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
         let q = data
             .iter()
             .map(|bytes| Mbuf::from_bytes(bytes).unwrap())
-            .collect::<VecDeque<_>>();
+            .collect::<Vec<_>>();
         let mut batch = Poll::new(q);
         batch.replenish();
         batch

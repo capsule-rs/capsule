@@ -18,7 +18,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
         Send { batch, tx }
     }
 
-    fn execute(&mut self) {
+    fn run(&mut self) {
         // let's get a new batch
         self.batch.replenish();
 
@@ -53,7 +53,7 @@ impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         // executes a batch of packets.
-        self.get_mut().execute();
+        self.get_mut().run();
 
         // now schedules the waker as a future and yields the core so other
         // futures have a chance to run.
@@ -64,4 +64,8 @@ impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
     }
 }
 
-impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Pipeline for Send<B, Tx> {}
+impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Pipeline for Send<B, Tx> {
+    fn run_once(&mut self) {
+        self.run()
+    }
+}

@@ -134,12 +134,12 @@ pub struct CoreExecutor {
 #[derive(Debug, Fail)]
 pub enum CoreError {
     /// Core is not found.
-    #[fail(display = "Core {} is not found.", _0)]
-    NotFound(usize),
+    #[fail(display = "{:?} is not found.", _0)]
+    NotFound(CoreId),
 
     /// Core is not assigned to any ports.
-    #[fail(display = "Core {} is not assigned to any ports.", _0)]
-    NotAssigned(usize),
+    #[fail(display = "{:?} is not assigned to any ports.", _0)]
+    NotAssigned(CoreId),
 }
 
 /// Map of all the core handles.
