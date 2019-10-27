@@ -9,7 +9,8 @@ duration = 5
     cache_size = 256
 
 [[ports]]
-    name = "net_ring0"
-    cores = [1]
+    name = "nic1"
+    device = "net_ring0"
+    cores = [0]
     rxd = 256
     txd = 256

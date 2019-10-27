@@ -75,7 +75,7 @@ impl Runtime {
         info!("initializing ports...");
         let mut ports = vec![];
         for conf in config.ports.iter() {
-            let port = PortBuilder::new(conf.name.clone())?
+            let port = PortBuilder::new(conf.name.clone(), conf.device.clone())?
                 .cores(&conf.cores)?
                 .mempools(mempools.borrow_mut())
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
@@ -127,16 +127,19 @@ impl Runtime {
 
     pub fn add_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
         &mut self,
-        index: usize,
+        port: &str,
         f: F,
     ) -> Result<&mut Self>
     where
         F: Fn(PortQueue) -> T + Send + Sync + 'static,
     {
-        ensure!(index < self.ports.len(), PortError::NotFound);
+        let port = &self
+            .ports
+            .iter()
+            .find(|p| p.name() == port)
+            .ok_or(PortError::NotFound)?;
 
         let f = Arc::new(f);
-        let port = &self.ports[index];
 
         for (core_id, port_q) in port.queues() {
             let f = f.clone();
@@ -156,7 +159,7 @@ impl Runtime {
             debug!("installed pipeline on port_q for {:?}.", core_id);
         }
 
-        info!("installed pipeline for port {}.", index);
+        info!("installed pipeline for port {}.", port.name());
 
         Ok(self)
     }

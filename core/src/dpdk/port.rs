@@ -76,6 +76,7 @@ pub struct PortQueue {
 impl PortQueue {
     /// Receives a burst of packets from the receive queue, up to a maximum
     /// of 32 packets.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn receive(&self) -> Vec<Mbuf> {
         const RX_BURST_MAX: usize = 32;
         let mut packets = Vec::with_capacity(RX_BURST_MAX);
@@ -101,6 +102,7 @@ impl PortQueue {
     }
 
     /// Sends the packets to the transmit queue.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn transmit(&self, packets: Vec<Mbuf>) {
         let mut packets = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
 
@@ -151,12 +153,16 @@ pub enum PortError {
 pub struct Port {
     id: PortId,
     name: String,
+    device: String,
     queues: HashMap<CoreId, PortQueue>,
     dev_info: ffi::rte_eth_dev_info,
 }
 
 impl Port {
-    /// Returns the device name of the port.
+    /// Returns the application assigned logical name of the port.
+    ///
+    /// For applications with more than one port, this name can be used to
+    /// identifer the port.
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
@@ -206,6 +212,7 @@ impl fmt::Debug for Port {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let info = self.dev_info;
         f.debug_struct(&self.name())
+            .field("device", &self.device)
             .field("port", &self.id.0)
             .field("mac", &format_args!("\"{}\"", self.mac_addr()))
             .field("driver", &info.driver_name.as_str())
@@ -220,7 +227,7 @@ impl fmt::Debug for Port {
 
 impl Drop for Port {
     fn drop(&mut self) {
-        debug!("freeing port {}.", self.name());
+        debug!("freeing {:?}.", self.id);
 
         unsafe {
             ffi::rte_eth_dev_close(self.id.0);
@@ -231,6 +238,7 @@ impl Drop for Port {
 /// Builds a port from the configuration values.
 pub struct PortBuilder<'a> {
     name: String,
+    device: String,
     port_id: PortId,
     dev_info: ffi::rte_eth_dev_info,
     cores: Vec<CoreId>,
@@ -240,7 +248,7 @@ pub struct PortBuilder<'a> {
 }
 
 impl<'a> PortBuilder<'a> {
-    /// Creates a new `PortBuilder` with the given device name.
+    /// Creates a new `PortBuilder` with a logical name and device name.
     ///
     /// The device name can be the following
     ///   * PCIe address, for example `0000:02:00.0`
@@ -249,10 +257,10 @@ impl<'a> PortBuilder<'a> {
     /// # Errors
     ///
     /// If the device is not found, `DpdkError` is returned.
-    pub fn new(name: String) -> Result<Self> {
+    pub fn new(name: String, device: String) -> Result<Self> {
         let mut port_id = 0u16;
         unsafe {
-            ffi::rte_eth_dev_get_port_by_name(name.clone().to_cstring().as_ptr(), &mut port_id)
+            ffi::rte_eth_dev_get_port_by_name(device.clone().to_cstring().as_ptr(), &mut port_id)
                 .to_result()?;
         }
 
@@ -266,6 +274,7 @@ impl<'a> PortBuilder<'a> {
 
         Ok(PortBuilder {
             name,
+            device,
             port_id,
             dev_info,
             cores: vec![CoreId::new(0)],
@@ -424,6 +433,7 @@ impl<'a> PortBuilder<'a> {
         Ok(Port {
             id: self.port_id,
             name: self.name.clone(),
+            device: self.device.clone(),
             queues,
             dev_info: self.dev_info,
         })

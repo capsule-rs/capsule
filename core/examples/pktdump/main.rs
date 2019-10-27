@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     debug!(?config);
 
     Runtime::build(config)?
-        .add_pipeline_to_port(0, install)?
-        .add_pipeline_to_port(1, install)?
+        .add_pipeline_to_port("nic1", install)?
+        .add_pipeline_to_port("nic2", install)?
         .execute()
 }
