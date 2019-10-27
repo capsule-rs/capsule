@@ -229,7 +229,7 @@ mod tests {
     use crate::compose;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{EtherTypes, Ethernet};
+    use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
     use std::collections::VecDeque;
 

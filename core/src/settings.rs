@@ -82,14 +82,14 @@ impl RuntimeSettings {
         // add all the ports
         let pcie = Regex::new(r"^\d{4}:\d{2}:\d{2}\.\d$").unwrap();
         self.ports.iter().for_each(|port| {
-            if pcie.is_match(port.name.as_str()) {
+            if pcie.is_match(port.device.as_str()) {
                 eal_args.push("--pci-whitelist".to_owned());
-                eal_args.push(port.name.clone());
+                eal_args.push(port.device.clone());
             } else {
                 let vdev = if let Some(args) = &port.args {
-                    format!("{},{}", port.name, args)
+                    format!("{},{}", port.device, args)
                 } else {
-                    port.name.clone()
+                    port.device.clone()
                 };
                 eal_args.push("--vdev".to_owned());
                 eal_args.push(vdev);
@@ -187,11 +187,17 @@ impl fmt::Debug for MempoolSettings {
 /// Port settings.
 #[derive(Deserialize)]
 pub struct PortSettings {
+    /// The application assigned logical name of the port.
+    ///
+    /// For applications with more than one port, this name can be used to
+    /// identifer the port.
+    pub name: String,
+
     /// The device name of the port. It can be the following formats,
     ///
     ///   * PCIe address, for example `0000:02:00.0`
     ///   * DPDK virtual device, for example `net_[pcap0|null0|tap0]`
-    pub name: String,
+    pub device: String,
 
     /// Additional arguments to configure a virtual device.
     pub args: Option<String>,
@@ -211,6 +217,7 @@ impl Default for PortSettings {
     fn default() -> Self {
         PortSettings {
             name: Default::default(),
+            device: Default::default(),
             args: None,
             cores: vec![CoreId::new(0)],
             rxd: DEFAULT_PORT_RXD,
@@ -223,6 +230,7 @@ impl fmt::Debug for PortSettings {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut d = f.debug_struct("port");
         d.field("name", &self.name);
+        d.field("device", &self.device);
         if let Some(args) = &self.args {
             d.field("args", args);
         }
@@ -286,13 +294,15 @@ mod tests {
                         cache_size = 16
                     
                     [[ports]]
-                        name = "0000:00:01.0"
+                        name = "nic1"
+                        device = "0000:00:01.0"
                         cores = [2, 3]
                         rxd = 32
                         txd = 32
 
                     [[ports]]
-                        name = "net_pcap0"
+                        name = "nic2"
+                        device = "net_pcap0"
                         args = "rx=lo,tx=lo"
                         cores = [0, 4]
                         rxd = 32
