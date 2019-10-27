@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, Disposition, PacketRx};
+use super::{Batch, Disposition, PacketRx, PollRx};
 use crate::Mbuf;
 use std::collections::VecDeque;
 
@@ -59,4 +59,12 @@ impl<Rx: PacketRx> Batch for Poll<Rx> {
             None
         }
     }
+}
+
+/// Creates a new poll batch from a closure.
+pub fn poll_fn<F>(f: F) -> Poll<PollRx<F>>
+where
+    F: Fn() -> Vec<Mbuf>,
+{
+    Poll::new(PollRx { f })
 }

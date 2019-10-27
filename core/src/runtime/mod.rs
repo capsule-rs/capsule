@@ -22,6 +22,7 @@ mod mempool_map;
 pub use self::core_map::*;
 pub use self::mempool_map::*;
 
+use super::Pipeline;
 use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
@@ -97,6 +98,35 @@ impl Runtime {
         })
     }
 
+    #[inline]
+    fn get_port(&self, name: &str) -> Result<&Port> {
+        self.ports
+            .iter()
+            .find(|p| p.name() == name)
+            .ok_or_else(|| PortError::NotFound(name.to_owned()).into())
+    }
+
+    #[inline]
+    fn get_core(&self, core_id: CoreId) -> Result<&CoreExecutor> {
+        self.core_map
+            .cores
+            .get(&core_id)
+            .ok_or_else(|| CoreError::NotFound(core_id).into())
+    }
+
+    #[inline]
+    fn get_port_qs(&self, core_id: CoreId) -> Result<HashMap<String, PortQueue>> {
+        let map = self
+            .ports
+            .iter()
+            .filter_map(|p| p.queues().get(&core_id).map(|q| (p.name().to_owned(), *q)))
+            .collect::<HashMap<_, _>>();
+
+        ensure!(!map.is_empty(), CoreError::NotAssigned(core_id));
+
+        Ok(map)
+    }
+
     /// Sets the Unix signal handler.
     ///
     /// `SIGHUP`, `SIGINT` and `SIGTERM` are the supported Unix signals.
@@ -140,12 +170,7 @@ impl Runtime {
     where
         F: Fn(PortQueue) -> T + Send + Sync + 'static,
     {
-        let port = &self
-            .ports
-            .iter()
-            .find(|p| p.name() == port)
-            .ok_or_else(|| PortError::NotFound(port.to_owned()))?;
-
+        let port = self.get_port(port)?;
         let f = Arc::new(installer);
 
         for (core_id, port_q) in port.queues() {
@@ -157,8 +182,8 @@ impl Runtime {
             // target core instead of the master core. that way the actual task
             // is spawned locally and the type bounds are less restricting.
             thread.spawn(future::lazy(move |_| {
-                let task = f(port_q);
-                current_thread::spawn(task);
+                let fut = f(port_q);
+                current_thread::spawn(fut);
             }))?;
 
             debug!("installed pipeline on port_q for {:?}.", core_id);
@@ -184,30 +209,60 @@ impl Runtime {
         F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
     {
         let core_id = CoreId::new(core);
-
-        let thread = &self
-            .core_map
-            .cores
-            .get(&core_id)
-            .ok_or_else(|| CoreError::NotFound(core))?
-            .thread;
-
-        let port_qs = self
-            .ports
-            .iter()
-            .filter_map(|p| p.queues().get(&core_id).map(|q| (p.name().to_owned(), *q)))
-            .collect::<HashMap<_, _>>();
-
-        ensure!(!port_qs.is_empty(), CoreError::NotAssigned(core));
+        let thread = &self.get_core(core_id)?.thread;
+        let port_qs = self.get_port_qs(core_id)?;
 
         // spawns the bootstrap. we want the bootstrapping to execute on the
         // target core instead of the master core.
         thread.spawn(future::lazy(move |_| {
-            let task = installer(port_qs);
-            current_thread::spawn(task);
+            let fut = installer(port_qs);
+            current_thread::spawn(fut);
         }))?;
 
         info!("installed pipeline for core {:?}.", core_id);
+
+        Ok(self)
+    }
+
+    /// Installs a periodic pipeline to a core.
+    ///
+    /// `core` is the logical id that identifies the core. The `installer`
+    /// is a closure that takes in a hashmap of `PortQueue`s and returns a
+    /// `Pipeline` that will be run periodically every `dur` interval.
+    ///
+    /// # Remarks
+    ///
+    /// All the ports the core is assigned to will be available to this
+    /// pipeline. However they should only be used to transmit packets. This
+    /// variant is for pipelines that generate new packets periodically.
+    /// A new packet batch can be created with `batch::poll_fn` and ingested
+    /// into the pipeline.
+    pub fn add_periodic_pipeline_to_core<T: Pipeline + 'static, F>(
+        &mut self,
+        core: usize,
+        installer: F,
+        dur: Duration,
+    ) -> Result<&mut Self>
+    where
+        F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
+    {
+        let core_id = CoreId::new(core);
+        let thread = &self.get_core(core_id)?.thread;
+        let port_qs = self.get_port_qs(core_id)?;
+
+        // spawns the bootstrap. we want the bootstrapping to execute on the
+        // target core instead of the master core so the periodic task is
+        // associated with the correct timer instance.
+        thread.spawn(future::lazy(move |_| {
+            let mut pipeline = installer(port_qs);
+            let fut = Interval::new_interval(dur).for_each(move |_| {
+                pipeline.run_once();
+                future::ready(())
+            });
+            current_thread::spawn(fut);
+        }))?;
+
+        info!("installed periodic pipeline for core {:?}.", core_id);
 
         Ok(self)
     }
@@ -216,32 +271,30 @@ impl Runtime {
     ///
     /// `core` is the logical id that identifies the core. `task` is the
     /// closure to execute. The task will rerun every `dur` interval.
-    pub fn add_periodic_task_to_core<T>(
+    pub fn add_periodic_task_to_core<F>(
         &mut self,
         core: usize,
-        task: T,
+        task: F,
         dur: Duration,
     ) -> Result<&mut Self>
     where
-        T: Fn() -> () + Send + Sync + 'static,
+        F: Fn() -> () + Send + Sync + 'static,
     {
         let core_id = CoreId::new(core);
-
-        let thread = &self
-            .core_map
-            .cores
-            .get(&core_id)
-            .ok_or_else(|| CoreError::NotFound(core))?
-            .thread;
+        let thread = &self.get_core(core_id)?.thread;
 
         // spawns the bootstrap. we want the bootstrapping to execute on the
         // target core instead of the master core so the periodic task is
         // associated with the correct timer instance.
         thread.spawn(future::lazy(move |_| {
-            #[allow(clippy::unit_arg)]
-            let task = Interval::new_interval(dur).for_each(move |_| future::ready(task()));
-            current_thread::spawn(task);
+            let fut = Interval::new_interval(dur).for_each(move |_| {
+                task();
+                future::ready(())
+            });
+            current_thread::spawn(fut);
         }))?;
+
+        info!("installed periodic task for core {:?}.", core_id);
 
         Ok(self)
     }

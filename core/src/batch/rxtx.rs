@@ -20,12 +20,11 @@
 //!
 //! Implemented for `PortQueue`.
 //!
-//! Implemented for `VecDeque` so it can be used as the batch source mostly
+//! Implemented for `Vec` so it can be used as the batch source mostly
 //! in tests.
 
 use super::{PacketRx, PacketTx};
 use crate::{Mbuf, PortQueue};
-use std::collections::VecDeque;
 
 impl PacketRx for PortQueue {
     fn receive(&mut self) -> Vec<Mbuf> {
@@ -39,14 +38,30 @@ impl PacketTx for PortQueue {
     }
 }
 
-impl PacketRx for VecDeque<Mbuf> {
+impl PacketRx for Vec<Mbuf> {
     fn receive(&mut self) -> Vec<Mbuf> {
         self.drain(..).collect()
     }
 }
 
-impl PacketTx for VecDeque<Mbuf> {
+impl PacketTx for Vec<Mbuf> {
     fn transmit(&mut self, packets: Vec<Mbuf>) {
-        self.extend(packets)
+        self.extend_from_slice(&packets)
+    }
+}
+
+pub struct PollRx<F>
+where
+    F: Fn() -> Vec<Mbuf>,
+{
+    pub(crate) f: F,
+}
+
+impl<F> PacketRx for PollRx<F>
+where
+    F: Fn() -> Vec<Mbuf>,
+{
+    fn receive(&mut self) -> Vec<Mbuf> {
+        (self.f)()
     }
 }

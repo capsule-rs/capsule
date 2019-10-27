@@ -20,7 +20,7 @@
 #[cfg(test)]
 extern crate self as capsule;
 
-mod batch;
+pub mod batch;
 mod dpdk;
 mod ffi;
 mod macros;
