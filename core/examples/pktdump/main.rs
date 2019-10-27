@@ -21,9 +21,8 @@ use capsule::packets::{
     EtherTypes, Ethernet, Packet, Tcp,
 };
 use capsule::settings::load_config;
-use capsule::{compose, Batch, Mbuf, Poll, PortQueue, Result, Runtime};
+use capsule::{compose, Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use colored::*;
-use futures::Future;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
@@ -70,7 +69,7 @@ fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
     println!("{}", flow_fmt);
 }
 
-fn install(q: PortQueue) -> impl Future<Output = ()> {
+fn install(q: PortQueue) -> impl Pipeline {
     Poll::new(q)
         .map(dump_eth)
         .group_by(
@@ -100,7 +99,7 @@ fn main() -> Result<()> {
     debug!(?config);
 
     Runtime::build(config)?
-        .add_pipeline_to_port("nic1", install)?
-        .add_pipeline_to_port("nic2", install)?
+        .add_pipeline_to_port("eth1", install)?
+        .add_pipeline_to_port("eth2", install)?
         .execute()
 }

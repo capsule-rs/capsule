@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Batch, Disposition, PacketTx};
+use super::{Batch, Disposition, PacketTx, Pipeline};
 use crate::packets::Packet;
 use crate::Mbuf;
 use futures::{future, Future};
@@ -81,3 +81,5 @@ impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
         Poll::Pending
     }
 }
+
+impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Pipeline for Send<B, Tx> {}

@@ -135,8 +135,9 @@ impl PortQueue {
 /// Error indicating failed to initialize the port.
 #[derive(Debug, Fail)]
 pub enum PortError {
-    #[fail(display = "Port is not found.")]
-    NotFound,
+    /// Port is not found.
+    #[fail(display = "Port {} is not found.", _0)]
+    NotFound(String),
 
     /// The maximum number of RX queues is less than the number of cores
     /// assigned to the port.
@@ -227,7 +228,7 @@ impl fmt::Debug for Port {
 
 impl Drop for Port {
     fn drop(&mut self) {
-        debug!("freeing {:?}.", self.id);
+        debug!("freeing {}.", self.name);
 
         unsafe {
             ffi::rte_eth_dev_close(self.id.0);

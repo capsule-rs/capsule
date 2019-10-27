@@ -19,6 +19,7 @@
 use super::MempoolMap2;
 use crate::dpdk::{CoreId, MEMPOOL};
 use crate::{debug, error, ffi, info, Result};
+use failure::Fail;
 use futures::Future;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{self, Receiver, SyncSender};
@@ -145,6 +146,18 @@ pub struct CoreExecutor {
     pub unpark: Option<Unpark>,
     pub shutdown: Option<ShutdownTrigger>,
     pub join: Option<JoinHandle<()>>,
+}
+
+/// Core errors.
+#[derive(Debug, Fail)]
+pub enum CoreError {
+    /// Core is not found.
+    #[fail(display = "Core {} is not found.", _0)]
+    NotFound(usize),
+
+    /// Core is not assigned to any ports.
+    #[fail(display = "Core {} is not assigned to any ports.", _0)]
+    NotAssigned(usize),
 }
 
 /// Map of all the core handles.

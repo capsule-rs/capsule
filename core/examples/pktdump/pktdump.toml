@@ -8,7 +8,7 @@ duration = 5
     cache_size = 256
 
 [[ports]]
-    name = "nic1"
+    name = "eth1"
     device = "net_pcap0"
     args = "rx_pcap=tcp4.pcap,tx_iface=lo"
     cores = [0]
@@ -16,7 +16,7 @@ duration = 5
     txd = 256
 
 [[ports]]
-    name = "nic2"
+    name = "eth2"
     device = "net_pcap1"
     args = "rx_pcap=tcp6.pcap,tx_iface=lo"
     cores = [0]
