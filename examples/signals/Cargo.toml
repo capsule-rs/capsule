@@ -1,5 +1,6 @@
+
 [package]
-name = "pktdump"
+name = "signals"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
@@ -7,13 +8,12 @@ keywords = ["dpdk", "nfv"]
 edition = "2018"
 
 [[bin]]
-name = "pktdump"
+name = "signals"
 path = "main.rs"
 doctest = false
 
 [dependencies]
-colored = "1.8"
 failure = "0.1"
-nb2 = { path = "../../" }
+nb2 = { path = "../../core" }
 tracing = "0.1"
 tracing-subscriber = "0.1"
