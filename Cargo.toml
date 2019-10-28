@@ -3,8 +3,6 @@
 members = [
     "core",
     "ffi",
-    "macros",
-
-    # Internal
     "examples",
+    "macros",
 ]
