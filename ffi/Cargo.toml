@@ -5,6 +5,7 @@ authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
 keywords = ["dpdk", "nfv"]
 edition = "2018"
+build = "build.rs"
 links = "dpdk"
 
 [lib]
