@@ -6,12 +6,12 @@
 use std::env;
 
 fn main() {
+    // need to statically link the mempool ring driver for `cargo test`
     if let Ok(libdir) = env::var("DPDK_LIBDIR") {
         println!("cargo:rustc-link-search=native={}", libdir);
     } else {
         println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
     }
 
-    // need to statically link the mempool ring driver for `cargo test`
-    println!("cargo:rustc-link-lib=static=rte_mempool_ring");
+    println!("cargo:rustc-link-lib=static=dpdk");
 }

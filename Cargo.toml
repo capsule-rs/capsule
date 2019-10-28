@@ -1,9 +1,10 @@
 [workspace]
+
 members = [
     "core",
-    "core/examples/pktdump",
-    "core/examples/signals",
-    "core/examples/skeleton",
     "ffi",
     "macros",
+
+    # Internal
+    "examples",
 ]

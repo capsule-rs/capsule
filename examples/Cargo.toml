@@ -1,0 +1,30 @@
+[package]
+name = "examples"
+version = "0.1.0"
+authors = ["William of Ockham <occam_engineering@comcast.com>"]
+license = "TBD"
+publish = false
+edition = "2018"
+build = "build.rs"
+
+[dev-dependencies]
+colored = ">= 1.6"
+failure = "0.1"
+nb2 = { path = "../core" }
+tracing = "0.1"
+tracing-subscriber = "0.1"
+
+[[example]]
+name = "pktdump"
+path = "pktdump/main.rs"
+crate-type = ["bin"]
+
+[[example]]
+name = "signals"
+path = "signals/main.rs"
+crate-type = ["bin"]
+
+[[example]]
+name = "skeleton"
+path = "skeleton/main.rs"
+crate-type = ["bin"]
