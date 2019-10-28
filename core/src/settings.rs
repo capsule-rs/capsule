@@ -256,14 +256,19 @@ pub struct PortSettings {
     pub args: Option<String>,
 
     /// The cores assigned to the port for running the pipelines. The values
-    /// can overlap with the runtime cores. The default is [0].
+    /// can overlap with the runtime cores. The default is `[0]`.
     pub cores: Vec<CoreId>,
 
-    /// The receive queue capacity. The default is 128.
+    /// The receive queue capacity. The default is `128`.
     pub rxd: usize,
 
-    /// The transmit queue capacity. The default is 128.
+    /// The transmit queue capacity. The default is `128`.
     pub txd: usize,
+
+    /// Whether kernel NIC interface is enabled on this port. with KNI, this
+    /// port can exchange packets with the kernel networking stack. The
+    /// default is `false`.
+    pub kni: Option<bool>,
 }
 
 impl Default for PortSettings {
@@ -275,6 +280,7 @@ impl Default for PortSettings {
             cores: vec![CoreId::new(0)],
             rxd: DEFAULT_PORT_RXD,
             txd: DEFAULT_PORT_TXD,
+            kni: None,
         }
     }
 }
@@ -290,6 +296,7 @@ impl fmt::Debug for PortSettings {
         d.field("cores", &self.cores)
             .field("rxd", &self.rxd)
             .field("txd", &self.txd)
+            .field("kni", &self.kni.unwrap_or_default())
             .finish()
     }
 }

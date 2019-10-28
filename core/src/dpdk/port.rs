@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{CoreId, Mbuf, SocketId};
+use super::{CoreId, Kni, KniBuilder, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
 use crate::runtime::MempoolMap2;
@@ -46,6 +46,13 @@ impl PortId {
         } else {
             None
         }
+    }
+
+    /// Returns the raw value needed for FFI calls.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[inline]
+    pub(crate) fn raw(&self) -> u16 {
+        self.0
     }
 }
 
@@ -154,6 +161,9 @@ pub enum PortError {
     #[fail(display = "Port {} is not found.", _0)]
     NotFound(String),
 
+    #[fail(display = "Port is not bound to any cores.")]
+    CoreNotBound,
+
     /// The maximum number of RX queues is less than the number of cores
     /// assigned to the port.
     #[fail(display = "Insufficient number of RX queues '{}'.", _0)]
@@ -171,6 +181,7 @@ pub struct Port {
     name: String,
     device: String,
     queues: HashMap<CoreId, PortQueue>,
+    kni: Option<Kni>,
     dev_info: ffi::rte_eth_dev_info,
 }
 
@@ -306,6 +317,8 @@ impl<'a> PortBuilder<'a> {
     /// If either the maximum number of RX or TX queues is less than the
     /// number of cores assigned, `PortError` is returned.
     pub fn cores(&mut self, cores: &[CoreId]) -> Result<&mut Self> {
+        ensure!(!cores.is_empty(), PortError::CoreNotBound);
+
         let mut cores = cores.to_vec();
         cores.sort();
         cores.dedup();
@@ -368,7 +381,7 @@ impl<'a> PortBuilder<'a> {
 
     /// Creates the `Port`.
     #[allow(clippy::cognitive_complexity)]
-    pub fn finish(&mut self) -> Result<Port> {
+    pub fn finish(&mut self, with_kni: bool) -> Result<Port> {
         let len = self.cores.len() as u16;
         let conf = ffi::rte_eth_conf::default();
 
@@ -440,6 +453,18 @@ impl<'a> PortBuilder<'a> {
             debug!("initialized port queue for {:?}.", core_id);
         }
 
+        let kni = if with_kni {
+            let dev = KniBuilder::new(mempool)
+                .name(&self.name)
+                .port_id(self.port_id)
+                .core_id(self.cores[0])
+                .mac_addr(super::eth_macaddr_get(self.port_id.raw()))
+                .finish()?;
+            Some(dev)
+        } else {
+            None
+        };
+
         info!("initialized port {}.", self.name);
 
         Ok(Port {
@@ -447,6 +472,7 @@ impl<'a> PortBuilder<'a> {
             name: self.name.clone(),
             device: self.device.clone(),
             queues,
+            kni: kni,
             dev_info: self.dev_info,
         })
     }

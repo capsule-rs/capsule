@@ -16,10 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+mod kni;
 mod mbuf;
 mod mempool;
 mod port;
 
+pub use self::kni::*;
 pub use self::mbuf::*;
 pub use self::mempool::*;
 pub use self::port::*;
