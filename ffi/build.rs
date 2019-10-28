@@ -5,13 +5,16 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+    let rte_sdk = env::var("RTE_SDK").expect("No RTE_SDK found ~ DPDK installation directory.");
+
     // there's a problem statically linking to a linker script
     // see: https://github.com/rust-lang/rust/issues/40483
-    println!("cargo:rustc-link-search=native=/opt/dpdk/build/lib");
+    println!("cargo:rustc-link-search=native={}/build/lib", rte_sdk);
     println!("cargo:rustc-link-lib=dylib=dpdk");
     println!("cargo:rustc-link-lib=dylib=numa");
     println!("cargo:rustc-link-lib=dylib=pcap");
     println!("cargo:rustc-link-lib=dylib=z");
+    println!("cargo:rerun-if-env-changed=RTE_SDK");
 
     cc::Build::new()
         .file("src/shim.c")
