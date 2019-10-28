@@ -5,7 +5,7 @@ pub use self::core_map::*;
 pub use self::mempool_map::*;
 
 use super::Pipeline;
-use crate::dpdk::{eal_cleanup, eal_init, CoreId, Port, PortBuilder, PortError, PortQueue};
+use crate::dpdk::{self, CoreId, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, Future, StreamExt};
@@ -40,7 +40,7 @@ impl Runtime {
     #[allow(clippy::cognitive_complexity)]
     pub fn build(config: RuntimeSettings) -> Result<Self> {
         info!("initializing EAL...");
-        eal_init(config.to_eal_args())?;
+        dpdk::eal_init(config.to_eal_args())?;
 
         let cores = config.all_cores();
 
@@ -57,6 +57,16 @@ impl Runtime {
             .mempools(mempools.borrow_mut())
             .finish()?;
 
+        let len = config
+            .ports
+            .iter()
+            .filter(|p| p.kni.unwrap_or_default())
+            .count();
+        if len > 0 {
+            info!("initializing KNI subsystem...");
+            dpdk::kni_init(len)?;
+        }
+
         info!("initializing ports...");
         let mut ports = vec![];
         for conf in config.ports.iter() {
@@ -64,7 +74,7 @@ impl Runtime {
                 .cores(&conf.cores)?
                 .mempools(mempools.borrow_mut())
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
-                .finish()?;
+                .finish(conf.kni.unwrap_or_default())?;
 
             debug!(?port);
             ports.push(port);
@@ -381,6 +391,6 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         debug!("freeing EAL.");
-        eal_cleanup().unwrap();
+        dpdk::eal_cleanup().unwrap();
     }
 }
