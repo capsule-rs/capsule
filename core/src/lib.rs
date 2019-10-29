@@ -1,3 +1,5 @@
+#![feature(specialization)]
+
 // alias for the test macro
 #[cfg(test)]
 extern crate self as nb2;
@@ -17,7 +19,7 @@ pub use self::batch::{Batch, Pipeline, Poll};
 pub use self::dpdk::{Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
-pub use nb2_macros::test;
+pub use nb2_macros::{bench, test};
 
 /// A type alias of `std:result::Result` for convenience.
 pub type Result<T> = std::result::Result<T, failure::Error>;

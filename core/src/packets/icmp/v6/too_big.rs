@@ -60,21 +60,18 @@ impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, PacketTooBig> {
     }
 }
 
-// TODO: need specialization to get this back
-// https://github.com/rust-lang/rust/issues/31844
+impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
+    #[inline]
+    fn cascade(&mut self) {
+        // assuming inside an ethernet frame
+        let max_len = self.mtu() as usize + EthernetHeader::size_of();
+        // only err if nothing to trim, ignore the result
+        let _ = self.mbuf_mut().truncate(max_len);
 
-// impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
-//     #[inline]
-//     fn cascade(&mut self) {
-//         // assuming inside an ethernet frame
-//         let max_len = self.mtu() as usize + EthernetHeader::size_of();
-//         // only err if nothing to trim, ignore the result
-//         let _ = self.mbuf_mut().truncate(max_len);
-
-//         self.compute_checksum();
-//         self.envelope_mut().cascade();
-//     }
-// }
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
+}
 
 #[cfg(test)]
 mod tests {

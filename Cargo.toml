@@ -7,4 +7,5 @@ members = [
     "examples/syn-flood",
     "ffi",
     "macros",
+    "perf"
 ]
