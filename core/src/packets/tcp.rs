@@ -533,6 +533,8 @@ impl<E: IpPacket> Packet for Tcp<E> {
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
+        envelope.set_next_proto(ProtocolNumbers::Tcp);
+
         Ok(Tcp {
             envelope: CondRc::new(envelope),
             header,
@@ -710,5 +712,8 @@ mod tests {
 
         assert_eq!(TcpHeader::size_of(), tcp.len());
         assert_eq!(5, tcp.data_offset());
+
+        // make sure next proto is fixed
+        assert_eq!(ProtocolNumbers::Tcp, tcp.envelope().next_proto());
     }
 }

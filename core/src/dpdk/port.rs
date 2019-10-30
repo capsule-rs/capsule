@@ -24,6 +24,7 @@ use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use std::os::raw;
 use std::ptr;
 
@@ -79,56 +80,70 @@ impl PortQueue {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn receive(&self) -> Vec<Mbuf> {
         const RX_BURST_MAX: usize = 32;
-        let mut packets = Vec::with_capacity(RX_BURST_MAX);
+        let mut ptrs = Vec::with_capacity(RX_BURST_MAX);
 
         let len = unsafe {
             ffi::_rte_eth_rx_burst(
                 self.port_id.0,
                 self.rxq_index.0,
-                packets.as_mut_ptr(),
+                ptrs.as_mut_ptr(),
                 RX_BURST_MAX as u16,
             )
         };
 
-        unsafe {
-            packets.set_len(len as usize);
-        }
+        let mbufs = unsafe {
+            // does a no-copy conversion to avoid extra allocation.
+            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
+        };
 
-        packets
-            .into_iter()
-            // should not have null pointers from rx burst
-            .map(|ptr| unsafe { ptr::NonNull::new_unchecked(ptr).into() })
-            .collect::<Vec<_>>()
+        mem::forget(ptrs);
+        mbufs
     }
 
     /// Sends the packets to the transmit queue.
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn transmit(&self, packets: Vec<Mbuf>) {
-        let mut packets = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
-
-        let mut to_send = packets.len() as u16;
-        while to_send > 0 {
+    pub fn transmit(&self, mut packets: Vec<Mbuf>) {
+        loop {
+            let to_send = packets.len() as u16;
             let sent = unsafe {
                 ffi::_rte_eth_tx_burst(
                     self.port_id.0,
                     self.txq_index.0,
-                    packets.as_mut_ptr(),
+                    // convert to a pointer to an array of `rte_mbuf` pointers
+                    packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
                     to_send,
                 )
             };
 
-            to_send -= sent;
+            if sent > 0 {
+                if to_send - sent > 0 {
+                    // still have packets not sent. tx queue is full but still making
+                    // progress. we will keep trying until all packets are sent. drains
+                    // the ones already sent first and try again on the rest.
+                    let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
 
-            // still have packets. the transmit queue is full. we will keep trying
-            // until all packets are sent.
-            if to_send > 0 {
-                packets.drain(..sent as usize);
+                    // ownership given to `rte_eth_tx_burst`, don't free them.
+                    mem::forget(drained);
+                } else {
+                    // everything sent and ownership given to `rte_eth_tx_burst`, don't
+                    // free them.
+                    mem::forget(packets);
+                    break;
+                }
+            } else {
+                // tx queue is full and we can't make progress, start dropping packets
+                // to avoid potentially stuck in an endless loop.
+                warn!("tx full, dropped {} packets.", to_send);
+                Mbuf::free_bulk(packets);
+                break;
             }
         }
+    }
 
-        unsafe {
-            packets.set_len(0);
-        }
+    /// Returns the MAC address of the port.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub fn mac_addr(&self) -> MacAddr {
+        super::eth_macaddr_get(self.port_id.0)
     }
 }
 
@@ -170,11 +185,7 @@ impl Port {
 
     /// Returns the MAC address of the port.
     pub fn mac_addr(&self) -> MacAddr {
-        let mut addr = ffi::ether_addr::default();
-        unsafe {
-            ffi::rte_eth_macaddr_get(self.id.0, &mut addr);
-        }
-        addr.addr_bytes.into()
+        super::eth_macaddr_get(self.id.0)
     }
 
     /// Returns the available port queues.

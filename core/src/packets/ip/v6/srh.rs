@@ -18,7 +18,7 @@
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::ip::{IpPacket, ProtocolNumber};
+use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::{CondRc, Header, Packet, ParseError};
 use crate::{Result, SizeOf};
 use failure::Fail;
@@ -345,19 +345,28 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         let segments =
             mbuf.write_data_slice(offset + Self::Header::size_of(), &[Ipv6Addr::UNSPECIFIED])?;
 
-        Ok(SegmentRouting {
+        let mut packet = SegmentRouting {
             envelope: CondRc::new(envelope),
             header,
             segments,
             offset,
-        })
+        };
+
+        packet.set_next_header(packet.envelope().next_header());
+        packet
+            .envelope_mut()
+            .set_next_header(ProtocolNumbers::Ipv6Route);
+
+        Ok(packet)
     }
 
     #[inline]
     fn remove(mut self) -> Result<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
+        let next_header = self.next_header();
         self.mbuf_mut().shrink(offset, len)?;
+        self.envelope_mut().set_next_header(next_header);
         Ok(self.envelope.into_owned())
     }
 
@@ -371,6 +380,11 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     #[inline]
     fn next_proto(&self) -> ProtocolNumber {
         self.next_header()
+    }
+
+    #[inline]
+    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+        self.set_next_header(proto);
     }
 
     #[inline]
@@ -642,6 +656,10 @@ mod tests {
         assert_eq!(1, srh.segments().len());
         assert_eq!(4, srh.routing_type());
 
+        // make sure next header is fixed
+        assert_eq!(ProtocolNumbers::Tcp, srh.next_header());
+        assert_eq!(ProtocolNumbers::Ipv6Route, srh.envelope().next_header());
+
         // ipv6 payload is srh payload after push
         assert_eq!(ipv6_payload_len, srh.payload_len());
         // make sure rest of the packet still valid
@@ -662,6 +680,9 @@ mod tests {
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
         let ipv6 = srh.remove().unwrap();
+
+        // make sure next header is fixed
+        assert_eq!(ProtocolNumbers::Tcp, ipv6.next_header());
 
         // make sure rest of the packet still valid
         let tcp = ipv6.parse::<Tcp<Ipv6>>().unwrap();

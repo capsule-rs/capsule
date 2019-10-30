@@ -25,6 +25,7 @@ pub use self::mempool::*;
 pub use self::port::*;
 
 use crate::ffi::{self, AsStr, ToCString, ToResult};
+use crate::net::MacAddr;
 use crate::{debug, Result};
 use failure::Fail;
 use libc;
@@ -182,4 +183,13 @@ pub fn eal_init(args: Vec<String>) -> Result<()> {
 /// Cleans up the Environment Abstraction Layer (EAL).
 pub fn eal_cleanup() -> Result<()> {
     unsafe { ffi::rte_eal_cleanup().to_result().map(|_| ()) }
+}
+
+/// Returns the `MacAddr` of a port.
+fn eth_macaddr_get(port_id: u16) -> MacAddr {
+    let mut addr = ffi::ether_addr::default();
+    unsafe {
+        ffi::rte_eth_macaddr_get(port_id, &mut addr);
+    }
+    addr.addr_bytes.into()
 }

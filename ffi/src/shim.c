@@ -42,6 +42,13 @@ void _rte_pktmbuf_free(struct rte_mbuf *m) {
     rte_pktmbuf_free(m);
 }
 
+int _rte_pktmbuf_alloc_bulk(
+    struct rte_mempool *pool,
+    struct rte_mbuf **mbufs,
+    unsigned count) {
+    return rte_pktmbuf_alloc_bulk(pool, mbufs, count);
+}
+
 void _rte_mempool_put_bulk(
     struct rte_mempool *mp,
     void *const *obj_table,

@@ -267,6 +267,8 @@ impl<E: IpPacket> Packet for Udp<E> {
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
+        envelope.set_next_proto(ProtocolNumbers::Udp);
+
         Ok(Udp {
             envelope: CondRc::new(envelope),
             header,
@@ -409,5 +411,8 @@ mod tests {
         let udp = ipv4.push::<Udp<Ipv4>>().unwrap();
 
         assert_eq!(UdpHeader::size_of(), udp.len());
+
+        // make sure next proto is fixed
+        assert_eq!(ProtocolNumbers::Udp, udp.envelope().next_proto());
     }
 }

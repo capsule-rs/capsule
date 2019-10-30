@@ -22,7 +22,7 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{CondRc, Ethernet, Header, Packet};
+use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet};
 use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -321,6 +321,8 @@ impl Packet for Ipv6 {
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
+        envelope.set_ether_type(EtherTypes::Ipv6);
+
         Ok(Ipv6 {
             envelope: CondRc::new(envelope),
             header,
@@ -353,6 +355,11 @@ impl IpPacket for Ipv6 {
     #[inline]
     fn next_proto(&self) -> ProtocolNumber {
         self.next_header()
+    }
+
+    #[inline]
+    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+        self.set_next_header(proto);
     }
 
     #[inline]
@@ -423,7 +430,7 @@ pub const IPV6_PACKET: [u8; 78] = [
     // payload length
     0x00, 0x18,
     // next Header
-    0x11,
+    0x06,
     // hop limit
     0x02,
     // src addr
@@ -467,7 +474,7 @@ mod tests {
         assert_eq!(0, ipv6.ecn());
         assert_eq!(0, ipv6.flow_label());
         assert_eq!(24, ipv6.payload_len());
-        assert_eq!(ProtocolNumbers::Udp, ipv6.next_header());
+        assert_eq!(ProtocolNumbers::Tcp, ipv6.next_header());
         assert_eq!(2, ipv6.hop_limit());
         assert_eq!("2001:db8:85a3::1", ipv6.src().to_string());
         assert_eq!("2001:db8:85a3::8a2e:370:7334", ipv6.dst().to_string());
@@ -499,5 +506,8 @@ mod tests {
 
         assert_eq!(6, ipv6.version());
         assert_eq!(Ipv6Header::size_of(), ipv6.len());
+
+        // make sure ether type is fixed
+        assert_eq!(EtherTypes::Ipv6, ipv6.envelope().ether_type());
     }
 }
