@@ -91,6 +91,7 @@ impl PortQueue {
                 ffi::_rte_eth_tx_burst(
                     self.port_id.0,
                     self.txq_index.0,
+                    // convert to a pointer to an array of `rte_mbuf` pointers
                     packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
                     to_send,
                 )
@@ -103,10 +104,11 @@ impl PortQueue {
                     // the ones already sent first and try again on the rest.
                     let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
 
-                    // ownership given to `rte_eth_tx_burst`, dont't free them.
+                    // ownership given to `rte_eth_tx_burst`, don't free them.
                     mem::forget(drained);
                 } else {
-                    // everything sent, but dont't free them.
+                    // everything sent and ownership given to `rte_eth_tx_burst`, don't
+                    // free them.
                     mem::forget(packets);
                     break;
                 }

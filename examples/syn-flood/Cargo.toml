@@ -5,6 +5,7 @@ authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = ["dpdk", "nfv"]
 edition = "2018"
+build = "build.rs"
 
 [[bin]]
 name = "synflood"
