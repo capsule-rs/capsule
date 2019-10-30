@@ -67,6 +67,12 @@ pub trait IpPacket: Packet {
     /// For IPv6 and extension headers, this should be the `next header` field.
     fn next_proto(&self) -> ProtocolNumber;
 
+    /// Sets the protocol number of the header immediately follows.
+    ///
+    /// For IPv4 headers, this should be the `protocol` field.
+    /// For IPv6 and extension headers, this should be the `next header` field.
+    fn set_next_proto(&mut self, proto: ProtocolNumber);
+
     /// Returns the source IP address
     fn src(&self) -> IpAddr;
 

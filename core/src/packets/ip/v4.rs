@@ -1,6 +1,6 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{CondRc, Ethernet, Header, Packet};
+use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet};
 use crate::{Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
@@ -412,6 +412,8 @@ impl Packet for Ipv4 {
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
+        envelope.set_ether_type(EtherTypes::Ipv4);
+
         Ok(Ipv4 {
             envelope: CondRc::new(envelope),
             header,
@@ -445,6 +447,11 @@ impl IpPacket for Ipv4 {
     #[inline]
     fn next_proto(&self) -> ProtocolNumber {
         self.protocol()
+    }
+
+    #[inline]
+    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+        self.set_protocol(proto);
     }
 
     #[inline]
@@ -560,5 +567,8 @@ mod tests {
 
         assert_eq!(4, ipv4.version());
         assert_eq!(Ipv4Header::size_of(), ipv4.len());
+
+        // make sure ether type is fixed
+        assert_eq!(EtherTypes::Ipv4, ipv4.envelope().ether_type());
     }
 }

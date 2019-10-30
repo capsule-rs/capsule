@@ -4,6 +4,7 @@ use crate::{ensure, trace, Result};
 use failure::Fail;
 use std::convert::From;
 use std::fmt;
+use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
@@ -277,6 +278,23 @@ impl Mbuf {
         let ptr = self.raw.as_ptr();
         std::mem::forget(self);
         ptr
+    }
+
+    /// Allocates a Vec of `Mbuf`s of `len` size.
+    pub fn alloc_bulk(len: usize) -> Result<Vec<Mbuf>> {
+        let mut ptrs = Vec::with_capacity(len);
+        let mempool = MEMPOOL.with(|tls| tls.get());
+
+        let mbufs = unsafe {
+            ffi::_rte_pktmbuf_alloc_bulk(mempool, ptrs.as_mut_ptr(), len as raw::c_uint)
+                .to_result()?;
+
+            // does a no-copy conversion to avoid extra allocation.
+            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len, len)
+        };
+
+        mem::forget(ptrs);
+        Ok(mbufs)
     }
 
     /// Frees the message buffers in bulk.

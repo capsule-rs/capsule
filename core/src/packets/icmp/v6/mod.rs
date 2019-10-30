@@ -276,19 +276,22 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
         let mbuf = envelope.mbuf_mut();
 
         mbuf.extend(offset, Self::Header::size_of() + P::size_of())?;
-        let mut header = mbuf.write_data(offset, &Self::Header::default())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
         let payload = mbuf.write_data(offset + Self::Header::size_of(), &P::default())?;
 
-        unsafe {
-            header.as_mut().msg_type = P::msg_type().0;
-        }
-
-        Ok(Icmpv6 {
+        let mut packet = Icmpv6 {
             envelope: CondRc::new(envelope),
             header,
             payload,
             offset,
-        })
+        };
+
+        packet.header_mut().msg_type = P::msg_type().0;
+        packet
+            .envelope_mut()
+            .set_next_header(ProtocolNumbers::Icmpv6);
+
+        Ok(packet)
     }
 
     #[inline]
