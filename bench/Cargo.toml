@@ -1,0 +1,17 @@
+[package]
+name = "nb2-bench"
+version = "0.1.0"
+authors = ["William of Ockham <occam_engineering@comcast.com>"]
+license = "TBD"
+keywords = ["dpdk", "nfv"]
+publish = false
+edition = "2018"
+build = "build.rs"
+
+[dev-dependencies]
+criterion = "0.3"
+nb2 = { path = "../core", features = ["testils"] }
+
+[[bench]]
+name = "packets"
+harness = false

@@ -10,4 +10,7 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}/build/lib", rte_sdk);
     println!("cargo:rustc-link-lib=static=dpdk");
+    println!("cargo:rustc-link-lib=dylib=numa");
+    println!("cargo:rustc-link-lib=dylib=pcap");
+    println!("cargo:rustc-link-lib=dylib=z");
 }

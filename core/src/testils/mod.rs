@@ -10,6 +10,7 @@ pub mod byte_arrays {
 }
 
 pub use self::packet::*;
+pub use crate::dpdk::{Mempool, SocketId, MEMPOOL};
 
 use crate::dpdk::eal_init;
 use std::sync::Once;

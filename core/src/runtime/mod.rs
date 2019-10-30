@@ -26,6 +26,7 @@ pub enum UnixSignal {
     SIGTERM = libc::SIGTERM as isize,
 }
 
+#[allow(dead_code)]
 pub struct Runtime {
     ports: Vec<Port>,
     mempools: MempoolMap,
