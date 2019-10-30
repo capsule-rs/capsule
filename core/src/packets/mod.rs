@@ -297,7 +297,7 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Udp;
+    use crate::packets::{Udp, UDP_PACKET};
 
     #[capsule::test]
     fn parse_and_reset_packet() {
@@ -322,5 +322,18 @@ mod tests {
         assert_eq!(255, v4.ttl());
         let udp = v4.peek::<Udp<Ipv4>>().unwrap();
         assert_eq!(39376, udp.src_port());
+    }
+
+    #[capsule::test]
+    fn peek_back_via_envelope() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let v4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = v4.parse::<Udp<Ipv4>>().unwrap();
+        let mut v4_2 = udp.deparse();
+        v4_2.set_ttl(25);
+        let udp_2 = v4_2.parse::<Udp<Ipv4>>().unwrap();
+        let v4_4 = udp_2.envelope();
+        assert_eq!(v4_4.ttl(), 25);
     }
 }

@@ -16,28 +16,19 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![feature(specialization)]
+// https://github.com/rust-lang/rust/issues/56306
+// must statically link dpdk to the final binary, otherwise rustc
+// will decide to not link functions not explicitly called but
+// must be included in the final binary.
 
-// alias for the test macro
-#[cfg(test)]
-extern crate self as capsule;
+use std::env;
 
-pub mod batch;
-mod dpdk;
-mod ffi;
-mod macros;
-pub mod net;
-pub mod packets;
-mod runtime;
-pub mod settings;
-#[cfg(any(test, feature = "testils"))]
-pub mod testils;
+fn main() {
+    let rte_sdk = env::var("RTE_SDK").expect("No RTE_SDK found ~ DPDK installation directory.");
 
-pub use self::batch::{Batch, Pipeline, Poll};
-pub use self::dpdk::{Mbuf, PortQueue, SizeOf};
-pub use self::runtime::{Runtime, UnixSignal};
-#[cfg(any(test, feature = "testils"))]
-pub use capsule_macros::{bench, test};
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+    println!("cargo:rustc-link-search=native={}/build/lib", rte_sdk);
+    println!("cargo:rustc-link-lib=static=dpdk");
+    println!("cargo:rustc-link-lib=dylib=numa");
+    println!("cargo:rustc-link-lib=dylib=pcap");
+    println!("cargo:rustc-link-lib=dylib=z");
+}

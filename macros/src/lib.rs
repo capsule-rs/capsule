@@ -56,12 +56,53 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
         #[test]
         fn #name(#inputs) #ret {
             ::capsule::testils::cargo_test_init();
-            let mut mempool = ::capsule::dpdk::Mempool::new(15, 0, ::capsule::dpdk::SocketId::ANY).unwrap();
-            ::capsule::dpdk::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+            let mut mempool = ::capsule::testils::Mempool::new(15, 0, ::capsule::testils::SocketId::ANY).unwrap();
+            ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
             #body
 
-            ::capsule::dpdk::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
+            ::capsule::testils::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
+            drop(mempool);
+        }
+    };
+
+    result.into()
+}
+
+/// Procedural macro for running DPDK based benches.
+///
+/// Each bench loop will create a new one-use `Mempool` with a maximum capacity
+/// of 15. The `Mempool` is not shared with other bench runs, allowing benches to
+/// run in isolation and in parallel.
+///
+/// # Example
+///
+/// ```
+/// #[capsule::bench]
+/// fn run_benchmark(c: &mut Criterion) {
+///     c.bench_function("bench:run_benchmark", |b| {
+///         b.iter(|| bench_thing());
+///     });
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn bench(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemFn);
+
+    let ret = &input.sig.output;
+    let name = &input.sig.ident;
+    let inputs = &input.sig.inputs;
+    let body = &input.block;
+
+    let result = quote! {
+        fn #name(#inputs) #ret {
+            ::capsule::testils::cargo_test_init();
+            let mut mempool = ::capsule::testils::Mempool::new(15, 0, ::capsule::testils::SocketId::ANY).unwrap();
+            ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+
+            #body
+
+            ::capsule::testils::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
             drop(mempool);
         }
     };
