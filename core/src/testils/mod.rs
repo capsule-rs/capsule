@@ -10,7 +10,7 @@ pub mod byte_arrays {
 }
 
 pub use self::packet::*;
-pub use crate::dpdk::{Mempool, MEMPOOL, SocketId};
+pub use crate::dpdk::{Mempool, SocketId, MEMPOOL};
 
 use crate::dpdk::eal_init;
 use std::sync::Once;
@@ -21,12 +21,5 @@ static TEST_INIT: Once = Once::new();
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
         eal_init(vec!["nb2_test".to_owned()]).unwrap();
-    });
-}
-
-/// Run once initialization of EAL for `cargo test`
-pub fn cargo_bench_init() {
-    TEST_INIT.call_once(|| {
-        eal_init(vec!["nb2_bench".to_owned()]).unwrap();
     });
 }

@@ -501,7 +501,7 @@ impl IpPacket for Ipv4 {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Udp, UDP_PACKET};
+    use crate::packets::UDP_PACKET;
     use crate::Mbuf;
 
     #[test]
@@ -570,18 +570,5 @@ mod tests {
 
         // make sure ether type is fixed
         assert_eq!(EtherTypes::Ipv4, ipv4.envelope().ether_type());
-    }
-
-    #[nb2::test]
-    fn peek_back_from_udp_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let v4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = v4.parse::<Udp<Ipv4>>().unwrap();
-        let mut v4_2 = udp.deparse();
-        v4_2.set_ttl(25);
-        let udp_2 = v4_2.parse::<Udp<Ipv4>>().unwrap();
-        let v4_4 = udp_2.envelope();
-        assert_eq!(v4_4.ttl(), 25);
     }
 }

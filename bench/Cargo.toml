@@ -1,5 +1,5 @@
 [package]
-name = "nb2-perf"
+name = "nb2-bench"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"

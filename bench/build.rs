@@ -13,5 +13,4 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=numa");
     println!("cargo:rustc-link-lib=dylib=pcap");
     println!("cargo:rustc-link-lib=dylib=z");
-    println!("cargo:rerun-if-env-changed=RTE_SDK");
 }

@@ -1,11 +1,11 @@
 [workspace]
 members = [
+    "bench",
     "core",
     "examples/pktdump",
     "examples/signals",
     "examples/skeleton",
     "examples/syn-flood",
     "ffi",
-    "macros",
-    "perf"
+    "macros"
 ]
