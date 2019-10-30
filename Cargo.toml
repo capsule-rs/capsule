@@ -2,8 +2,9 @@
 members = [
     "core",
     "examples/pktdump",
-    "examples/skeleton",
     "examples/signals",
+    "examples/skeleton",
+    "examples/syn-flood",
     "ffi",
     "macros",
 ]

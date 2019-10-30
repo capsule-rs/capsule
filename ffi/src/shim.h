@@ -28,6 +28,15 @@ struct rte_mbuf *_rte_pktmbuf_alloc(struct rte_mempool *mp);
 void _rte_pktmbuf_free(struct rte_mbuf *m);
 
 /**
+ * Allocate a bulk of mbufs, initialize refcnt and reset the fields to
+ * default values.
+ */
+int _rte_pktmbuf_alloc_bulk(
+    struct rte_mempool *pool,
+    struct rte_mbuf **mbufs,
+    unsigned count);
+
+/**
  * Put several objects back in the mempool.
  */
 void _rte_mempool_put_bulk(
