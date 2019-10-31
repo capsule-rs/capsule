@@ -23,7 +23,7 @@ pub use self::core_map::*;
 pub use self::mempool_map::*;
 
 use super::Pipeline;
-use crate::dpdk::{self, CoreId, Port, PortBuilder, PortError, PortQueue};
+use crate::dpdk::{self, CoreId, KniError, KniRx, Port, PortBuilder, PortError, PortQueue};
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, Future, StreamExt};
@@ -75,11 +75,7 @@ impl Runtime {
             .mempools(mempools.borrow_mut())
             .finish()?;
 
-        let len = config
-            .ports
-            .iter()
-            .filter(|p| p.kni.unwrap_or_default())
-            .count();
+        let len = config.num_knis();
         if len > 0 {
             info!("initializing KNI subsystem...");
             dpdk::kni_init(len)?;
@@ -118,6 +114,14 @@ impl Runtime {
     }
 
     #[inline]
+    fn get_port_mut(&mut self, name: &str) -> Result<&mut Port> {
+        self.ports
+            .iter_mut()
+            .find(|p| p.name() == name)
+            .ok_or_else(|| PortError::NotFound(name.to_owned()).into())
+    }
+
+    #[inline]
     fn get_core(&self, core_id: CoreId) -> Result<&CoreExecutor> {
         self.core_map
             .cores
@@ -130,7 +134,11 @@ impl Runtime {
         let map = self
             .ports
             .iter()
-            .filter_map(|p| p.queues().get(&core_id).map(|q| (p.name().to_owned(), *q)))
+            .filter_map(|p| {
+                p.queues()
+                    .get(&core_id)
+                    .map(|q| (p.name().to_owned(), q.clone()))
+            })
             .collect::<HashMap<_, _>>();
 
         ensure!(!map.is_empty(), CoreError::NotAssigned(core_id));
@@ -186,7 +194,7 @@ impl Runtime {
 
         for (core_id, port_q) in port.queues() {
             let f = f.clone();
-            let port_q = *port_q;
+            let port_q = port_q.clone();
             let thread = &self.core_map.cores[core_id].thread;
 
             // spawns the bootstrap. we want the bootstrapping to execute on the
@@ -201,6 +209,45 @@ impl Runtime {
         }
 
         info!("installed pipeline for port {}.", port.name());
+
+        Ok(self)
+    }
+
+    /// Installs a pipeline to a KNI enabled port to receive packets coming
+    /// from the kernel. This pipeline will run on a randomly select core
+    /// that's assigned to the port.
+    pub fn add_kni_rx_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
+        &mut self,
+        port: &str,
+        installer: F,
+    ) -> Result<&mut Self>
+    where
+        F: FnOnce(KniRx, PortQueue) -> T + Send + Sync + 'static,
+    {
+        // takes ownership of the kni rx handle.
+        let kni_rx = self
+            .get_port_mut(port)?
+            .kni()
+            .ok_or_else(|| KniError::Disabled)?
+            .take_rx()?;
+
+        // selects a core to run a rx pipeline for this port. the selection is
+        // randomly choosing the last core we find. if the port has more than one
+        // core assigned, this will be different from the core that's running the
+        // tx pipeline.
+        let port = self.get_port(port)?;
+        let core_id = port.queues().keys().last().unwrap();
+        let port_q = port.queues()[core_id].clone();
+        let thread = &self.get_core(*core_id)?.thread;
+
+        // spawns the bootstrap. we want the bootstrapping to execute on the
+        // target core instead of the master core.
+        thread.spawn(future::lazy(move |_| {
+            let fut = installer(kni_rx, port_q);
+            current_thread::spawn(fut);
+        }))?;
+
+        info!("installed kni rx pipeline for port {}.", port.name());
 
         Ok(self)
     }
@@ -365,27 +412,55 @@ impl Runtime {
         Ok(())
     }
 
-    #[allow(clippy::cognitive_complexity)]
-    pub fn execute(&mut self) -> Result<()> {
-        // starts all the ports so we can receive packets.
+    /// Installs the KNI TX pipelines.
+    fn add_kni_tx_pipelines(&mut self) -> Result<()> {
+        let mut map = HashMap::new();
+        for port in self.ports.iter_mut() {
+            // selects a core if we need to run a tx pipeline for this port. the
+            // selection is randomly choosing the first core we find. if the port
+            // has more than one core assigned, this will be different from the
+            // core that's running the rx pipeline.
+            let core_id = *port.queues().keys().nth(0).unwrap();
+
+            // if the port is kni enabled, then we will take ownership of the
+            // tx handle.
+            if let Some(kni) = port.kni() {
+                map.insert(core_id, kni.take_tx()?);
+            }
+        }
+
+        // spawns all the pipelines.
+        for (core_id, kni_tx) in map.into_iter() {
+            let thread = &self.get_core(core_id)?.thread;
+            thread.spawn(kni_tx.into_pipeline())?;
+
+            info!("installed kni tx pipeline on {:?}.", core_id);
+        }
+
+        Ok(())
+    }
+
+    /// Starts all the ports to receive packets.
+    fn start_ports(&mut self) -> Result<()> {
         for port in self.ports.iter_mut() {
             port.start()?;
         }
 
-        // unparks all the cores to start task execution.
+        Ok(())
+    }
+
+    /// Unparks all the cores to start task execution.
+    fn unpark_cores(&mut self) {
         for core in self.core_map.cores.values() {
             if let Some(unpark) = &core.unpark {
                 unpark.unpark();
             }
         }
+    }
 
-        // runs the app until main loop finishes.
-        match self.config.duration {
-            None | Some(0) => self.wait_for_signal(),
-            Some(d) => self.wait_for_timeout(d),
-        }?;
-
-        // shuts down all the cores.
+    /// Shuts down all the cores to stop task execution.
+    #[allow(clippy::cognitive_complexity)]
+    fn shutdown_cores(&mut self) {
         for (core_id, core) in &mut self.core_map.cores {
             if let Some(trigger) = core.shutdown.take() {
                 debug!("shutting down {:?}.", core_id);
@@ -396,12 +471,28 @@ impl Runtime {
                 info!("terminated {:?}.", core_id);
             }
         }
+    }
 
-        // stops all the ports.
+    /// Stops all the ports.
+    fn stop_ports(&mut self) {
         for port in self.ports.iter_mut() {
             port.stop();
         }
+    }
 
+    pub fn execute(&mut self) -> Result<()> {
+        self.add_kni_tx_pipelines()?;
+        self.start_ports()?;
+        self.unpark_cores();
+
+        // runs the app until main loop finishes.
+        match self.config.duration {
+            None | Some(0) => self.wait_for_signal(),
+            Some(d) => self.wait_for_timeout(d),
+        }?;
+
+        self.shutdown_cores();
+        self.stop_ports();
         Ok(())
     }
 }

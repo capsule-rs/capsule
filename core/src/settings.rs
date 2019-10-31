@@ -170,6 +170,14 @@ impl RuntimeSettings {
 
         eal_args
     }
+
+    /// Returns the number of KNI enabled ports
+    pub(crate) fn num_knis(&self) -> usize {
+        self.ports
+            .iter()
+            .filter(|p| p.kni.unwrap_or_default())
+            .count()
+    }
 }
 
 impl Default for RuntimeSettings {
