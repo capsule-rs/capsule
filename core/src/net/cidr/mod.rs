@@ -9,7 +9,7 @@ use std::net::IpAddr;
 
 #[derive(Debug, Fail)]
 #[fail(display = "Failed to parse CIDR: {}", _0)]
-pub struct CidrParseError((String));
+pub struct CidrParseError(String);
 
 pub trait Cidr: Sized {
     type Addr;

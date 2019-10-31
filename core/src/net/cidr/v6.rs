@@ -1,4 +1,4 @@
-use crate::net::cidr::{Cidr, CidrParseError};
+use super::{Cidr, CidrParseError};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
@@ -96,7 +96,6 @@ impl fmt::Display for Ipv6Cidr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use failure::{format_err, Fail};
     use proptest::prelude::*;
 
     const IPV6_SEGMENT: &str = "[0-9a-f]{1,4}";
@@ -111,9 +110,10 @@ mod tests {
         let bad = Ipv6Cidr::new(Ipv6Addr::from_str("acdc::1").unwrap(), 129);
         assert!(bad.is_err());
         let e = bad.unwrap_err();
-        let err = format_err!("Failed to parse CIDR: {}", "Not a valid length");
-        assert_eq!(e.to_string(), err.to_string());
-        assert_eq!(e.name(), Some("nb2::net::cidr::CidrParseError"))
+        assert_eq!(
+            e.to_string(),
+            "Failed to parse CIDR: Not a valid length".to_string()
+        );
     }
 
     proptest! {
