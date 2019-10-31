@@ -17,11 +17,13 @@
 */
 
 use crate::dpdk::CoreId;
+use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
 use clap::clap_app;
 use config::{Config, ConfigError, File, FileFormat};
 use regex::Regex;
-use serde::{Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer};
 use std::fmt;
+use std::str::FromStr;
 
 pub const DEFAULT_MEMPOOL_CAPACITY: usize = 65535;
 pub const DEFAULT_PORT_RXD: usize = 128;
@@ -35,6 +37,39 @@ impl<'de> Deserialize<'de> for CoreId {
     {
         let i = <usize>::deserialize(deserializer)?;
         Ok(CoreId::new(i))
+    }
+}
+
+// make `MacAddr` serde deserializable.
+impl<'de> Deserialize<'de> for MacAddr {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <String>::deserialize(deserializer)?;
+        MacAddr::from_str(&s).map_err(de::Error::custom)
+    }
+}
+
+// make `Ipv4Cidr` serde deserializable.
+impl<'de> Deserialize<'de> for Ipv4Cidr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <String>::deserialize(deserializer)?;
+        Ipv4Cidr::from_str(&s).map_err(de::Error::custom)
+    }
+}
+
+// make `Ipv6Cidr` serde deserializable.
+impl<'de> Deserialize<'de> for Ipv6Cidr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <String>::deserialize(deserializer)?;
+        Ipv6Cidr::from_str(&s).map_err(de::Error::custom)
     }
 }
 
@@ -310,7 +345,7 @@ mod tests {
                     [mempool]
                         capacity = 255
                         cache_size = 16
-                    
+
                     [[ports]]
                         name = "nic1"
                         device = "0000:00:01.0"
