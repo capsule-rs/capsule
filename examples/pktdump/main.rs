@@ -70,7 +70,7 @@ fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
 }
 
 fn install(q: PortQueue) -> impl Pipeline {
-    Poll::new(q)
+    Poll::new(q.clone())
         .map(dump_eth)
         .group_by(
             |ethernet| ethernet.ether_type(),

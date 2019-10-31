@@ -54,8 +54,15 @@ impl KniRx {
             // does a no-copy conversion to avoid extra allocation.
             Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
         };
-
         mem::forget(ptrs);
+
+        unsafe {
+            // checks if there are any link change requests, and handle them.
+            if let Err(err) = ffi::rte_kni_handle_request(self.raw.as_mut()).to_result() {
+                warn!(message = "failed to handle change link requests.", ?err);
+            }
+        }
+
         mbufs
     }
 }
@@ -71,7 +78,8 @@ pub struct KniTxQueue {
 impl KniTxQueue {
     pub fn transmit(&mut self, packets: Vec<Mbuf>) {
         if let Err(err) = self.tx_enque.try_send(packets) {
-            warn!(message = "failed to send to tx queue.", ?err);
+            warn!(message = "failed to send to kni tx queue.");
+            Mbuf::free_bulk(err.into_inner());
         }
     }
 }
@@ -216,6 +224,31 @@ impl Drop for Kni {
     }
 }
 
+/// Does not support changing the link MTU.
+extern "C" fn change_mtu(port_id: u16, new_mtu: raw::c_uint) -> raw::c_int {
+    warn!("ignored change port {} mtu to {}.", port_id, new_mtu);
+    -1
+}
+
+/// Does not change the link up/down status, but will return 0 so the
+/// command succeeds.
+extern "C" fn config_network_if(port_id: u16, if_up: u8) -> raw::c_int {
+    warn!("ignored change port {} status to {}.", port_id, if_up);
+    0
+}
+
+/// Does not support changing the link MAC address.
+extern "C" fn config_mac_address(port_id: u16, _mac_addr: *mut u8) -> raw::c_int {
+    warn!("ignored change port {} mac address.", port_id);
+    -1
+}
+
+/// Does not support changing the link promiscusity.
+extern "C" fn config_promiscusity(port_id: u16, to_on: u8) -> raw::c_int {
+    warn!("ignored change port {} promiscusity to {}.", port_id, to_on);
+    -1
+}
+
 /// Builds a KNI device from the configuration values.
 pub struct KniBuilder<'a> {
     mempool: &'a mut ffi::rte_mempool,
@@ -265,6 +298,12 @@ impl<'a> KniBuilder<'a> {
     }
 
     pub fn finish(&mut self) -> Result<Kni> {
+        self.conf.mbuf_size = ffi::RTE_MBUF_DEFAULT_BUF_SIZE;
+        self.ops.change_mtu = Some(change_mtu);
+        self.ops.config_network_if = Some(config_network_if);
+        self.ops.config_mac_address = Some(config_mac_address);
+        self.ops.config_promiscusity = Some(config_promiscusity);
+
         unsafe {
             ffi::rte_kni_alloc(self.mempool, &self.conf, &mut self.ops)
                 .to_result()

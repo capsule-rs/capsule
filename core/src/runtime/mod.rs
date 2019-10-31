@@ -216,6 +216,22 @@ impl Runtime {
     /// Installs a pipeline to a KNI enabled port to receive packets coming
     /// from the kernel. This pipeline will run on a randomly select core
     /// that's assigned to the port.
+    ///
+    /// # Remarks
+    ///
+    /// This function has be to invoked once per port. Otherwise the packets
+    /// coming from the kernel will be silently dropped. For the most common
+    /// use case where the application only needs simple packet forwarding,
+    /// use `batch::splice` to join the kernel's RX with the port's TX.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// Runtime::build(config)?
+    ///     .add_add_pipeline_to_port("kni0", install)?
+    ///     .add_kni_rx_pipeline_to_port("kni0", batch::splice)?
+    ///     .execute()
+    /// ```
     pub fn add_kni_rx_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
         &mut self,
         port: &str,

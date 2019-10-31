@@ -283,6 +283,13 @@ pub trait Pipeline: futures::Future<Output = ()> {
     fn run_once(&mut self);
 }
 
+/// Splices a `PacketRx` directly to a `PacketTx` without any intermediary
+/// combinators. Useful for pipelines that perform simple forwarding without
+/// any packet processing.
+pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(rx: Rx, tx: Tx) -> impl Pipeline {
+    Poll::new(rx).send(tx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,7 +298,7 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
-    use std::sync::mpsc;
+    use std::sync::mpsc::{self, TryRecvError};
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
         let packets = data
@@ -451,5 +458,31 @@ mod tests {
         assert!(batch.next().unwrap().is_drop());
         // at the end
         assert!(batch.next().is_none());
+    }
+
+    #[capsule::test]
+    fn poll_fn_batch() {
+        let mut batch = poll_fn(|| vec![Mbuf::new().unwrap()]);
+        batch.replenish();
+
+        assert!(batch.next().unwrap().is_act());
+        assert!(batch.next().is_none());
+    }
+
+    #[capsule::test]
+    fn splice_pipeline() {
+        let (mut tx1, rx1) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
+
+        // no packet yet
+        let mut pipeline = splice(rx1, tx2);
+        pipeline.run_once();
+        assert_eq!(TryRecvError::Empty, rx2.try_recv().unwrap_err());
+
+        // send one packet
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        tx1.transmit(vec![packet]);
+        pipeline.run_once();
+        assert!(rx2.try_recv().is_ok());
     }
 }

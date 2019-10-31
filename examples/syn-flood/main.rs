@@ -60,7 +60,7 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
 
         Ok(tcp)
     })
-    .send(qs["eth1"])
+    .send(qs["eth1"].clone())
 }
 
 fn main() -> Result<()> {
