@@ -1,4 +1,4 @@
-app_name = "synflood"
+app_name = "kni"
 master_core = 0
 cores = []
 
@@ -7,8 +7,9 @@ cores = []
     cache_size = 256
 
 [[ports]]
-    name = "eth1"
+    name = "kni0"
     device = "0000:00:08.0"
     cores = [1]
-    rxd = 512
-    txd = 512
+    rxd = 256
+    txd = 256
+    kni = true

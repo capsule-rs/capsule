@@ -1,7 +1,7 @@
 //! Implementations of `PacketRx` and `PacketTx`.
 //!
 //! Implemented for `PortQueue`.
-//! 
+//!
 //! `PacketRx` implemented for `KniRx`.
 //!
 //! `PacketTx` implemented for `KniTxQueue`.
