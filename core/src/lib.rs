@@ -16,7 +16,7 @@ pub mod settings;
 pub mod testils;
 
 pub use self::batch::{Batch, Pipeline, Poll};
-pub use self::dpdk::{Mbuf, PortQueue, SizeOf};
+pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
 pub use nb2_macros::{bench, test};
