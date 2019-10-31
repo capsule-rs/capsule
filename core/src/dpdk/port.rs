@@ -1,4 +1,4 @@
-use super::{CoreId, Kni, KniBuilder, Mbuf, SocketId};
+use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
 use crate::runtime::MempoolMap2;
@@ -56,18 +56,19 @@ struct TxQueueIndex(u16);
 /// as two standalone queues, in the run-to-completion mode, they are modeled
 /// as a queue pair associated with the core that runs the pipeline from
 /// receive to send.
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct PortQueue {
     port_id: PortId,
     rxq_index: RxQueueIndex,
     txq_index: TxQueueIndex,
+    kni: Option<KniTxQueue>,
 }
 
 impl PortQueue {
     /// Receives a burst of packets from the receive queue, up to a maximum
     /// of 32 packets.
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn receive(&self) -> Vec<Mbuf> {
+    pub(crate) fn receive(&self) -> Vec<Mbuf> {
         const RX_BURST_MAX: usize = 32;
         let mut ptrs = Vec::with_capacity(RX_BURST_MAX);
 
@@ -91,7 +92,7 @@ impl PortQueue {
 
     /// Sends the packets to the transmit queue.
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn transmit(&self, mut packets: Vec<Mbuf>) {
+    pub(crate) fn transmit(&self, mut packets: Vec<Mbuf>) {
         loop {
             let to_send = packets.len() as u16;
             let sent = unsafe {
@@ -127,6 +128,11 @@ impl PortQueue {
                 break;
             }
         }
+    }
+
+    /// Returns a handle to send packets to the associated KNI interface.
+    pub fn kni(&self) -> Option<&KniTxQueue> {
+        self.kni.as_ref()
     }
 
     /// Returns the MAC address of the port.
@@ -182,8 +188,13 @@ impl Port {
     }
 
     /// Returns the available port queues.
-    pub(crate) fn queues(&self) -> &HashMap<CoreId, PortQueue> {
+    pub fn queues(&self) -> &HashMap<CoreId, PortQueue> {
         &self.queues
+    }
+
+    /// Returns the KNI.
+    pub fn kni(&mut self) -> Option<&mut Kni> {
+        self.kni.as_mut()
     }
 
     /// Starts the port. This is the final step before packets can be
@@ -383,6 +394,19 @@ impl<'a> PortBuilder<'a> {
         // the socket determines which pool to allocate mbufs from.
         let mempool = self.mempools.get_raw(socket_id)?;
 
+        // if the port has kni enabled, we will allocate an interface.
+        let kni = if with_kni {
+            let iface = KniBuilder::new(mempool)
+                .name(&self.name)
+                .port_id(self.port_id)
+                .core_id(self.cores[0])
+                .mac_addr(super::eth_macaddr_get(self.port_id.raw()))
+                .finish()?;
+            Some(iface)
+        } else {
+            None
+        };
+
         let mut queues = HashMap::new();
 
         // for each core, we setup a rx/tx queue pair. for simplicity, we
@@ -429,23 +453,12 @@ impl<'a> PortBuilder<'a> {
                 port_id: self.port_id,
                 rxq_index,
                 txq_index,
+                kni: kni.as_ref().map(|v| v.txq()),
             };
 
             queues.insert(core_id, queue);
             debug!("initialized port queue for {:?}.", core_id);
         }
-
-        let kni = if with_kni {
-            let dev = KniBuilder::new(mempool)
-                .name(&self.name)
-                .port_id(self.port_id)
-                .core_id(self.cores[0])
-                .mac_addr(super::eth_macaddr_get(self.port_id.raw()))
-                .finish()?;
-            Some(dev)
-        } else {
-            None
-        };
 
         info!("initialized port {}.", self.name);
 
@@ -454,7 +467,7 @@ impl<'a> PortBuilder<'a> {
             name: self.name.clone(),
             device: self.device.clone(),
             queues,
-            kni: kni,
+            kni,
             dev_info: self.dev_info,
         })
     }

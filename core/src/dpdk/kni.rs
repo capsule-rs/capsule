@@ -1,26 +1,184 @@
-use super::{CoreId, PortId};
-use crate::ffi::{self, AsStr, ToResult};
+use super::{CoreId, Mbuf, PortId};
+use crate::ffi::{self, ToResult};
 use crate::net::MacAddr;
-use crate::{debug, error, Result};
+use crate::{debug, error, warn, Result};
+use failure::Fail;
+use futures::{future, Future, StreamExt};
 use std::cmp;
-use std::convert::From;
 use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
-/// Kernel NIC interface.
-///
-/// KNI allows the DPDK application to exchange packets with the kernel
-/// networking stack.
-pub struct Kni {
+/// The KNI receive handle. Because the underlying interface is single
+/// threaded, we must ensure that only one rx handle is created for each
+/// interface.
+pub struct KniRx {
     raw: NonNull<ffi::rte_kni>,
 }
 
+impl KniRx {
+    /// Receives a burst of packets from the kernel, up to a maximum of
+    /// 32 packets.
+    pub fn receive(&mut self) -> Vec<Mbuf> {
+        const RX_BURST_MAX: usize = 32;
+        let mut ptrs = Vec::with_capacity(RX_BURST_MAX);
+
+        let len = unsafe {
+            ffi::rte_kni_rx_burst(
+                self.raw.as_mut(),
+                ptrs.as_mut_ptr(),
+                RX_BURST_MAX as raw::c_uint,
+            )
+        };
+
+        let mbufs = unsafe {
+            // does a no-copy conversion to avoid extra allocation.
+            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
+        };
+
+        mem::forget(ptrs);
+        mbufs
+    }
+}
+
+/// In memory queue for the cores to deliver packets that are destined for
+/// the kernel. Then another pipeline will collect these and forward them
+/// on in a thread safe way.
+#[derive(Clone)]
+pub struct KniTxQueue {
+    tx_enque: UnboundedSender<Vec<Mbuf>>,
+}
+
+impl KniTxQueue {
+    pub fn transmit(&mut self, packets: Vec<Mbuf>) {
+        if let Err(err) = self.tx_enque.try_send(packets) {
+            warn!(message = "failed to send to tx queue.", ?err);
+        }
+    }
+}
+
+/// The KNI transmit handle. Because the underlying interface is single
+/// threaded, we must ensure that only one tx handle is created for each
+/// interface.
+pub struct KniTx {
+    raw: NonNull<ffi::rte_kni>,
+    tx_deque: Option<UnboundedReceiver<Vec<Mbuf>>>,
+}
+
+impl KniTx {
+    /// Sends the packets to the kernel.
+    pub fn transmit(&mut self, mut packets: Vec<Mbuf>) {
+        loop {
+            let to_send = packets.len() as raw::c_uint;
+            let sent = unsafe {
+                ffi::rte_kni_tx_burst(
+                    self.raw.as_mut(),
+                    // convert to a pointer to an array of `rte_mbuf` pointers
+                    packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
+                    to_send,
+                )
+            };
+
+            if sent > 0 {
+                if to_send - sent > 0 {
+                    // still have packets not sent. tx queue is full but still making
+                    // progress. we will keep trying until all packets are sent. drains
+                    // the ones already sent first and try again on the rest.
+                    let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
+
+                    // ownership given to `rte_kni_tx_burst`, don't free them.
+                    mem::forget(drained);
+                } else {
+                    // everything sent and ownership given to `rte_kni_tx_burst`, don't
+                    // free them.
+                    mem::forget(packets);
+                    break;
+                }
+            } else {
+                // tx queue is full and we can't make progress, start dropping packets
+                // to avoid potentially stuck in an endless loop.
+                warn!("tx full, dropped {} packets.", to_send);
+                Mbuf::free_bulk(packets);
+                break;
+            }
+        }
+    }
+
+    /// Converts the TX handle into a spawnable pipeline.
+    pub fn into_pipeline(mut self) -> impl Future<Output = ()> {
+        self.tx_deque.take().unwrap().for_each(move |packets| {
+            self.transmit(packets);
+            future::ready(())
+        })
+    }
+}
+
+// we need to send tx and rx across threads to run them.
+unsafe impl Send for KniRx {}
+unsafe impl Send for KniTx {}
+
+/// KNI errors.
+#[derive(Debug, Fail)]
+pub enum KniError {
+    #[fail(display = "KNI is not enabled for the port.")]
+    Disabled,
+
+    #[fail(display = "Another core owns the handle.")]
+    NotAcquired,
+}
+
+/// Kernel NIC interface. This allows the DPDK application to exchange
+/// packets with the kernel networking stack.
+///
+/// The DPDK implementation is single-threaded TX and RX. Only one thread
+/// can receive and one thread can transmit on the interface at a time. To
+/// support a multi-queued port with a single virtual interface, a multi
+/// producer, single consumer channel is used to collect all the kernel
+/// bound packets onto one thread for transmit.
+pub struct Kni {
+    raw: NonNull<ffi::rte_kni>,
+    rx: Option<KniRx>,
+    tx: Option<KniTx>,
+    txq: KniTxQueue,
+}
+
 impl Kni {
-    /// Returns the raw struct needed for FFI calls.
-    #[inline]
-    pub fn raw(&self) -> &ffi::rte_kni {
-        unsafe { self.raw.as_ref() }
+    /// Creates a new KNI.
+    pub fn new(raw: NonNull<ffi::rte_kni>) -> Kni {
+        let (send, recv) = mpsc::unbounded_channel();
+
+        // making 3 clones of the same raw pointer. but we know it is safe
+        // to do because rx and tx happen on two independent queues. so while
+        // each one is single-threaded, they can function in parallel.
+        let rx = KniRx { raw };
+        let tx = KniTx {
+            raw,
+            tx_deque: Some(recv),
+        };
+        let txq = KniTxQueue { tx_enque: send };
+
+        Kni {
+            raw,
+            rx: Some(rx),
+            tx: Some(tx),
+            txq,
+        }
+    }
+
+    /// Takes ownership of the RX handle.
+    pub fn take_rx(&mut self) -> Result<KniRx> {
+        self.rx.take().ok_or_else(|| KniError::NotAcquired.into())
+    }
+
+    /// Takes ownership of the TX handle.
+    pub fn take_tx(&mut self) -> Result<KniTx> {
+        self.tx.take().ok_or_else(|| KniError::NotAcquired.into())
+    }
+
+    /// Returns a TX queue handle to send packets to kernel.
+    pub fn txq(&self) -> KniTxQueue {
+        self.txq.clone()
     }
 
     /// Returns the raw struct needed for FFI calls.
@@ -28,24 +186,11 @@ impl Kni {
     pub fn raw_mut(&mut self) -> &mut ffi::rte_kni {
         unsafe { self.raw.as_mut() }
     }
-
-    /// Returns the name of the KNI device.
-    #[inline]
-    pub fn name(&self) -> String {
-        unsafe { ffi::rte_kni_get_name(self.raw()).as_str().to_owned() }
-    }
-}
-
-impl From<NonNull<ffi::rte_kni>> for Kni {
-    #[inline]
-    fn from(raw: NonNull<ffi::rte_kni>) -> Self {
-        Kni { raw }
-    }
 }
 
 impl Drop for Kni {
     fn drop(&mut self) {
-        debug!("freeing {}.", self.name());
+        debug!("freeing KNI.");
 
         if let Err(err) = unsafe { ffi::rte_kni_release(self.raw_mut()).to_result() } {
             error!(message = "failed to release KNI device.", ?err);
@@ -71,7 +216,7 @@ impl<'a> KniBuilder<'a> {
         }
     }
 
-    pub fn name(&mut self, name: &String) -> &mut Self {
+    pub fn name(&mut self, name: &str) -> &mut Self {
         unsafe {
             self.conf.name = mem::zeroed();
             ptr::copy(
@@ -105,7 +250,7 @@ impl<'a> KniBuilder<'a> {
         unsafe {
             ffi::rte_kni_alloc(self.mempool, &self.conf, &mut self.ops)
                 .to_result()
-                .map(|raw| raw.into())
+                .map(Kni::new)
         }
     }
 }
@@ -120,6 +265,7 @@ pub fn kni_init(max: usize) -> Result<()> {
 }
 
 /// Closes the KNI subsystem.
+#[allow(dead_code)]
 pub fn kni_close() {
     unsafe {
         ffi::rte_kni_close();

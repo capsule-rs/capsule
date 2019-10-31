@@ -1,12 +1,16 @@
 //! Implementations of `PacketRx` and `PacketTx`.
 //!
 //! Implemented for `PortQueue`.
+//! 
+//! `PacketRx` implemented for `KniRx`.
+//!
+//! `PacketTx` implemented for `KniTxQueue`.
 //!
 //! Implemented for the MPSC channel so it can be used as a batch source
 //! mostly in tests.
 
 use super::{PacketRx, PacketTx};
-use crate::{Mbuf, PortQueue};
+use crate::{KniRx, KniTxQueue, Mbuf, PortQueue};
 use std::iter;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -19,6 +23,18 @@ impl PacketRx for PortQueue {
 impl PacketTx for PortQueue {
     fn transmit(&mut self, packets: Vec<Mbuf>) {
         PortQueue::transmit(self, packets)
+    }
+}
+
+impl PacketRx for KniRx {
+    fn receive(&mut self) -> Vec<Mbuf> {
+        KniRx::receive(self)
+    }
+}
+
+impl PacketTx for KniTxQueue {
+    fn transmit(&mut self, packets: Vec<Mbuf>) {
+        KniTxQueue::transmit(self, packets)
     }
 }
 
