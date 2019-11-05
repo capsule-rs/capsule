@@ -32,7 +32,6 @@ impl PacketTx for Sender<Mbuf> {
     fn transmit(&mut self, packets: Vec<Mbuf>) {
         packets.into_iter().for_each(|packet| {
             let _ = self.send(packet);
-            ()
         });
     }
 }
