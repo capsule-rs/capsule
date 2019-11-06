@@ -39,7 +39,7 @@ pub enum Disposition<T: Packet> {
 
     /// Indicating an error has occurred during processing. The packet will
     /// be dropped from the output.
-    Abort(Mbuf, Error),
+    Abort(Error),
 }
 
 impl<T: Packet> Disposition<T> {
@@ -53,7 +53,7 @@ impl<T: Packet> Disposition<T> {
             Disposition::Act(packet) => f(packet),
             Disposition::Emit => Disposition::Emit,
             Disposition::Drop(mbuf) => Disposition::Drop(mbuf),
-            Disposition::Abort(mbuf, err) => Disposition::Abort(mbuf, err),
+            Disposition::Abort(err) => Disposition::Abort(err),
         }
     }
 
@@ -84,7 +84,7 @@ impl<T: Packet> Disposition<T> {
     /// Returns whether the disposition is `Abort`.
     pub fn is_abort(&self) -> bool {
         match self {
-            Disposition::Abort(_, _) => true,
+            Disposition::Abort(_) => true,
             _ => false,
         }
     }
@@ -145,7 +145,7 @@ pub trait Batch {
     #[inline]
     fn filter_map<T: Packet, F>(self, f: F) -> FilterMap<Self, T, F>
     where
-        F: FnMut(Self::Item) -> Result<Option<T>>,
+        F: FnMut(Self::Item) -> Result<Outcome<T>>,
         Self: Sized,
     {
         FilterMap::new(self, f)
@@ -153,12 +153,12 @@ pub trait Batch {
 
     /// Creates a batch that maps the packets to a new type.
     #[inline]
-    fn map<T: Packet, M>(self, map: M) -> Map<Self, T, M>
+    fn map<T: Packet, F>(self, f: F) -> Map<Self, T, F>
     where
-        M: FnMut(Self::Item) -> Result<T>,
+        F: FnMut(Self::Item) -> Result<T>,
         Self: Sized,
     {
-        Map::new(self, map)
+        Map::new(self, f)
     }
 
     /// Calls a closure on each packet of the batch.
@@ -293,9 +293,9 @@ mod tests {
         let mut batch = new_batch(&[&UDP_PACKET, &ICMPV4_PACKET]).filter_map(|p| {
             let v4 = p.parse::<Ethernet>()?.parse::<Ipv4>()?;
             if v4.protocol() == ProtocolNumbers::Udp {
-                Ok(Some(v4))
+                Ok(Outcome::Keep(v4))
             } else {
-                Ok(None)
+                Ok(Outcome::Drop(v4.reset()))
             }
         });
 
