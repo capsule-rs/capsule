@@ -54,15 +54,14 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
-        self.batch.next().map(|disp| match disp {
-            Disposition::Act(packet) => {
-                if (self.predicate)(&packet) {
-                    Disposition::Act(packet)
+        self.batch.next().map(|disp| {
+            disp.map(|pkt| {
+                if (self.predicate)(&pkt) {
+                    Disposition::Act(pkt)
                 } else {
-                    Disposition::Drop(packet.reset())
+                    Disposition::Drop(pkt.reset())
                 }
-            }
-            _ => disp,
+            })
         })
     }
 }

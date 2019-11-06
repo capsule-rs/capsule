@@ -17,7 +17,6 @@
 */
 
 use super::{Batch, Disposition};
-use crate::packets::Packet;
 use crate::Result;
 
 /// A batch that calls a closure on packets in the underlying batch.
@@ -55,7 +54,7 @@ where
         self.batch.next().map(|disp| {
             disp.map(|pkt| match (self.f)(&pkt) {
                 Ok(_) => Disposition::Act(pkt),
-                Err(e) => Disposition::Abort(pkt.reset(), e),
+                Err(e) => Disposition::Abort(e),
             })
         })
     }

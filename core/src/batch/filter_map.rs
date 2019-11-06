@@ -18,16 +18,25 @@
 
 use super::{Batch, Disposition};
 use crate::packets::Packet;
-use crate::Result;
+use crate::{Mbuf, Result};
+
+/// The result of the filter map.
+pub enum Either<T> {
+    /// Keeps the packet as mapped result.
+    Keep(T),
+
+    /// Drops the packet.
+    Drop(Mbuf),
+}
 
 /// A batch that both filters and maps the packets of the underlying batch.
 ///
-/// If the closure returns `None`, the packet is marked as dropped. On
+/// If the closure returns `Drop`, the packet is marked as dropped. On
 /// error, the packet is marked as aborted. In both scenarios, it will
 /// short-circuit the remainder of the pipeline.
 pub struct FilterMap<B: Batch, T: Packet, F>
 where
-    F: FnMut(B::Item) -> Result<Option<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     batch: B,
     f: F,
@@ -35,7 +44,7 @@ where
 
 impl<B: Batch, T: Packet, F> FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<Option<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
@@ -45,7 +54,7 @@ where
 
 impl<B: Batch, T: Packet, F> Batch for FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<Option<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     type Item = T;
 
@@ -57,17 +66,10 @@ where
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
         self.batch.next().map(|disp| {
-            disp.map(|orig| {
-                let mbuf = orig.mbuf().clone();
-
-                match (self.f)(orig) {
-                    Ok(Some(new)) => {
-                        std::mem::forget(mbuf);
-                        Disposition::Act(new)
-                    }
-                    Ok(None) => Disposition::Drop(mbuf),
-                    Err(e) => Disposition::Abort(mbuf, e),
-                }
+            disp.map(|orig| match (self.f)(orig) {
+                Ok(Either::Keep(new)) => Disposition::Act(new),
+                Ok(Either::Drop(mbuf)) => Disposition::Drop(mbuf),
+                Err(e) => Disposition::Abort(e),
             })
         })
     }
