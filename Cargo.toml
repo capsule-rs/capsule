@@ -2,6 +2,7 @@
 members = [
     "bench",
     "core",
+    "examples/ping6d",
     "examples/pktdump",
     "examples/signals",
     "examples/skeleton",

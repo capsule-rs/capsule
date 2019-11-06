@@ -62,8 +62,8 @@ where
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
         // internally the replace combinator will add a new packet to the
-        // batch and mark the original as dropped. each packet in the
-        // batch could become 2.
+        // batch and mark the original as dropped. the iteration grows to
+        // 2x in length because each item becomes 2 items.
         if let Some(pkt) = self.slot.take() {
             // has a packet in the temp slot. marks it as dropped.
             Some(Disposition::Drop(pkt.reset()))

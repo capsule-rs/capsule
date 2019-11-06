@@ -16,7 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::packets::{ip::v4::Ipv4, Ethernet, Packet, Tcp};
+use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::{Ethernet, Packet, Tcp};
 use capsule::settings::load_config;
 use capsule::{batch, Batch, Mbuf, Pipeline, PortQueue, Result, Runtime};
 use std::collections::HashMap;

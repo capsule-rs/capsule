@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::packets::{
-    ip::{v4::Ipv4, v6::Ipv6, IpPacket},
-    EtherTypes, Ethernet, Packet, Tcp,
-};
+use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v6::Ipv6;
+use capsule::packets::ip::IpPacket;
+use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
 use capsule::settings::load_config;
 use capsule::{compose, Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use colored::*;
