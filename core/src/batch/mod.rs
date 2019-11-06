@@ -23,6 +23,7 @@ mod for_each;
 mod group_by;
 mod map;
 mod poll;
+mod replace;
 mod rxtx;
 mod send;
 
@@ -33,6 +34,7 @@ pub use self::for_each::*;
 pub use self::group_by::*;
 pub use self::map::*;
 pub use self::poll::*;
+pub use self::replace::*;
 pub use self::rxtx::*;
 pub use self::send::*;
 
@@ -241,6 +243,18 @@ pub trait Batch {
         GroupBy::new(self, selector, composer)
     }
 
+    /// A batch that replaces each packet with another packet.
+    ///
+    /// Use for pipelines that generate new outbound packets based on the
+    /// inbound packets but does not need to modify the inbound.
+    fn replace<T: Packet, F>(self, f: F) -> Replace<Self, T, F>
+    where
+        F: FnMut(&Self::Item) -> Result<T>,
+        Self: Sized,
+    {
+        Replace::new(self, f)
+    }
+
     /// Turns the batch pipeline into an executable task.
     ///
     /// Send marks the end of the batch pipeline. No more combinators can be
@@ -408,7 +422,7 @@ mod tests {
         assert!(batch.next().unwrap().is_drop());
     }
 
-    #[nb2::test]
+    #[capsule::test]
     fn group_by_no_catchall() {
         let mut batch = new_batch(&[&ICMPV4_PACKET])
             .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
@@ -425,5 +439,17 @@ mod tests {
 
         // did not match, passes through
         assert!(batch.next().unwrap().is_act());
+    }
+
+    #[capsule::test]
+    fn replace_batch() {
+        let mut batch = new_batch(&[&UDP_PACKET]).replace(|_| Mbuf::from_bytes(&TCP_PACKET));
+
+        // first one is the replacement
+        assert!(batch.next().unwrap().is_act());
+        // next one is the original
+        assert!(batch.next().unwrap().is_drop());
+        // at the end
+        assert!(batch.next().is_none());
     }
 }
