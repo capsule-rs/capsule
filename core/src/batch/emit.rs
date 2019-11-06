@@ -1,20 +1,20 @@
-use super::{Batch, Disposition};
+use super::{Batch, Disposition, PacketTx};
 use crate::packets::Packet;
 
-/// A batch that short-circuits the remainder of the pipeline and marks
-/// all packets for transmit.
-pub struct Emit<B: Batch> {
+/// A batch that transmits the packets through the specified `PacketTx`.
+pub struct Emit<B: Batch, Tx: PacketTx> {
     batch: B,
+    tx: Tx,
 }
 
-impl<B: Batch> Emit<B> {
+impl<B: Batch, Tx: PacketTx> Emit<B, Tx> {
     #[inline]
-    pub fn new(batch: B) -> Self {
-        Emit { batch }
+    pub fn new(batch: B, tx: Tx) -> Self {
+        Emit { batch, tx }
     }
 }
 
-impl<B: Batch> Batch for Emit<B> {
+impl<B: Batch, Tx: PacketTx> Batch for Emit<B, Tx> {
     type Item = B::Item;
 
     #[inline]
@@ -24,8 +24,11 @@ impl<B: Batch> Batch for Emit<B> {
 
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
-        self.batch
-            .next()
-            .map(|disp| disp.map(|pkt| Disposition::Emit(pkt.reset())))
+        self.batch.next().map(|disp| {
+            disp.map(|pkt| {
+                self.tx.transmit(vec![pkt.reset()]);
+                Disposition::Emit
+            })
+        })
     }
 }

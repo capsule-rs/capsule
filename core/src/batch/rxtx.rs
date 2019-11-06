@@ -2,11 +2,13 @@
 //!
 //! Implemented for `PortQueue`.
 //!
-//! Implemented for `Vec` so it can be used as the batch source mostly
-//! in tests.
+//! Implemented for the MPSC channel so it can be used as a batch source
+//! mostly in tests.
 
 use super::{PacketRx, PacketTx};
 use crate::{Mbuf, PortQueue};
+use std::iter;
+use std::sync::mpsc::{Receiver, Sender};
 
 impl PacketRx for PortQueue {
     fn receive(&mut self) -> Vec<Mbuf> {
@@ -20,15 +22,17 @@ impl PacketTx for PortQueue {
     }
 }
 
-impl PacketRx for Vec<Mbuf> {
+impl PacketRx for Receiver<Mbuf> {
     fn receive(&mut self) -> Vec<Mbuf> {
-        self.drain(..).collect()
+        iter::from_fn(|| self.try_recv().ok()).collect::<Vec<_>>()
     }
 }
 
-impl PacketTx for Vec<Mbuf> {
+impl PacketTx for Sender<Mbuf> {
     fn transmit(&mut self, packets: Vec<Mbuf>) {
-        self.extend_from_slice(&packets)
+        packets.into_iter().for_each(|packet| {
+            let _ = self.send(packet);
+        });
     }
 }
 
