@@ -183,7 +183,7 @@ pub trait Batch {
     /// into sub batches based on this value.
     ///
     /// `composer` is a closure that constructs a hash map of batch pipeline
-    /// builders for each individual sub batch. The `compose!` macro is an
+    /// builders for each individual sub pipeline. The `compose!` macro is an
     /// ergonomic way to write the composer closure. The syntax of the macro
     /// loosely resembles the `match` expression. Each match arm consists of
     /// a single discriminator value mapped to a builder closure.
