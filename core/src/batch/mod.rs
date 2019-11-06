@@ -146,7 +146,7 @@ pub trait Batch {
     #[inline]
     fn filter_map<T: Packet, F>(self, f: F) -> FilterMap<Self, T, F>
     where
-        F: FnMut(Self::Item) -> Result<Outcome<T>>,
+        F: FnMut(Self::Item) -> Result<Either<T>>,
         Self: Sized,
     {
         FilterMap::new(self, f)
@@ -294,9 +294,9 @@ mod tests {
         let mut batch = new_batch(&[&UDP_PACKET, &ICMPV4_PACKET]).filter_map(|p| {
             let v4 = p.parse::<Ethernet>()?.parse::<Ipv4>()?;
             if v4.protocol() == ProtocolNumbers::Udp {
-                Ok(Outcome::Keep(v4))
+                Ok(Either::Keep(v4))
             } else {
-                Ok(Outcome::Drop(v4.reset()))
+                Ok(Either::Drop(v4.reset()))
             }
         });
 

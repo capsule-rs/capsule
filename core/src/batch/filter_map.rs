@@ -2,8 +2,8 @@ use super::{Batch, Disposition};
 use crate::packets::Packet;
 use crate::{Mbuf, Result};
 
-/// The outcome of the filter map.
-pub enum Outcome<T> {
+/// The result of the filter map.
+pub enum Either<T> {
     /// Keeps the packet as mapped result.
     Keep(T),
 
@@ -18,7 +18,7 @@ pub enum Outcome<T> {
 /// short-circuit the remainder of the pipeline.
 pub struct FilterMap<B: Batch, T: Packet, F>
 where
-    F: FnMut(B::Item) -> Result<Outcome<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     batch: B,
     f: F,
@@ -26,7 +26,7 @@ where
 
 impl<B: Batch, T: Packet, F> FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<Outcome<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
@@ -36,7 +36,7 @@ where
 
 impl<B: Batch, T: Packet, F> Batch for FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<Outcome<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     type Item = T;
 
@@ -49,8 +49,8 @@ where
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
         self.batch.next().map(|disp| {
             disp.map(|orig| match (self.f)(orig) {
-                Ok(Outcome::Keep(new)) => Disposition::Act(new),
-                Ok(Outcome::Drop(mbuf)) => Disposition::Drop(mbuf),
+                Ok(Either::Keep(new)) => Disposition::Act(new),
+                Ok(Either::Drop(mbuf)) => Disposition::Drop(mbuf),
                 Err(e) => Disposition::Abort(e),
             })
         })
