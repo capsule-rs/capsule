@@ -1,4 +1,5 @@
-use nb2::packets::{ip::v4::Ipv4, Ethernet, Packet, Tcp};
+use nb2::packets::ip::v4::Ipv4;
+use nb2::packets::{Ethernet, Packet, Tcp};
 use nb2::settings::load_config;
 use nb2::{batch, Batch, Mbuf, Pipeline, PortQueue, Result, Runtime};
 use std::collections::HashMap;
