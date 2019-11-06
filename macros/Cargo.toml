@@ -12,5 +12,6 @@ proc-macro = true
 doctest = false
 
 [dependencies]
+darling ="0.10"
 quote = "1"
 syn = { version = "1.0", features = ["full"] }

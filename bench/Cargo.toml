@@ -11,6 +11,7 @@ build = "build.rs"
 [dev-dependencies]
 criterion = "0.3"
 nb2 = { path = "../core", features = ["testils"] }
+proptest = "0.9"
 
 [[bench]]
 name = "packets"

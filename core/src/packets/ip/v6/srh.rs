@@ -652,6 +652,7 @@ mod tests {
         let srh_packet_len = srh.len();
         srh.cascade();
         let ipv6 = srh.deparse();
+        assert_ne!(srh_packet_len, ipv6_payload_len as usize);
         assert_eq!(srh_packet_len, ipv6.payload_length() as usize)
     }
 

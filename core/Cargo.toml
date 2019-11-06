@@ -15,6 +15,7 @@ doctest = false
 [dependencies]
 clap = "2.33"
 config = "0.9"
+criterion = { version = "0.3", optional = true }
 failure = "0.1"
 fallible-iterator = "0.2"
 futures-preview = "=0.3.0-alpha.19"
@@ -32,9 +33,10 @@ tracing = "0.1"
 
 [dev-dependencies]
 colored = ">= 1.6"
+criterion = "0.3"
 proptest = { version = "0.9", default-features = false, features = ["default-code-coverage"] }
 tracing-subscriber = "0.1"
 
 [features]
 default = []
-testils = ["proptest"]
+testils = ["proptest", "criterion"]
