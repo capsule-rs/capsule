@@ -97,7 +97,7 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoRequest> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, EchoRequest> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, EchoRequest> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("icmpv6")
             .field("type", &self.msg_type())
