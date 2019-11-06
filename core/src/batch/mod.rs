@@ -175,15 +175,22 @@ pub trait Batch {
         ForEach::new(self, f)
     }
 
-    /// Splits the batch into multiple sub batches.
+    /// Splits the packets into multiple sub batches. Each sub batch runs
+    /// through a separate pipeline, and are then merged back together.
     ///
     /// `selector` is a closure that receives a reference to the packet and
     /// evaluates to a discriminator value. The underlying batch will be split
     /// into sub batches based on this value.
     ///
     /// `composer` is a closure that constructs a hash map of batch pipeline
-    /// builders for each individual sub batch. The `compose` macro is an
-    /// ergonomic way to write the composer closure.
+    /// builders for each individual sub pipeline. The `compose!` macro is an
+    /// ergonomic way to write the composer closure. The syntax of the macro
+    /// loosely resembles the `match` expression. Each match arm consists of
+    /// a single discriminator value mapped to a builder closure.
+    ///
+    /// If a packet does not match with an arm, it will be passed through to
+    /// the next combinator. Use the catch all arm `_` to make the matching
+    /// exhaustive.
     ///
     /// # Example
     ///
@@ -191,16 +198,18 @@ pub trait Batch {
     /// let mut batch = batch.group_by(
     ///     |packet| packet.protocol(),
     ///     |groups| {
-    ///         compose!(
-    ///             groups,
+    ///         compose!( groups {
     ///             ProtocolNumbers::Tcp => |group| {
     ///                 group.map(do_tcp)
-    ///             },
+    ///             }
     ///             ProtocolNumbers::Udp => |group| {
     ///                 group.map(do_udp)
     ///             }
-    ///         )
-    ///     }
+    ///             _ => |group| {
+    ///                 group.map(unmatched)
+    ///             }
+    ///         })
+    ///     },
     /// );
     /// ```
     #[inline]
@@ -208,7 +217,7 @@ pub trait Batch {
     where
         D: Eq + Clone + Hash,
         S: Fn(&Self::Item) -> D,
-        C: FnOnce(&mut HashMap<Option<D>, Box<PipelineBuilder<Self::Item>>>) -> (),
+        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<Self::Item>>>) -> (),
         Self: Sized,
     {
         GroupBy::new(self, selector, composer)
@@ -341,26 +350,25 @@ mod tests {
             .group_by(
                 |p| p.protocol(),
                 |groups| {
-                    compose!(
-                        groups,
+                    compose!( groups {
                         ProtocolNumbers::Tcp => |group| {
                             group.map(|mut p| {
                                 p.set_ttl(1);
                                 Ok(p)
                             })
-                        },
+                        }
                         ProtocolNumbers::Udp => |group| {
                             group.map(|mut p| {
                                 p.set_ttl(2);
                                 Ok(p)
                             })
-                        },
+                        }
                         _ => |group| {
                             group.filter(|_| {
                                 false
                             })
                         }
-                    );
+                    })
                 },
             );
 
@@ -380,5 +388,24 @@ mod tests {
 
         // last one is the catch all arm
         assert!(batch.next().unwrap().is_drop());
+    }
+
+    #[nb2::test]
+    fn group_by_no_catchall() {
+        let mut batch = new_batch(&[&ICMPV4_PACKET])
+            .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
+            .group_by(
+                |p| p.protocol(),
+                |groups| {
+                    compose!( groups {
+                        ProtocolNumbers::Tcp => |group| {
+                            group.filter(|_| false)
+                        }
+                    })
+                },
+            );
+
+        // did not match, passes through
+        assert!(batch.next().unwrap().is_act());
     }
 }
