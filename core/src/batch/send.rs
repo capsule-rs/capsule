@@ -47,9 +47,9 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
         while let Some(disp) = self.batch.next() {
             match disp {
                 Disposition::Act(packet) => transmit_q.push(packet.reset()),
-                Disposition::Emit(mbuf) => transmit_q.push(mbuf),
                 Disposition::Drop(mbuf) => drop_q.push(mbuf),
                 Disposition::Abort(mbuf, _) => drop_q.push(mbuf),
+                Disposition::Emit => (),
             }
         }
 

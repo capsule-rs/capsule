@@ -48,9 +48,9 @@ pub enum Disposition<T: Packet> {
     /// Indicating the packet should be processed.
     Act(T),
 
-    /// Indicating to skip any further processing and emit the packet as
-    /// is. The packet short-circuits the rest of the pipeline.
-    Emit(Mbuf),
+    /// Indicating the packet has already been sent, possibly through a
+    /// different `PacketTx`.
+    Emit,
 
     /// Indicating the packet is intentionally dropped from the output.
     Drop(Mbuf),
@@ -69,7 +69,7 @@ impl<T: Packet> Disposition<T> {
     {
         match self {
             Disposition::Act(packet) => f(packet),
-            Disposition::Emit(mbuf) => Disposition::Emit(mbuf),
+            Disposition::Emit => Disposition::Emit,
             Disposition::Drop(mbuf) => Disposition::Drop(mbuf),
             Disposition::Abort(mbuf, err) => Disposition::Abort(mbuf, err),
         }
@@ -86,7 +86,7 @@ impl<T: Packet> Disposition<T> {
     /// Returns whether the disposition is `Emit`.
     pub fn is_emit(&self) -> bool {
         match self {
-            Disposition::Emit(_) => true,
+            Disposition::Emit => true,
             _ => false,
         }
     }
@@ -134,16 +134,18 @@ pub trait Batch {
     /// the next cycle, call `replenish` first.
     fn next(&mut self) -> Option<Disposition<Self::Item>>;
 
-    /// Creates a batch that marks all unmarked packets for transmission.
+    /// Creates a batch that transmits all packets through the specified
+    /// `PacketTx`.
     ///
-    /// Use when processing is complete and no further modifications are
-    /// necessary. Any further combinators will have no effect on packets
-    /// that have been through the emit batch.
-    fn emit(self) -> Emit<Self>
+    /// Use when packets need to be delivered to a destination different
+    /// from the pipeline's main outbound queue. The send is immediate and
+    /// is not in batch. Packets sent with `emit` will be out of order
+    /// relative to other packets in the batch.
+    fn emit<Tx: PacketTx>(self, tx: Tx) -> Emit<Self, Tx>
     where
         Self: Sized,
     {
-        Emit::new(self)
+        Emit::new(self, tx)
     }
 
     /// Creates a batch that uses a predicate to determine if a packet
@@ -265,25 +267,34 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
+    use std::sync::mpsc;
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
-        let q = data
+        let packets = data
             .iter()
             .map(|bytes| Mbuf::from_bytes(bytes).unwrap())
             .collect::<Vec<_>>();
-        let mut batch = Poll::new(q);
+
+        let (mut tx, rx) = mpsc::channel();
+        tx.transmit(packets);
+        let mut batch = Poll::new(rx);
         batch.replenish();
         batch
     }
 
     #[capsule::test]
     fn emit_batch() {
+        let (tx, mut rx) = mpsc::channel();
+
         let mut batch = new_batch(&[&UDP_PACKET])
             .map(|p| p.parse::<Ethernet>())
-            .emit()
+            .emit(tx)
             .for_each(|_| panic!("emit broken!"));
 
         assert!(batch.next().unwrap().is_emit());
+
+        // sent to the tx
+        assert_eq!(1, rx.receive().len());
     }
 
     #[capsule::test]
