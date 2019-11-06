@@ -53,7 +53,7 @@ impl<T: Packet> Batch for Bridge<T> {
 }
 
 /// Builder closure for a sub batch from a bridge.
-pub type PipelineBuilder<T> = dyn Fn(Bridge<T>) -> Box<dyn Batch<Item = T>>;
+pub type GroupByBatchBuilder<T> = dyn Fn(Bridge<T>) -> Box<dyn Batch<Item = T>>;
 
 /// A batch that splits the underlying batch into multiple sub batches.
 ///
@@ -83,7 +83,7 @@ where
     #[inline]
     pub fn new<C>(batch: B, selector: S, composer: C) -> Self
     where
-        C: FnOnce(&mut HashMap<Option<D>, Box<PipelineBuilder<B::Item>>>) -> (),
+        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<B::Item>>>) -> (),
     {
         // get the builders for the sub batches
         let mut builders = HashMap::new();
@@ -159,15 +159,15 @@ macro_rules! __compose {
 /// Composes the batch builders for the `group_by` combinator
 #[macro_export]
 macro_rules! compose {
-    ($map:ident, $($key:expr => |$arg:tt| $body:block),*) => {{
+    ($map:ident { $($key:expr => |$arg:tt| $body:block)* }) => {{
         $crate::__compose!($map, $($key => |$arg| $body),*);
         $map.insert(None, Box::new(|group| Box::new(group)));
     }};
-    ($map:ident, $($key:expr => |$arg:tt| $body:block),*,_ => |$_arg:tt| $_body:block) => {{
+    ($map:ident { $($key:expr => |$arg:tt| $body:block)* _ => |$_arg:tt| $_body:block }) => {{
         $crate::__compose!($map, $($key => |$arg| $body),*);
         $map.insert(None, Box::new(|$_arg| Box::new($_body)));
     }};
-    ($map:ident, _ => |$_arg:tt| $_body:block) => {{
+    ($map:ident { _ => |$_arg:tt| $_body:block }) => {{
         $map.insert(None, Box::new(|$_arg| Box::new($_body)));
     }};
 }
