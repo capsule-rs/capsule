@@ -6,27 +6,27 @@ use crate::Result;
 ///
 /// On error, the packet is marked as `aborted` and will short-circuit the
 /// remainder of the pipeline.
-pub struct Map<B: Batch, T: Packet, M>
+pub struct Map<B: Batch, T: Packet, F>
 where
-    M: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Result<T>,
 {
     batch: B,
-    map: M,
+    f: F,
 }
 
-impl<B: Batch, T: Packet, M> Map<B, T, M>
+impl<B: Batch, T: Packet, F> Map<B, T, F>
 where
-    M: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Result<T>,
 {
     #[inline]
-    pub fn new(batch: B, map: M) -> Self {
-        Map { batch, map }
+    pub fn new(batch: B, f: F) -> Self {
+        Map { batch, f }
     }
 }
 
-impl<B: Batch, T: Packet, M> Batch for Map<B, T, M>
+impl<B: Batch, T: Packet, F> Batch for Map<B, T, F>
 where
-    M: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Result<T>,
 {
     type Item = T;
 
@@ -38,20 +38,9 @@ where
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
         self.batch.next().map(|disp| {
-            disp.map(|orig| {
-                // because the ownership is moved into the map fn, we have
-                // to keep a copy of the underlying mbuf pointer in case we
-                // error out.
-                let mbuf = orig.mbuf().clone();
-
-                match (self.map)(orig) {
-                    Ok(new) => {
-                        // TODO: should ref count, not this hacky way.
-                        std::mem::forget(mbuf);
-                        Disposition::Act(new)
-                    }
-                    Err(e) => Disposition::Abort(mbuf, e),
-                }
+            disp.map(|orig| match (self.f)(orig) {
+                Ok(new) => Disposition::Act(new),
+                Err(e) => Disposition::Abort(e),
             })
         })
     }

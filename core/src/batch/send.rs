@@ -30,8 +30,8 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
             match disp {
                 Disposition::Act(packet) => transmit_q.push(packet.reset()),
                 Disposition::Drop(mbuf) => drop_q.push(mbuf),
-                Disposition::Abort(mbuf, _) => drop_q.push(mbuf),
-                Disposition::Emit => (),
+                // nothing to do for abort and emit.
+                _ => (),
             }
         }
 
