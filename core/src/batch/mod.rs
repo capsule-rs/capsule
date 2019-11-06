@@ -38,7 +38,8 @@ pub enum Disposition<T: Packet> {
     Drop(Mbuf),
 
     /// Indicating an error has occurred during processing. The packet will
-    /// be dropped from the output.
+    /// be dropped from the output. Aborted packets are not bulk freed.
+    /// The packet is returned to mempool when it goes out of scope.
     Abort(Error),
 }
 
