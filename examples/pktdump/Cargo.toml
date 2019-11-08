@@ -3,9 +3,11 @@ name = "pktdump"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = ["dpdk", "nfv"]
+keywords = []
 edition = "2018"
 build = "build.rs"
+description = "V4/V6 packet-printer example"
+categories = []
 
 [[bin]]
 name = "pktdump"

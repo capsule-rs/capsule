@@ -16,6 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-// This is purposely empty
-
-fn main() {}
+fn main() {
+    // empty on-purpose
+}

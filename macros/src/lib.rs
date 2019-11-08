@@ -20,9 +20,27 @@
 
 extern crate proc_macro;
 
+use darling::FromMeta;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemFn};
+use syn::{parse_macro_input, AttributeArgs, ItemFn};
+
+// Handle arguments to our macros or default otherwise
+#[derive(Debug, FromMeta)]
+#[darling(default)]
+struct AttrArgs {
+    mempool_capacity: usize,
+    mempool_cache_size: usize,
+}
+
+impl Default for AttrArgs {
+    fn default() -> Self {
+        AttrArgs {
+            mempool_capacity: 15,
+            mempool_cache_size: 0,
+        }
+    }
+}
 
 /// Procedural macro for running DPDK based tests.
 ///
@@ -44,7 +62,7 @@ use syn::{parse_macro_input, ItemFn};
 ///     }
 /// ```
 #[proc_macro_attribute]
-pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemFn);
 
     let ret = &input.sig.output;
@@ -52,11 +70,25 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
     let inputs = &input.sig.inputs;
     let body = &input.block;
 
+    let attr_args = parse_macro_input!(args as AttributeArgs);
+
+    let AttrArgs {
+        mempool_capacity,
+        mempool_cache_size,
+    } = match AttrArgs::from_list(&attr_args) {
+        Ok(v) => v,
+        Err(e) => {
+            return e.write_errors().into();
+        }
+    };
+
     let result = quote! {
         #[test]
         fn #name(#inputs) #ret {
             ::capsule::testils::cargo_test_init();
-            let mut mempool = ::capsule::testils::Mempool::new(15, 0, ::capsule::testils::SocketId::ANY).unwrap();
+            let mut mempool = ::capsule::testils::Mempool::new(#mempool_capacity,
+                                                           #mempool_cache_size,
+                                                           ::capsule::testils::SocketId::ANY).unwrap();
             ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
             #body
@@ -78,7 +110,7 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// # Example
 ///
 /// ```
-/// #[capsule::bench]
+/// #[capsule::bench(mempool_capcity = 30)]
 /// fn run_benchmark(c: &mut Criterion) {
 ///     c.bench_function("bench:run_benchmark", |b| {
 ///         b.iter(|| bench_thing());
@@ -86,7 +118,7 @@ pub fn test(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn bench(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn bench(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemFn);
 
     let ret = &input.sig.output;
@@ -94,10 +126,24 @@ pub fn bench(_args: TokenStream, input: TokenStream) -> TokenStream {
     let inputs = &input.sig.inputs;
     let body = &input.block;
 
+    let attr_args = parse_macro_input!(args as AttributeArgs);
+
+    let AttrArgs {
+        mempool_capacity,
+        mempool_cache_size,
+    } = match AttrArgs::from_list(&attr_args) {
+        Ok(v) => v,
+        Err(e) => {
+            return e.write_errors().into();
+        }
+    };
+
     let result = quote! {
         fn #name(#inputs) #ret {
             ::capsule::testils::cargo_test_init();
-            let mut mempool = ::capsule::testils::Mempool::new(15, 0, ::capsule::testils::SocketId::ANY).unwrap();
+            let mut mempool = ::capsule::testils::Mempool::new(#mempool_capacity,
+                                                           #mempool_cache_size,
+                                                           ::capsule::testils::SocketId::ANY).unwrap();
             ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
 
             #body

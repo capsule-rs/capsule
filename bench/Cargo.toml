@@ -3,14 +3,17 @@ name = "capsule-bench"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = ["dpdk", "nfv"]
+keywords = []
 publish = false
 edition = "2018"
 build = "build.rs"
+description = "Benchmarks for Capsule"
+categories = []
 
 [dev-dependencies]
 capsule = { path = "../core", features = ["testils"] }
 criterion = "0.3"
+proptest = "0.9"
 
 [[bench]]
 name = "packets"

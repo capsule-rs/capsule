@@ -3,10 +3,12 @@ name = "capsule-ffi"
 version = "18.11.2"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = ["dpdk", "nfv"]
+keywords = []
 edition = "2018"
 build = "build.rs"
 links = "dpdk"
+description = "Capsule FFI bindings for native libraries"
+categories = []
 
 [lib]
 name = "capsule_ffi"
