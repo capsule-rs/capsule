@@ -2,24 +2,25 @@ use proptest::collection::vec;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::{Config, TestRunner};
 
-/// Struct for generating `proptest` strategies, e.g. a single packet or vector
-/// of packets, as a single value
-pub struct StrategyValGen {
+/// Random value generator (RNG), which, given proptest strategies, will to
+/// generate random values based on those strategies.
+#[derive(Default)]
+pub struct Rvg {
     runner: TestRunner,
 }
 
-impl StrategyValGen {
-    /// Create a new instance of the StrategyValGen with the default RNG.
+impl Rvg {
+    /// Create a new instance of the RVG with the default RNG.
     pub fn new() -> Self {
-        StrategyValGen {
+        Rvg {
             runner: TestRunner::new(Config::default()),
         }
     }
 
-    /// Create a new instance of the StrategyValGen with a deterministic RNG,
+    /// Create a new instance of the RVG with a deterministic RNG,
     /// using the same seed across test runs.
     pub fn deterministic() -> Self {
-        Self {
+        Rvg {
             runner: TestRunner::deterministic(),
         }
     }
@@ -29,7 +30,7 @@ impl StrategyValGen {
     /// # Example
     ///
     /// ```
-    /// let mut gen = StrategyValGen::new();
+    /// let mut gen = Rvg::new();
     /// let udp = gen.generate(v4_udp());
     /// ```
     pub fn generate<S: Strategy>(&mut self, strategy: S) -> S::Value {
@@ -44,11 +45,11 @@ impl StrategyValGen {
     /// # Example
     ///
     /// ```
-    /// let mut gen = StrategyValGen::new();
+    /// let mut gen = Rvg::new();
     /// let udps = gen.generate_vec(v4_udp(), 10);
     /// ```
     pub fn generate_vec<S: Strategy>(&mut self, strategy: &S, len: usize) -> Vec<S::Value> {
-        vec(strategy, len..len + 1)
+        vec(strategy, len..=len)
             .new_tree(&mut self.runner)
             .expect("No value can be generated")
             .current()

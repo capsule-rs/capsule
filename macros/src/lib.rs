@@ -10,14 +10,14 @@ use syn::{parse_macro_input, AttributeArgs, ItemFn};
 // Handle arguments to our macros or default otherwise
 #[derive(Debug, FromMeta)]
 #[darling(default)]
-struct DeriveArgs {
+struct AttrArgs {
     mempool_capacity: usize,
     mempool_cache_size: usize,
 }
 
-impl Default for DeriveArgs {
+impl Default for AttrArgs {
     fn default() -> Self {
-        DeriveArgs {
+        AttrArgs {
             mempool_capacity: 15,
             mempool_cache_size: 0,
         }
@@ -54,10 +54,10 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let attr_args = parse_macro_input!(args as AttributeArgs);
 
-    let DeriveArgs {
+    let AttrArgs {
         mempool_capacity,
         mempool_cache_size,
-    } = match DeriveArgs::from_list(&attr_args) {
+    } = match AttrArgs::from_list(&attr_args) {
         Ok(v) => v,
         Err(e) => {
             return e.write_errors().into();
@@ -110,10 +110,10 @@ pub fn bench(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let attr_args = parse_macro_input!(args as AttributeArgs);
 
-    let DeriveArgs {
+    let AttrArgs {
         mempool_capacity,
         mempool_cache_size,
-    } = match DeriveArgs::from_list(&attr_args) {
+    } = match AttrArgs::from_list(&attr_args) {
         Ok(v) => v,
         Err(e) => {
             return e.write_errors().into();

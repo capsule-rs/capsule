@@ -1,4 +1,4 @@
-use super::StrategyValGen;
+use super::Rvg;
 use criterion::{black_box, Bencher};
 use proptest::strategy::Strategy;
 use std::cmp;
@@ -18,7 +18,7 @@ impl BencherExt for Bencher<'_> {
     {
         self.iter_custom(|mut iters| {
             let mut total_elapsed = Duration::from_secs(0);
-            let mut gen = StrategyValGen::deterministic();
+            let mut gen = Rvg::deterministic();
             while iters > 0 {
                 let batch_size = cmp::min(batch_size, iters as usize);
                 let inputs = black_box(gen.generate_vec(&strategy, batch_size));

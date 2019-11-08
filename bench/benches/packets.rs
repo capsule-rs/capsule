@@ -9,16 +9,16 @@ use proptest::prelude::*;
 
 const BATCH_SIZE: usize = 500;
 
-fn parse_udp_packet(mbuf: Mbuf) {
+fn parse_udp_packet(mbuf: Mbuf) -> Udp<Ipv4> {
     let ethernet = mbuf.parse::<Ethernet>().unwrap();
     let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-    ipv4.parse::<Udp<Ipv4>>().unwrap();
+    ipv4.parse::<Udp<Ipv4>>().unwrap()
 }
 
-fn deparse_udp_packet(udp: Udp<Ipv4>) {
+fn deparse_udp_packet(udp: Udp<Ipv4>) -> Mbuf {
     let d_ipv4 = udp.deparse();
     let d_eth = d_ipv4.deparse();
-    d_eth.deparse();
+    d_eth.deparse()
 }
 
 #[nb2::bench(mempool_capacity = 512)]

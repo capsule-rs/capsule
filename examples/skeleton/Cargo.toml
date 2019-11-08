@@ -3,9 +3,13 @@ name = "skeleton"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv"]
+keywords = ["dpdk", "nfv", "sdn"]
 edition = "2018"
 build = "build.rs"
+description = "Base skeleton example"
+repository = "https://github.com/williamofockham/nb2/tree/master/examples/skeleton"
+readme = "../../README.md"
+categories = ["network-programming", "packet-processing"]
 
 [[bin]]
 name = "skeleton"
