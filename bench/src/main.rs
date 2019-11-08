@@ -1,3 +1,3 @@
-// This is purposely empty
+// Empty on-purpose
 
 fn main() {}

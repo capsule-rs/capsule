@@ -3,14 +3,19 @@ name = "nb2-bench"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv"]
+keywords = []
 publish = false
 edition = "2018"
 build = "build.rs"
+description = "benchmarks for nb2"
+repository = "https://github.com/williamofockham/nb2/bench"
+readme = "../README.md"
+categories = []
 
 [dev-dependencies]
 criterion = "0.3"
 nb2 = { path = "../core", features = ["testils"] }
+proptest = "0.9"
 
 [[bench]]
 name = "packets"

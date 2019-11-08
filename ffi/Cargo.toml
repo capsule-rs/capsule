@@ -3,10 +3,14 @@ name = "nb2-ffi"
 version = "18.11.2"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv"]
+keywords = []
 edition = "2018"
 build = "build.rs"
 links = "dpdk"
+description = "FFI dpdk shims for nb2"
+repository = "https://github.com/williamofockham/nb2/ffi"
+readme = "../README.md"
+categories = []
 
 [lib]
 name = "nb2_ffi"

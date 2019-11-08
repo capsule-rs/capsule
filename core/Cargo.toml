@@ -3,9 +3,13 @@ name = "nb2"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv"]
+keywords = []
 edition = "2018"
 build = "build.rs"
+description = "A network function framework written in Rust and using DPDK"
+repository = "https://github.com/williamofockham/nb2/core"
+readme = "../README.md"
+categories = []
 
 [lib]
 name = "nb2"
@@ -15,6 +19,7 @@ doctest = false
 [dependencies]
 clap = "2.33"
 config = "0.9"
+criterion = { version = "0.3", optional = true }
 failure = "0.1"
 fallible-iterator = "0.2"
 futures-preview = "=0.3.0-alpha.19"
@@ -37,4 +42,4 @@ tracing-subscriber = "0.1"
 
 [features]
 default = []
-testils = ["proptest"]
+testils = ["proptest", "criterion"]

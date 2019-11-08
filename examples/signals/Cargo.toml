@@ -3,9 +3,13 @@ name = "signals"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv"]
+keywords = []
 edition = "2018"
 build = "build.rs"
+description = "Signal-handling example"
+repository = "https://github.com/williamofockham/nb2/tree/master/examples/signals"
+readme = "../../README.md"
+categories = []
 
 [[bin]]
 name = "signals"
