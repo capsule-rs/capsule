@@ -1,4 +1,4 @@
-CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D clippy::cargo_common_metadata -D warnings
+CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D warnings
 COVERAGE_PACKAGES = nb2
 COVERAGE_EXCLUDES = macros/*
 

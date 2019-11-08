@@ -3,13 +3,13 @@ name = "pktdump"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
-keywords = ["dpdk", "nfv", "sdn"]
+keywords = []
 edition = "2018"
 build = "build.rs"
 description = "V4/V6 packet-printer example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/pktdump"
 readme = "../../README.md"
-categories = ["network-programming", "packet-processing"]
+categories = []
 
 [[bin]]
 name = "pktdump"
