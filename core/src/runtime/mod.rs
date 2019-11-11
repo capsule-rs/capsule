@@ -42,6 +42,12 @@ impl Runtime {
         info!("initializing EAL...");
         dpdk::eal_init(config.to_eal_args())?;
 
+        #[cfg(feature = "metrics")]
+        {
+            info!("initializing metrics subsystem...");
+            crate::metrics::init()?;
+        }
+
         let cores = config.all_cores();
 
         info!("initializing mempools...");
@@ -75,6 +81,9 @@ impl Runtime {
             debug!(?port);
             ports.push(port);
         }
+
+        #[cfg(feature = "metrics")]
+        crate::metrics::register_port_stats(&ports);
 
         info!("runtime ready.");
 

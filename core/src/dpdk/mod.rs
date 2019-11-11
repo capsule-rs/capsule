@@ -2,11 +2,15 @@ mod kni;
 mod mbuf;
 mod mempool;
 mod port;
+#[cfg(feature = "metrics")]
+mod stats;
 
 pub use self::kni::*;
 pub use self::mbuf::*;
 pub use self::mempool::*;
 pub use self::port::*;
+#[cfg(feature = "metrics")]
+pub use self::stats::*;
 
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
