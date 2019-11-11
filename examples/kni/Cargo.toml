@@ -18,6 +18,8 @@ doctest = false
 
 [dependencies]
 failure = "0.1"
+metrics-core = "0.5"
+metrics-runtime = "0.12"
 nb2 = { path = "../../core" }
 tracing = "0.1"
 tracing-subscriber = "0.1"
