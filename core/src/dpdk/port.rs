@@ -1,4 +1,6 @@
-use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, PortStats, SocketId};
+#[cfg(feature = "metrics")]
+use super::PortStats;
+use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
@@ -155,7 +157,7 @@ impl PortQueue {
         self.kni = Some(kni);
     }
 
-    /// Sets the TX drop counter. All other metrics are alreacy tracked by
+    /// Sets the TX drop counter. All other metrics are already tracked by
     /// DPDK internally except for packets that are dropped because the TX
     /// queue is full.
     #[cfg(feature = "metrics")]

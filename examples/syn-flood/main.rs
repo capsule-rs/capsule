@@ -63,7 +63,7 @@ fn main() -> Result<()> {
     debug!(?config);
 
     Runtime::build(config)?
-        .add_periodic_pipeline_to_core(1, install, Duration::from_millis(50))?
+        .add_periodic_pipeline_to_core(1, install, Duration::from_millis(10))?
         .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
         .execute()
 }
