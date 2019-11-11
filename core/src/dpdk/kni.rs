@@ -42,7 +42,7 @@ impl KniRx {
         KniRx { raw }
     }
 
-    /// Creates a new `KniRx`.
+    /// Creates a new `KniRx` with stats.
     #[cfg(feature = "metrics")]
     pub fn new(raw: NonNull<ffi::rte_kni>) -> Self {
         let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };
@@ -135,7 +135,7 @@ impl KniTx {
         }
     }
 
-    /// Creates a new `KniTx`.
+    /// Creates a new `KniTx` with stats.
     #[cfg(feature = "metrics")]
     pub fn new(raw: NonNull<ffi::rte_kni>, tx_deque: UnboundedReceiver<Vec<Mbuf>>) -> Self {
         let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };

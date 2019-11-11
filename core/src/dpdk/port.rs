@@ -1,5 +1,3 @@
-#[cfg(feature = "metrics")]
-use super::PortStats;
 use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 #[cfg(feature = "metrics")]
@@ -258,8 +256,8 @@ impl Port {
     }
 
     #[cfg(feature = "metrics")]
-    pub fn stats(&self) -> PortStats {
-        PortStats::build(self)
+    pub fn stats(&self) -> super::PortStats {
+        super::PortStats::build(self)
     }
 }
 
