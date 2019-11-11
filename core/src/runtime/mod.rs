@@ -1,11 +1,11 @@
 mod core_map;
-mod mempool_map;
 
 pub use self::core_map::*;
-pub use self::mempool_map::*;
 
 use super::Pipeline;
-use crate::dpdk::{self, CoreId, KniError, KniRx, Port, PortBuilder, PortError, PortQueue};
+use crate::dpdk::{
+    self, CoreId, KniError, KniRx, Mempool, Port, PortBuilder, PortError, PortQueue,
+};
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, Future, StreamExt};
@@ -29,7 +29,7 @@ pub enum UnixSignal {
 #[allow(dead_code)]
 pub struct Runtime {
     ports: Vec<Port>,
-    mempools: MempoolMap,
+    mempools: Vec<Mempool>,
     core_map: CoreMap,
     on_signal: Arc<dyn Fn(UnixSignal) -> bool>,
     config: RuntimeSettings,
@@ -51,16 +51,19 @@ impl Runtime {
         let cores = config.all_cores();
 
         info!("initializing mempools...");
-        let mut sockets = cores.iter().map(CoreId::socket_id).collect::<HashSet<_>>();
-        let sockets = sockets.drain().collect::<Vec<_>>();
-        let mut mempools =
-            MempoolMap::new(config.mempool.capacity, config.mempool.cache_size, &sockets)?;
+        let sockets = cores.iter().map(CoreId::socket_id).collect::<HashSet<_>>();
+        let mut mempools = vec![];
+        for socket in sockets {
+            let mempool = Mempool::new(config.mempool.capacity, config.mempool.cache_size, socket)?;
+            debug!(?mempool);
+            mempools.push(mempool);
+        }
 
         info!("intializing cores...");
         let core_map = CoreMapBuilder::new()
             .cores(&cores)
             .master_core(config.master_core)
-            .mempools(mempools.borrow_mut())
+            .mempools(&mut mempools)
             .finish()?;
 
         let len = config.num_knis();
@@ -74,7 +77,7 @@ impl Runtime {
         for conf in config.ports.iter() {
             let port = PortBuilder::new(conf.name.clone(), conf.device.clone())?
                 .cores(&conf.cores)?
-                .mempools(mempools.borrow_mut())
+                .mempools(&mut mempools)
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
                 .finish(conf.kni.unwrap_or_default())?;
 
@@ -85,7 +88,7 @@ impl Runtime {
         #[cfg(feature = "metrics")]
         {
             crate::metrics::register_port_stats(&ports);
-            crate::metrics::register_mempool_stats(mempools.pools());
+            crate::metrics::register_mempool_stats(&mempools);
         }
 
         info!("runtime ready.");
