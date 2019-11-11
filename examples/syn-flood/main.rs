@@ -1,3 +1,6 @@
+use metrics_core::{Builder, Drain, Observe};
+use metrics_runtime::observers::YamlBuilder;
+use nb2::metrics;
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::{Ethernet, Packet, Tcp};
 use nb2::settings::load_config;
@@ -16,7 +19,6 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
     let mut next_ip = 10u32 << 24;
 
     batch::poll_fn(|| {
-        debug!("bulk alloc 128 packets.");
         Mbuf::alloc_bulk(128).unwrap_or_else(|err| {
             error!(?err);
             vec![]
@@ -45,9 +47,15 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
     .send(qs["eth1"].clone())
 }
 
+fn print_stats() {
+    let mut observer = YamlBuilder::new().build();
+    metrics::global().controller().observe(&mut observer);
+    println!("{}", observer.drain());
+}
+
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
@@ -55,6 +63,7 @@ fn main() -> Result<()> {
     debug!(?config);
 
     Runtime::build(config)?
-        .add_periodic_pipeline_to_core(1, install, Duration::from_millis(100))?
+        .add_periodic_pipeline_to_core(1, install, Duration::from_millis(10))?
+        .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
         .execute()
 }
