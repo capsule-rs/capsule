@@ -26,6 +26,8 @@ pub mod batch;
 mod dpdk;
 mod ffi;
 mod macros;
+#[cfg(feature = "metrics")]
+pub mod metrics;
 pub mod net;
 pub mod packets;
 mod runtime;

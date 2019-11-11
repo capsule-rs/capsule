@@ -16,8 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#[cfg(feature = "metrics")]
+use super::PortStats;
 use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
+#[cfg(feature = "metrics")]
+use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
 use crate::runtime::MempoolMap2;
 use crate::{debug, ensure, info, warn, Result};
@@ -77,15 +81,27 @@ struct TxQueueIndex(u16);
 #[derive(Clone)]
 pub struct PortQueue {
     port_id: PortId,
-    rxq_index: RxQueueIndex,
-    txq_index: TxQueueIndex,
+    rxq: RxQueueIndex,
+    txq: TxQueueIndex,
     kni: Option<KniTxQueue>,
+    #[cfg(feature = "metrics")]
+    counter: Option<Counter>,
 }
 
 impl PortQueue {
+    fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
+        PortQueue {
+            port_id: port,
+            rxq,
+            txq,
+            kni: None,
+            #[cfg(feature = "metrics")]
+            counter: None,
+        }
+    }
+
     /// Receives a burst of packets from the receive queue, up to a maximum
     /// of 32 packets.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub(crate) fn receive(&self) -> Vec<Mbuf> {
         const RX_BURST_MAX: usize = 32;
         let mut ptrs = Vec::with_capacity(RX_BURST_MAX);
@@ -93,7 +109,7 @@ impl PortQueue {
         let len = unsafe {
             ffi::_rte_eth_rx_burst(
                 self.port_id.0,
-                self.rxq_index.0,
+                self.rxq.0,
                 ptrs.as_mut_ptr(),
                 RX_BURST_MAX as u16,
             )
@@ -109,14 +125,13 @@ impl PortQueue {
     }
 
     /// Sends the packets to the transmit queue.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub(crate) fn transmit(&self, mut packets: Vec<Mbuf>) {
         loop {
             let to_send = packets.len() as u16;
             let sent = unsafe {
                 ffi::_rte_eth_tx_burst(
                     self.port_id.0,
-                    self.txq_index.0,
+                    self.txq.0,
                     // convert to a pointer to an array of `rte_mbuf` pointers
                     packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
                     to_send,
@@ -141,7 +156,9 @@ impl PortQueue {
             } else {
                 // tx queue is full and we can't make progress, start dropping packets
                 // to avoid potentially stuck in an endless loop.
-                warn!("tx full, dropped {} packets.", to_send);
+                #[cfg(feature = "metrics")]
+                self.counter.as_ref().unwrap().record(packets.len() as u64);
+
                 Mbuf::free_bulk(packets);
                 break;
             }
@@ -153,8 +170,20 @@ impl PortQueue {
         self.kni.as_ref()
     }
 
+    /// Sets the TX queue for the KNI interface.
+    fn set_kni(&mut self, kni: KniTxQueue) {
+        self.kni = Some(kni);
+    }
+
+    /// Sets the TX drop counter. All other metrics are already tracked by
+    /// DPDK internally except for packets that are dropped because the TX
+    /// queue is full.
+    #[cfg(feature = "metrics")]
+    fn set_counter(&mut self, counter: Counter) {
+        self.counter = Some(counter);
+    }
+
     /// Returns the MAC address of the port.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn mac_addr(&self) -> MacAddr {
         super::eth_macaddr_get(self.port_id.0)
     }
@@ -192,6 +221,11 @@ pub struct Port {
 }
 
 impl Port {
+    /// Returns the port id.
+    pub fn id(&self) -> PortId {
+        self.id
+    }
+
     /// Returns the application assigned logical name of the port.
     ///
     /// For applications with more than one port, this name can be used to
@@ -239,6 +273,11 @@ impl Port {
         }
 
         info!("stopped port {}.", self.name());
+    }
+
+    #[cfg(feature = "metrics")]
+    pub fn stats(&self) -> PortStats {
+        PortStats::build(self)
     }
 }
 
@@ -414,13 +453,13 @@ impl<'a> PortBuilder<'a> {
 
         // if the port has kni enabled, we will allocate an interface.
         let kni = if with_kni {
-            let iface = KniBuilder::new(mempool)
+            let kni = KniBuilder::new(mempool)
                 .name(&self.name)
                 .port_id(self.port_id)
                 .core_id(self.cores[0])
                 .mac_addr(super::eth_macaddr_get(self.port_id.raw()))
                 .finish()?;
-            Some(iface)
+            Some(kni)
         } else {
             None
         };
@@ -441,11 +480,11 @@ impl<'a> PortBuilder<'a> {
             );
 
             // configures the RX queue with defaults
-            let rxq_index = RxQueueIndex(idx as u16);
+            let rxq = RxQueueIndex(idx as u16);
             unsafe {
                 ffi::rte_eth_rx_queue_setup(
                     self.port_id.0,
-                    rxq_index.0,
+                    rxq.0,
                     self.rxd,
                     socket_id.0 as raw::c_uint,
                     ptr::null(),
@@ -455,11 +494,11 @@ impl<'a> PortBuilder<'a> {
             }
 
             // configures the TX queue with defaults
-            let txq_index = TxQueueIndex(idx as u16);
+            let txq = TxQueueIndex(idx as u16);
             unsafe {
                 ffi::rte_eth_tx_queue_setup(
                     self.port_id.0,
-                    txq_index.0,
+                    txq.0,
                     self.txd,
                     socket_id.0 as raw::c_uint,
                     ptr::null(),
@@ -467,14 +506,45 @@ impl<'a> PortBuilder<'a> {
                 .to_result()?;
             }
 
-            let queue = PortQueue {
-                port_id: self.port_id,
-                rxq_index,
-                txq_index,
-                kni: kni.as_ref().map(|v| v.txq()),
-            };
+            let mut q = PortQueue::new(self.port_id, rxq, txq);
 
-            queues.insert(core_id, queue);
+            if let Some(kni) = &kni {
+                q.set_kni(kni.txq());
+            }
+
+            #[cfg(feature = "metrics")]
+            {
+                // have space to set up the stats per core.
+                if ffi::RTE_ETHDEV_QUEUE_STAT_CNTRS >= len as u32 {
+                    unsafe {
+                        ffi::rte_eth_dev_set_rx_queue_stats_mapping(
+                            self.port_id.0,
+                            idx as u16,
+                            idx as u8,
+                        )
+                        .to_result()?;
+
+                        ffi::rte_eth_dev_set_tx_queue_stats_mapping(
+                            self.port_id.0,
+                            idx as u16,
+                            idx as u8,
+                        )
+                        .to_result()?;
+                    }
+                }
+
+                // counter to track dropped TX packets.
+                let counter = SINK.scoped("port").counter_with_labels(
+                    "dropped",
+                    labels!(
+                        "port" => self.name.clone(),
+                        "dir" => "tx",
+                    ),
+                );
+                q.set_counter(counter);
+            }
+
+            queues.insert(core_id, q);
             debug!("initialized port queue for {:?}.", core_id);
         }
 
