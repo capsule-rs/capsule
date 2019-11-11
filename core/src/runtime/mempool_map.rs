@@ -36,6 +36,11 @@ impl MempoolMap {
         let inner = self.inner.iter_mut().map(|(&k, v)| (k, v)).collect();
         MempoolMap2 { inner }
     }
+
+    /// Returns the mempool iterator.
+    pub fn pools(&self) -> impl Iterator<Item = &Mempool> {
+        self.inner.values()
+    }
 }
 
 /// A mutable borrow of `MempoolMap` so we can share the mempools mutably

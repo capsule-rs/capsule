@@ -20,7 +20,8 @@
 //! than or equal to `RTE_ETHDEV_QUEUE_STAT_CNTRS`. Otherwise, only the
 //! overall metrics are tracked.
 //!
-//! # KNI metrics
+//!
+//! # KNI Metrics
 //!
 //! * `kni.packets`, total number of successfully received or transmitted
 //! packets.
@@ -30,13 +31,22 @@
 //!
 //! Each metric is labeled with the KNI interface name and a direction, which
 //! can be either RX or TX.
+//!
+//!
+//! # Mempool Metrics
+//!
+//! * `mempool.used`, total number of mbufs which have been allocated from
+//! the mempool.
+//! * `mempool.free`, total number of mbufs available for allocation.
+//!
+//! Each metric is labeled with the mempool name.
 
 // re-export some metrics types to make feature gated imports easier.
 pub(crate) use metrics_core::{labels, Key};
 pub(crate) use metrics_runtime::data::Counter;
 pub(crate) use metrics_runtime::Measurement;
 
-use crate::dpdk::Port;
+use crate::dpdk::{Mempool, MempoolStats, Port};
 use crate::{warn, Result};
 use failure::format_err;
 use metrics_runtime::{Receiver, Sink};
@@ -71,6 +81,14 @@ pub(crate) fn register_port_stats(ports: &[Port]) {
                 })
             })
             .collect()
+    });
+}
+
+/// Registers collected mempool stats with the metrics store.
+pub(crate) fn register_mempool_stats<'a>(mempools: impl Iterator<Item = &'a Mempool>) {
+    let stats = mempools.map(Mempool::stats).collect::<Vec<_>>();
+    SINK.clone().proxy("mempool", move || {
+        stats.iter().flat_map(MempoolStats::collect).collect()
     });
 }
 
