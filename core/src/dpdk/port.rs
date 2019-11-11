@@ -16,12 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, SocketId};
+use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, Mempool, MempoolMap, SocketId};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
-use crate::runtime::MempoolMap2;
 use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
@@ -313,7 +312,7 @@ pub struct PortBuilder<'a> {
     port_id: PortId,
     dev_info: ffi::rte_eth_dev_info,
     cores: Vec<CoreId>,
-    mempools: MempoolMap2<'a>,
+    mempools: MempoolMap<'a>,
     rxd: u16,
     txd: u16,
 }
@@ -422,8 +421,8 @@ impl<'a> PortBuilder<'a> {
     }
 
     /// Sets the available mempools.
-    pub fn mempools(&'a mut self, mempools: MempoolMap2<'a>) -> &'a mut Self {
-        self.mempools = mempools;
+    pub fn mempools(&'a mut self, mempools: &'a mut [Mempool]) -> &'a mut Self {
+        self.mempools = MempoolMap::new(mempools);
         self
     }
 

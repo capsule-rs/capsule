@@ -18,8 +18,10 @@
 
 use super::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
-use crate::{debug, Result};
+use crate::{debug, info, Result};
+use failure::Fail;
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::fmt;
 use std::os::raw;
 use std::ptr::{self, NonNull};
@@ -51,11 +53,11 @@ impl Mempool {
     pub fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
         static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
         let n = MEMPOOL_COUNT.fetch_add(1, Ordering::Relaxed);
-        let name = format!("mempool{}", n).to_cstring();
+        let name = format!("mempool{}", n);
 
         let raw = unsafe {
             ffi::rte_pktmbuf_pool_create(
-                name.as_ptr(),
+                name.clone().to_cstring().as_ptr(),
                 capacity as raw::c_uint,
                 cache_size as raw::c_uint,
                 0,
@@ -65,6 +67,7 @@ impl Mempool {
             .to_result()?
         };
 
+        info!("created {}.", name);
         Ok(Self { raw })
     }
 
@@ -97,7 +100,6 @@ impl fmt::Debug for Mempool {
         let raw = self.raw();
         f.debug_struct(self.name())
             .field("capacity", &raw.size)
-            .field("populated", &raw.populated_size)
             .field("cache_size", &raw.cache_size)
             .field("flags", &format_args!("{:#x}", raw.flags))
             .field("socket", &raw.socket_id)
@@ -121,4 +123,50 @@ thread_local! {
     /// It's set when the core is first initialized. New `Mbuf` is allocated
     /// from this `Mempool` when executed on this core.
     pub static MEMPOOL: Cell<*mut ffi::rte_mempool> = Cell::new(ptr::null_mut());
+}
+
+/// Error indicating the `Mempool` is not found.
+#[derive(Debug, Fail)]
+#[fail(display = "Mempool for {:?} not found.", _0)]
+pub struct MempoolNotFound(SocketId);
+
+/// A specialized hash map of `SocketId` to `&mut Mempool`.
+pub struct MempoolMap<'a> {
+    inner: HashMap<SocketId, &'a mut Mempool>,
+}
+
+impl<'a> MempoolMap<'a> {
+    /// Creates a new map from a mutable slice.
+    pub fn new(mempools: &'a mut [Mempool]) -> Self {
+        let map = mempools
+            .iter_mut()
+            .map(|pool| {
+                let socket = SocketId(pool.raw().socket_id);
+                (socket, pool)
+            })
+            .collect::<HashMap<_, _>>();
+
+        Self { inner: map }
+    }
+
+    /// Returns a mutable reference to the raw mempool corresponding to the
+    /// socket id.
+    ///
+    /// # Errors
+    ///
+    /// If the value is not found, `MempoolNotFound` is returned.
+    pub fn get_raw(&mut self, socket_id: SocketId) -> Result<&mut ffi::rte_mempool> {
+        self.inner
+            .get_mut(&socket_id)
+            .ok_or_else(|| MempoolNotFound(socket_id).into())
+            .map(|pool| pool.raw_mut())
+    }
+}
+
+impl<'a> Default for MempoolMap<'a> {
+    fn default() -> MempoolMap<'a> {
+        MempoolMap {
+            inner: HashMap::new(),
+        }
+    }
 }

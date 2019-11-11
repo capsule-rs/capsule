@@ -16,8 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::MempoolMap2;
-use crate::dpdk::{CoreId, MEMPOOL};
+use crate::dpdk::{CoreId, Mempool, MempoolMap, MEMPOOL};
 use crate::{debug, error, ffi, info, Result};
 use failure::Fail;
 use futures::Future;
@@ -178,7 +177,7 @@ unsafe impl std::marker::Send for SendablePtr {}
 pub struct CoreMapBuilder<'a> {
     cores: HashSet<CoreId>,
     master_core: CoreId,
-    mempools: MempoolMap2<'a>,
+    mempools: MempoolMap<'a>,
 }
 
 impl<'a> CoreMapBuilder<'a> {
@@ -200,8 +199,8 @@ impl<'a> CoreMapBuilder<'a> {
         self
     }
 
-    pub fn mempools(&'a mut self, mempools: MempoolMap2<'a>) -> &'a mut Self {
-        self.mempools = mempools;
+    pub fn mempools(&'a mut self, mempools: &'a mut [Mempool]) -> &'a mut Self {
+        self.mempools = MempoolMap::new(mempools);
         self
     }
 
