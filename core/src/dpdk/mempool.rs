@@ -25,9 +25,6 @@ use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// A global counter used to generate a unique name for new mempools.
-static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
-
 /// A memory pool is an allocator of message buffers, or `Mbuf`. For best
 /// performance, each socket should have a dedicated `Mempool`.
 pub struct Mempool {
@@ -52,8 +49,10 @@ impl Mempool {
     ///
     /// If allocation fails, then `DpdkError` is returned.
     pub fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
+        static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
         let n = MEMPOOL_COUNT.fetch_add(1, Ordering::Relaxed);
         let name = format!("mempool{}", n).to_cstring();
+
         let raw = unsafe {
             ffi::rte_pktmbuf_pool_create(
                 name.as_ptr(),
@@ -85,6 +84,11 @@ impl Mempool {
     #[inline]
     pub fn name(&self) -> &str {
         self.raw().name[..].as_str()
+    }
+
+    #[cfg(feature = "metrics")]
+    pub fn stats(&self) -> super::MempoolStats {
+        super::MempoolStats::build(self)
     }
 }
 

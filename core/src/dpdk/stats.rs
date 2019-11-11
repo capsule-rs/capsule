@@ -16,10 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{CoreId, Port, PortId};
-use crate::ffi::{self, ToResult};
+use super::{CoreId, Mempool, Port, PortId};
+use crate::ffi::{self, AsStr, ToResult};
 use crate::metrics::{labels, Key, Measurement};
 use crate::Result;
+use std::ptr::NonNull;
 
 /// Port stats collector.
 pub struct PortStats {
@@ -135,3 +136,55 @@ impl PortStats {
         Ok(values)
     }
 }
+
+/// Mempool stats collector.
+pub struct MempoolStats {
+    raw: NonNull<ffi::rte_mempool>,
+}
+
+impl MempoolStats {
+    /// Builds a collector from the port.
+    pub fn build(mempool: &Mempool) -> Self {
+        MempoolStats {
+            raw: unsafe {
+                NonNull::new_unchecked(
+                    mempool.raw() as *const ffi::rte_mempool as *mut ffi::rte_mempool
+                )
+            },
+        }
+    }
+
+    fn raw(&self) -> &ffi::rte_mempool {
+        unsafe { self.raw.as_ref() }
+    }
+
+    /// Returns the name of the `Mempool`.
+    fn name(&self) -> &str {
+        self.raw().name[..].as_str()
+    }
+
+    /// Returns a gauge.
+    fn new_gauge(&self, name: &'static str, value: i64) -> (Key, Measurement) {
+        (
+            Key::from_name_and_labels(
+                name,
+                labels!(
+                    "pool" => self.name().to_string(),
+                ),
+            ),
+            Measurement::Gauge(value),
+        )
+    }
+
+    /// Collects the mempool stats.
+    pub fn collect(&self) -> Vec<(Key, Measurement)> {
+        let used = unsafe { ffi::rte_mempool_in_use_count(self.raw()) as i64 };
+        let free = self.raw().size as i64 - used;
+
+        vec![self.new_gauge("used", used), self.new_gauge("free", free)]
+    }
+}
+
+/// Send mempool stats across threads.
+unsafe impl Send for MempoolStats {}
+unsafe impl Sync for MempoolStats {}

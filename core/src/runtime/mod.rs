@@ -101,7 +101,10 @@ impl Runtime {
         }
 
         #[cfg(feature = "metrics")]
-        crate::metrics::register_port_stats(&ports);
+        {
+            crate::metrics::register_port_stats(&ports);
+            crate::metrics::register_mempool_stats(mempools.pools());
+        }
 
         info!("runtime ready.");
 
