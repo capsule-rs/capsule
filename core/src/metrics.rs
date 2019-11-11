@@ -85,8 +85,8 @@ pub(crate) fn register_port_stats(ports: &[Port]) {
 }
 
 /// Registers collected mempool stats with the metrics store.
-pub(crate) fn register_mempool_stats<'a>(mempools: impl Iterator<Item = &'a Mempool>) {
-    let stats = mempools.map(Mempool::stats).collect::<Vec<_>>();
+pub(crate) fn register_mempool_stats(mempools: &[Mempool]) {
+    let stats = mempools.iter().map(Mempool::stats).collect::<Vec<_>>();
     SINK.clone().proxy("mempool", move || {
         stats.iter().flat_map(MempoolStats::collect).collect()
     });
