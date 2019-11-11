@@ -17,7 +17,9 @@
 */
 
 use super::{CoreId, Mbuf, PortId};
-use crate::ffi::{self, ToResult};
+use crate::ffi::{self, AsStr, ToResult};
+#[cfg(feature = "metrics")]
+use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
 use crate::{debug, error, warn, Result};
 use failure::Fail;
@@ -28,14 +30,49 @@ use std::os::raw;
 use std::ptr::{self, NonNull};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
+/// Creates a new KNI counter.
+#[cfg(feature = "metrics")]
+fn new_counter(name: &'static str, kni: &str, dir: &'static str) -> Counter {
+    SINK.scoped("kni").counter_with_labels(
+        name,
+        labels!(
+            "kni" => kni.to_string(),
+            "dir" => dir,
+        ),
+    )
+}
+
 /// The KNI receive handle. Because the underlying interface is single
 /// threaded, we must ensure that only one rx handle is created for each
 /// interface.
 pub struct KniRx {
     raw: NonNull<ffi::rte_kni>,
+    #[cfg(feature = "metrics")]
+    pkt_counter: Counter,
+    #[cfg(feature = "metrics")]
+    byte_counter: Counter,
 }
 
 impl KniRx {
+    /// Creates a new `KniRx`.
+    #[cfg(not(feature = "metrics"))]
+    pub fn new(raw: NonNull<ffi::rte_kni>) -> Self {
+        KniRx { raw }
+    }
+
+    /// Creates a new `KniRx`.
+    #[cfg(feature = "metrics")]
+    pub fn new(raw: NonNull<ffi::rte_kni>) -> Self {
+        let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };
+        let pkt_counter = new_counter("packets", &name, "rx");
+        let byte_counter = new_counter("octets", &name, "rx");
+        KniRx {
+            raw,
+            pkt_counter,
+            byte_counter,
+        }
+    }
+
     /// Receives a burst of packets from the kernel, up to a maximum of
     /// 32 packets.
     pub fn receive(&mut self) -> Vec<Mbuf> {
@@ -61,6 +98,14 @@ impl KniRx {
             if let Err(err) = ffi::rte_kni_handle_request(self.raw.as_mut()).to_result() {
                 warn!(message = "failed to handle change link requests.", ?err);
             }
+        }
+
+        #[cfg(feature = "metrics")]
+        {
+            self.pkt_counter.record(mbufs.len() as u64);
+
+            let bytes: usize = mbufs.iter().map(Mbuf::data_len).sum();
+            self.byte_counter.record(bytes as u64);
         }
 
         mbufs
@@ -90,9 +135,40 @@ impl KniTxQueue {
 pub struct KniTx {
     raw: NonNull<ffi::rte_kni>,
     tx_deque: Option<UnboundedReceiver<Vec<Mbuf>>>,
+    #[cfg(feature = "metrics")]
+    pkt_counter: Counter,
+    #[cfg(feature = "metrics")]
+    byte_counter: Counter,
+    #[cfg(feature = "metrics")]
+    drop_counter: Counter,
 }
 
 impl KniTx {
+    /// Creates a new `KniTx`.
+    #[cfg(not(feature = "metrics"))]
+    pub fn new(raw: NonNull<ffi::rte_kni>, tx_deque: UnboundedReceiver<Vec<Mbuf>>) -> Self {
+        KniTx {
+            raw,
+            tx_deque: Some(tx_deque),
+        }
+    }
+
+    /// Creates a new `KniTx`.
+    #[cfg(feature = "metrics")]
+    pub fn new(raw: NonNull<ffi::rte_kni>, tx_deque: UnboundedReceiver<Vec<Mbuf>>) -> Self {
+        let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };
+        let pkt_counter = new_counter("packets", &name, "tx");
+        let byte_counter = new_counter("octets", &name, "tx");
+        let drop_counter = new_counter("dropped", &name, "tx");
+        KniTx {
+            raw,
+            tx_deque: Some(tx_deque),
+            pkt_counter,
+            byte_counter,
+            drop_counter,
+        }
+    }
+
     /// Sends the packets to the kernel.
     pub fn transmit(&mut self, mut packets: Vec<Mbuf>) {
         loop {
@@ -107,6 +183,14 @@ impl KniTx {
             };
 
             if sent > 0 {
+                #[cfg(feature = "metrics")]
+                {
+                    self.pkt_counter.record(sent as u64);
+
+                    let bytes: usize = packets[..sent as usize].iter().map(Mbuf::data_len).sum();
+                    self.byte_counter.record(bytes as u64);
+                }
+
                 if to_send - sent > 0 {
                     // still have packets not sent. tx queue is full but still making
                     // progress. we will keep trying until all packets are sent. drains
@@ -124,7 +208,9 @@ impl KniTx {
             } else {
                 // tx queue is full and we can't make progress, start dropping packets
                 // to avoid potentially stuck in an endless loop.
-                warn!("tx full, dropped {} packets.", to_send);
+                #[cfg(feature = "metrics")]
+                self.drop_counter.record(to_send as u64);
+
                 Mbuf::free_bulk(packets);
                 break;
             }
@@ -177,11 +263,8 @@ impl Kni {
         // making 3 clones of the same raw pointer. but we know it is safe
         // to do because rx and tx happen on two independent queues. so while
         // each one is single-threaded, they can function in parallel.
-        let rx = KniRx { raw };
-        let tx = KniTx {
-            raw,
-            tx_deque: Some(recv),
-        };
+        let rx = KniRx::new(raw);
+        let tx = KniTx::new(raw, recv);
         let txq = KniTxQueue { tx_enque: send };
 
         Kni {

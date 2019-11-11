@@ -37,6 +37,17 @@
 //! metrics are available if the number of assigned cores to the port is less
 //! than or equal to `RTE_ETHDEV_QUEUE_STAT_CNTRS`. Otherwise, only the
 //! overall metrics are tracked.
+//!
+//! # KNI metrics
+//!
+//! * `kni.packets`, total number of successfully received or transmitted
+//! packets.
+//! * `kni.octets`, total number of successfully received or transmitted bytes.
+//! * `kni.dropped`, total number of packets dropped because the transmit
+//! queue is full.
+//!
+//! Each metric is labeled with the KNI interface name and a direction, which
+//! can be either RX or TX.
 
 // re-export some metrics types to make feature gated imports easier.
 pub(crate) use metrics_core::{labels, Key};
