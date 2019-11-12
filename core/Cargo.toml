@@ -37,9 +37,8 @@ tokio-timer = "=0.3.0-alpha.6"
 tracing = "0.1"
 
 [dev-dependencies]
-colored = ">= 1.6"
+criterion = "0.3"
 proptest = { version = "0.9", default-features = false, features = ["default-code-coverage"] }
-tracing-subscriber = "0.1"
 
 [features]
 default = ["metrics"]
