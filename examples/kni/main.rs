@@ -24,9 +24,9 @@ fn main() -> Result<()> {
 
     Runtime::build(config)?
         .add_pipeline_to_port("kni0", |q| {
-            batch::splice("to_kni", q.clone(), q.kni().unwrap().clone())
+            batch::splice(q.clone(), q.kni().unwrap().clone())
         })?
-        .add_kni_rx_pipeline_to_port("kni0", |rx, tx| batch::splice("from_kni", rx, tx))?
+        .add_kni_rx_pipeline_to_port("kni0", batch::splice)?
         .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
         .execute()
 }

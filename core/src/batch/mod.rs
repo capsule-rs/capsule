@@ -237,13 +237,28 @@ pub trait Batch {
         Replace::new(self, f)
     }
 
+    /// Turns the batch pipeline into an executable task with default name.
+    ///
+    /// Send marks the end of the batch pipeline. No more combinators can be
+    /// appended after send.
+    ///
+    /// To give the pipeline a unique name, use `Batch::send_named` instead.
+    #[inline]
+    fn send<Tx: PacketTx>(self, tx: Tx) -> Send<Self, Tx>
+    where
+        Self: Sized,
+    {
+        Batch::send_named(self, "default", tx)
+    }
+
     /// Turns the batch pipeline into an executable task.
     ///
-    /// Pipeline `name` is used for logging and metrics. Send marks the
-    /// end of the batch pipeline. No more combinators can be appended
-    /// after send.
+    /// `name` is used for logging and metrics. It does not need to be unique.
+    /// Multiple pipeline instances with the same name are aggregated together
+    /// into one set of metrics. Give each pipeline a different name to keep
+    /// metrics separated.
     #[inline]
-    fn send<Tx: PacketTx>(self, name: &str, tx: Tx) -> Send<Self, Tx>
+    fn send_named<Tx: PacketTx>(self, name: &str, tx: Tx) -> Send<Self, Tx>
     where
         Self: Sized,
     {
@@ -272,12 +287,8 @@ pub trait Pipeline: futures::Future<Output = ()> {
 /// Splices a `PacketRx` directly to a `PacketTx` without any intermediary
 /// combinators. Useful for pipelines that perform simple forwarding without
 /// any packet processing.
-pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(
-    name: &str,
-    rx: Rx,
-    tx: Tx,
-) -> impl Pipeline {
-    Poll::new(rx).send(name, tx)
+pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(rx: Rx, tx: Tx) -> impl Pipeline {
+    Poll::new(rx).send(tx)
 }
 
 #[cfg(test)]
@@ -465,7 +476,7 @@ mod tests {
         let (tx2, rx2) = mpsc::channel();
 
         // no packet yet
-        let mut pipeline = splice("test", rx1, tx2);
+        let mut pipeline = splice(rx1, tx2);
         pipeline.run_once();
         assert_eq!(TryRecvError::Empty, rx2.try_recv().unwrap_err());
 
