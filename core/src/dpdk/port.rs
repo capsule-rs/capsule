@@ -493,25 +493,6 @@ impl<'a> PortBuilder<'a> {
 
             #[cfg(feature = "metrics")]
             {
-                // have space to set up the stats per core.
-                if ffi::RTE_ETHDEV_QUEUE_STAT_CNTRS >= len as u32 {
-                    unsafe {
-                        ffi::rte_eth_dev_set_rx_queue_stats_mapping(
-                            self.port_id.0,
-                            idx as u16,
-                            idx as u8,
-                        )
-                        .to_result()?;
-
-                        ffi::rte_eth_dev_set_tx_queue_stats_mapping(
-                            self.port_id.0,
-                            idx as u16,
-                            idx as u8,
-                        )
-                        .to_result()?;
-                    }
-                }
-
                 // counter to track dropped TX packets.
                 let counter = SINK.scoped("port").counter_with_labels(
                     "dropped",
