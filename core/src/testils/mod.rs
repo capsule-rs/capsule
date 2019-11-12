@@ -13,16 +13,37 @@ pub mod byte_arrays {
 
 pub use self::packet::*;
 pub use self::rvg::*;
-pub use crate::dpdk::{Mempool, SocketId, MEMPOOL};
 
-use crate::dpdk::eal_init;
+use crate::dpdk::{self, Mempool, SocketId, MEMPOOL};
+use std::ptr;
 use std::sync::Once;
 
 static TEST_INIT: Once = Once::new();
 
-/// Run once initialization of EAL for `cargo test`
+/// Run once initialization of EAL for `cargo test`.
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
-        eal_init(vec!["nb2_test".to_owned()]).unwrap();
+        dpdk::eal_init(vec!["nb2_test".to_owned()]).unwrap();
     });
+}
+
+/// A handle that keeps the mempool in scope for the duration of the test. It
+/// will unset the thread-bound mempool on drop.
+pub struct MempoolGuard {
+    #[allow(dead_code)]
+    inner: Mempool,
+}
+
+impl Drop for MempoolGuard {
+    fn drop(&mut self) {
+        MEMPOOL.with(|tls| tls.replace(ptr::null_mut()));
+    }
+}
+
+/// Creates a new mempool for test that automatically cleans up after the
+/// test completes.
+pub fn new_mempool(capacity: usize, cache_size: usize) -> MempoolGuard {
+    let mut mempool = Mempool::new(capacity, cache_size, SocketId::ANY).unwrap();
+    MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+    MempoolGuard { inner: mempool }
 }
