@@ -86,15 +86,9 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
         #[test]
         fn #name(#inputs) #ret {
             ::capsule::testils::cargo_test_init();
-            let mut mempool = ::capsule::testils::Mempool::new(#mempool_capacity,
-                                                           #mempool_cache_size,
-                                                           ::capsule::testils::SocketId::ANY).unwrap();
-            ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+            let _guard = ::capsule::testils::new_mempool(#mempool_capacity, #mempool_cache_size);
 
             #body
-
-            ::capsule::testils::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
-            drop(mempool);
         }
     };
 
@@ -141,15 +135,9 @@ pub fn bench(args: TokenStream, input: TokenStream) -> TokenStream {
     let result = quote! {
         fn #name(#inputs) #ret {
             ::capsule::testils::cargo_test_init();
-            let mut mempool = ::capsule::testils::Mempool::new(#mempool_capacity,
-                                                           #mempool_cache_size,
-                                                           ::capsule::testils::SocketId::ANY).unwrap();
-            ::capsule::testils::MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
+            let _guard = ::capsule::testils::new_mempool(#mempool_capacity, #mempool_cache_size);
 
             #body
-
-            ::capsule::testils::MEMPOOL.with(|tls| tls.replace(::std::ptr::null_mut()));
-            drop(mempool);
         }
     };
 
