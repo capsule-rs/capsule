@@ -29,6 +29,7 @@ use crate::{debug, ensure, info, Result};
 use futures::{future, stream, Future, StreamExt};
 use libc;
 use std::collections::{HashMap, HashSet};
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_executor::current_thread;
@@ -44,10 +45,9 @@ pub enum UnixSignal {
     SIGTERM = libc::SIGTERM as isize,
 }
 
-#[allow(dead_code)]
 pub struct Runtime {
-    ports: Vec<Port>,
-    mempools: Vec<Mempool>,
+    ports: ManuallyDrop<Vec<Port>>,
+    mempools: ManuallyDrop<Vec<Mempool>>,
     core_map: CoreMap,
     on_signal: Arc<dyn Fn(UnixSignal) -> bool>,
     config: RuntimeSettings,
@@ -112,8 +112,8 @@ impl Runtime {
         info!("runtime ready.");
 
         Ok(Runtime {
-            ports,
-            mempools,
+            ports: ManuallyDrop::new(ports),
+            mempools: ManuallyDrop::new(mempools),
             core_map,
             on_signal: Arc::new(|_| true),
             config,
@@ -210,7 +210,7 @@ impl Runtime {
         for (core_id, port_q) in port.queues() {
             let f = f.clone();
             let port_q = port_q.clone();
-            let thread = &self.core_map.cores[core_id].thread;
+            let thread = &self.get_core(*core_id)?.thread;
 
             // spawns the bootstrap. we want the bootstrapping to execute on the
             // target core instead of the master core. that way the actual task
@@ -530,6 +530,19 @@ impl Runtime {
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        // the default rust drop order is self before fields, which is the wrong
+        // order for what EAL needs. To control the order, we manually drop the
+        // fields first.
+        unsafe {
+            ManuallyDrop::drop(&mut self.ports);
+            ManuallyDrop::drop(&mut self.mempools);
+        }
+
+        if self.config.num_knis() > 0 {
+            debug!("freeing KNI subsystem.");
+            dpdk::kni_close();
+        }
+
         debug!("freeing EAL.");
         dpdk::eal_cleanup().unwrap();
     }

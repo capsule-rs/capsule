@@ -299,7 +299,7 @@ impl Kni {
 
 impl Drop for Kni {
     fn drop(&mut self) {
-        debug!("freeing KNI.");
+        debug!("freeing kernel interface.");
 
         if let Err(err) = unsafe { ffi::rte_kni_release(self.raw_mut()).to_result() } {
             error!(message = "failed to release KNI device.", ?err);
@@ -405,7 +405,6 @@ pub fn kni_init(max: usize) -> Result<()> {
 }
 
 /// Closes the KNI subsystem.
-#[allow(dead_code)]
 pub fn kni_close() {
     unsafe {
         ffi::rte_kni_close();
