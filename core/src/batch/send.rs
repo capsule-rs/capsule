@@ -1,4 +1,6 @@
 use super::{Batch, Disposition, PacketTx, Pipeline};
+#[cfg(feature = "metrics")]
+use crate::metrics::{labels, Counter, SINK};
 use crate::packets::Packet;
 use crate::Mbuf;
 use futures::{future, Future};
@@ -6,17 +8,51 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio_executor::current_thread;
 
+/// Creates a new pipeline counter.
+#[cfg(feature = "metrics")]
+fn new_counter(name: &'static str, pipeline: &str) -> Counter {
+    SINK.scoped("pipeline").counter_with_labels(
+        name,
+        labels!(
+            "pipeline" => pipeline.to_owned(),
+        ),
+    )
+}
+
 /// Turns the batch pipeline into an executable task.
 pub struct Send<B: Batch, Tx: PacketTx> {
     name: String,
     batch: B,
     tx: Tx,
+    #[cfg(feature = "metrics")]
+    done_counter: Counter,
+    #[cfg(feature = "metrics")]
+    drop_counter: Counter,
+    #[cfg(feature = "metrics")]
+    error_counter: Counter,
 }
 
 impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
+    #[cfg(not(feature = "metrics"))]
     #[inline]
     pub fn new(name: String, batch: B, tx: Tx) -> Self {
         Send { name, batch, tx }
+    }
+
+    #[cfg(feature = "metrics")]
+    #[inline]
+    pub fn new(name: String, batch: B, tx: Tx) -> Self {
+        let done_counter = new_counter("processed", &name);
+        let drop_counter = new_counter("dropped", &name);
+        let error_counter = new_counter("errors", &name);
+        Send {
+            name,
+            batch,
+            tx,
+            done_counter,
+            drop_counter,
+            error_counter,
+        }
     }
 
     fn run(&mut self) {
@@ -25,15 +61,24 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
 
         let mut transmit_q = Vec::with_capacity(64);
         let mut drop_q = Vec::with_capacity(64);
+        let mut emitted = 0u64;
+        let mut aborted = 0u64;
 
         // consume the whole batch to completion
         while let Some(disp) = self.batch.next() {
             match disp {
                 Disposition::Act(packet) => transmit_q.push(packet.reset()),
                 Disposition::Drop(mbuf) => drop_q.push(mbuf),
-                // nothing to do for abort and emit.
-                _ => (),
+                Disposition::Emit => emitted += 1,
+                Disposition::Abort(_) => aborted += 1,
             }
+        }
+
+        #[cfg(feature = "metrics")]
+        {
+            self.done_counter.record(transmit_q.len() as u64 + emitted);
+            self.drop_counter.record(drop_q.len() as u64);
+            self.error_counter.record(aborted);
         }
 
         if !transmit_q.is_empty() {
