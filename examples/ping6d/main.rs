@@ -33,7 +33,7 @@ fn reply_echo(packet: &Mbuf) -> Result<Icmpv6<Ipv6, EchoReply>> {
 }
 
 fn install(q: PortQueue) -> impl Pipeline {
-    Poll::new(q.clone()).replace(reply_echo).send(q)
+    Poll::new(q.clone()).replace(reply_echo).send("ping6d", q)
 }
 
 fn main() -> Result<()> {

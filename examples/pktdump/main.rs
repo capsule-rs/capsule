@@ -67,7 +67,7 @@ fn install(q: PortQueue) -> impl Pipeline {
                 });
             },
         )
-        .send(q)
+        .send("pktdump", q)
 }
 
 fn main() -> Result<()> {

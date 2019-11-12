@@ -44,7 +44,7 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
 
         Ok(tcp)
     })
-    .send(qs["eth1"].clone())
+    .send("synflood", qs["eth1"].clone())
 }
 
 fn print_stats() {

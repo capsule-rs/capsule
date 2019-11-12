@@ -239,14 +239,15 @@ pub trait Batch {
 
     /// Turns the batch pipeline into an executable task.
     ///
-    /// Send marks the end of the batch pipeline. No more combinators can be
-    /// appended after send.
+    /// Pipeline `name` is used for logging and metrics. Send marks the
+    /// end of the batch pipeline. No more combinators can be appended
+    /// after send.
     #[inline]
-    fn send<Tx: PacketTx>(self, tx: Tx) -> Send<Self, Tx>
+    fn send<Tx: PacketTx>(self, name: &str, tx: Tx) -> Send<Self, Tx>
     where
         Self: Sized,
     {
-        Send::new(self, tx)
+        Send::new(name.to_owned(), self, tx)
     }
 }
 
@@ -261,6 +262,9 @@ pub trait Batch {
 /// }
 /// ```
 pub trait Pipeline: futures::Future<Output = ()> {
+    /// Returns the name of the pipeline.
+    fn name(&self) -> &str;
+
     /// Runs the pipeline once to process one batch of packets.
     fn run_once(&mut self);
 }
@@ -268,8 +272,12 @@ pub trait Pipeline: futures::Future<Output = ()> {
 /// Splices a `PacketRx` directly to a `PacketTx` without any intermediary
 /// combinators. Useful for pipelines that perform simple forwarding without
 /// any packet processing.
-pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(rx: Rx, tx: Tx) -> impl Pipeline {
-    Poll::new(rx).send(tx)
+pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(
+    name: &str,
+    rx: Rx,
+    tx: Tx,
+) -> impl Pipeline {
+    Poll::new(rx).send(name, tx)
 }
 
 #[cfg(test)]
@@ -457,7 +465,7 @@ mod tests {
         let (tx2, rx2) = mpsc::channel();
 
         // no packet yet
-        let mut pipeline = splice(rx1, tx2);
+        let mut pipeline = splice("test", rx1, tx2);
         pipeline.run_once();
         assert_eq!(TryRecvError::Empty, rx2.try_recv().unwrap_err());
 

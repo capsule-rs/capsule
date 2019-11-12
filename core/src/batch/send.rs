@@ -8,14 +8,15 @@ use tokio_executor::current_thread;
 
 /// Turns the batch pipeline into an executable task.
 pub struct Send<B: Batch, Tx: PacketTx> {
+    name: String,
     batch: B,
     tx: Tx,
 }
 
 impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
     #[inline]
-    pub fn new(batch: B, tx: Tx) -> Self {
-        Send { batch, tx }
+    pub fn new(name: String, batch: B, tx: Tx) -> Self {
+        Send { name, batch, tx }
     }
 
     fn run(&mut self) {
@@ -65,6 +66,12 @@ impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
 }
 
 impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Pipeline for Send<B, Tx> {
+    #[inline]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[inline]
     fn run_once(&mut self) {
         self.run()
     }
