@@ -5,15 +5,22 @@ use std::cmp;
 use std::time::{Duration, Instant};
 
 pub trait BencherExt {
-    fn iter_batches<R, S, O>(&mut self, batch_size: usize, strategy: S, routine: R)
+    fn prop_iter_batched<R, S, O>(&mut self, batch_size: usize, strategy: S, routine: R)
     where
         R: FnMut(S::Value) -> O,
         S: Strategy;
 }
 
 impl BencherExt for Bencher<'_> {
-    fn iter_batches<R, S: Strategy, O>(&mut self, batch_size: usize, strategy: S, mut routine: R)
-    where
+    /// Similar to criterion's iter_batched fn, but allows for a batch, of
+    /// `batch_size`, to be a generated vector of proptest `strategy` values,
+    /// and handles how we control the random value generator.
+    fn prop_iter_batched<R, S: Strategy, O>(
+        &mut self,
+        batch_size: usize,
+        strategy: S,
+        mut routine: R,
+    ) where
         R: FnMut(S::Value) -> O,
     {
         self.iter_custom(|mut iters| {
