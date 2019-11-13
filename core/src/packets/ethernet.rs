@@ -23,7 +23,7 @@ pub mod EtherTypes {
     use super::EtherType;
 
     // Address resolution protocol
-    pub const Arp: EtherType = EtherType(0x0806);
+    pub const ARP: EtherType = EtherType(0x0806);
     // Internet Protocol version 4
     pub const Ipv4: EtherType = EtherType(0x0800);
     // Internet Protocol version 6
@@ -36,7 +36,7 @@ impl fmt::Display for EtherType {
             f,
             "{}",
             match *self {
-                EtherTypes::Arp => "ARP".to_string(),
+                EtherTypes::ARP => "ARP".to_string(),
                 EtherTypes::Ipv4 => "IPv4".to_string(),
                 EtherTypes::Ipv6 => "IPv6".to_string(),
                 _ => {
@@ -99,8 +99,16 @@ pub union Chunk {
     chunk_802_1ad: Chunk802_1ad,
 }
 
+impl Default for Chunk {
+    fn default() -> Chunk {
+        Chunk {
+            ether_type: Default::default(),
+        }
+    }
+}
+
 /// Ethernet header.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[repr(C, packed)]
 pub struct EthernetHeader {
     dst: MacAddr,
@@ -109,18 +117,6 @@ pub struct EthernetHeader {
 }
 
 impl Header for EthernetHeader {}
-
-impl Default for EthernetHeader {
-    fn default() -> EthernetHeader {
-        EthernetHeader {
-            dst: MacAddr::UNSPECIFIED,
-            src: MacAddr::UNSPECIFIED,
-            chunk: Chunk {
-                ether_type: Default::default(),
-            },
-        }
-    }
-}
 
 impl SizeOf for EthernetHeader {
     /// Size of the ethernet header.
@@ -152,8 +148,8 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |  Dst MAC  |  Src MAC  |Typ|             Payload               |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+                                   +
-/// |                                                               |                                                               |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+                                   |
+/// |                                                               |
 /// |                                                               |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///
@@ -174,7 +170,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |  Dst MAC  |  Src MAC  | V-TAG |Typ|             Payload       |
+/// |  Dst MAC  |  Src MAC  | V-TAG |Typ|          Payload          |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///
 /// The tag has the following format, with TPID set to `0x8100`.
@@ -464,7 +460,7 @@ mod tests {
 
     #[test]
     fn ether_type_to_string() {
-        assert_eq!("ARP", EtherTypes::Arp.to_string());
+        assert_eq!("ARP", EtherTypes::ARP.to_string());
         assert_eq!("IPv4", EtherTypes::Ipv4.to_string());
         assert_eq!("IPv6", EtherTypes::Ipv6.to_string());
         assert_eq!("0x0000", EtherType::new(0).to_string());
@@ -488,7 +484,7 @@ mod tests {
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
         assert!(ethernet.is_vlan_802_1q());
-        assert_eq!(EtherTypes::Arp, ethernet.ether_type());
+        assert_eq!(EtherTypes::ARP, ethernet.ether_type());
         assert_eq!(18, ethernet.header_len());
     }
 
@@ -500,7 +496,7 @@ mod tests {
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
         assert!(ethernet.is_vlan_802_1ad());
-        assert_eq!(EtherTypes::Arp, ethernet.ether_type());
+        assert_eq!(EtherTypes::ARP, ethernet.ether_type());
         assert_eq!(22, ethernet.header_len());
     }
 
