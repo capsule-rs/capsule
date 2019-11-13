@@ -5,138 +5,6 @@ use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// The protocol type in the ethernet packet payload.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[repr(C, packed)]
-pub struct EtherType(pub u16);
-
-impl EtherType {
-    pub fn new(value: u16) -> Self {
-        EtherType(value)
-    }
-}
-
-/// Supported ethernet payload protocol types.
-#[allow(non_snake_case)]
-#[allow(non_upper_case_globals)]
-pub mod EtherTypes {
-    use super::EtherType;
-
-    // Address resolution protocol
-    pub const ARP: EtherType = EtherType(0x0806);
-    // Internet Protocol version 4
-    pub const Ipv4: EtherType = EtherType(0x0800);
-    // Internet Protocol version 6
-    pub const Ipv6: EtherType = EtherType(0x86DD);
-}
-
-impl fmt::Display for EtherType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                EtherTypes::ARP => "ARP".to_string(),
-                EtherTypes::Ipv4 => "IPv4".to_string(),
-                EtherTypes::Ipv6 => "IPv6".to_string(),
-                _ => {
-                    let t = self.0;
-                    format!("0x{:04x}", t)
-                }
-            }
-        )
-    }
-}
-
-/// VLAN tag.
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C, packed)]
-pub struct VlanTag {
-    tpid: u16,
-    tci: u16,
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref)]
-impl VlanTag {
-    pub fn tag_id(&self) -> u16 {
-        self.tpid
-    }
-
-    pub fn priority(&self) -> u8 {
-        (self.tci >> 13) as u8
-    }
-
-    pub fn drop_eligible(&self) -> bool {
-        self.tci & 0x1000 > 0
-    }
-
-    pub fn identifier(&self) -> u16 {
-        self.tci & 0x0fff
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C, packed)]
-pub struct Chunk802_1q {
-    tag: VlanTag,
-    ether_type: u16,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C, packed)]
-pub struct Chunk802_1ad {
-    stag: VlanTag,
-    ctag: VlanTag,
-    ether_type: u16,
-}
-
-/// The ethernet header chunk follows the source mac addr.
-#[derive(Clone, Copy)]
-#[repr(C, packed)]
-pub union Chunk {
-    ether_type: u16,
-    chunk_802_1q: Chunk802_1q,
-    chunk_802_1ad: Chunk802_1ad,
-}
-
-impl Default for Chunk {
-    fn default() -> Chunk {
-        Chunk {
-            ether_type: Default::default(),
-        }
-    }
-}
-
-/// Ethernet header.
-#[derive(Clone, Copy, Default)]
-#[repr(C, packed)]
-pub struct EthernetHeader {
-    dst: MacAddr,
-    src: MacAddr,
-    chunk: Chunk,
-}
-
-impl Header for EthernetHeader {}
-
-impl SizeOf for EthernetHeader {
-    /// Size of the ethernet header.
-    ///
-    /// Because the ethernet header is not fixed and modeled with a union, the
-    /// memory layout size is not the correct header size. For a brand new
-    /// ethernet header, we will always report 14 bytes as the fixed portion,
-    /// which is the minimum size without any tags. `Ethernet::header_len()`
-    /// will report the correct instance size based on the presence or absence
-    /// of VLAN tags.
-    #[inline]
-    fn size_of() -> usize {
-        14
-    }
-}
-
-// Tag protocol identifiers.
-const VLAN_802_1Q: u16 = 0x8100;
-const VLAN_802_1AD: u16 = 0x88a8;
-
 /// Ethernet II frame.
 ///
 /// This is an implementation of the Ethernet II frame specified in IEEE
@@ -144,6 +12,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// more in the case of jumbo frames. The frame check sequence or FCS that
 /// follows the payload is handled by the hardware and is not included.
 ///
+/// ```
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -152,6 +21,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// |                                                               |
 /// |                                                               |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
 ///
 /// Destination MAC     48-bit MAC address of the originator of the
 ///                     packet.
@@ -167,14 +37,17 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// For networks support virtual LANs, the frame may include an extra VLAN
 /// tag after the source MAC as specified in IEEE 802.1Q.
 ///
+/// ```
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |  Dst MAC  |  Src MAC  | V-TAG |Typ|          Payload          |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
 ///
 /// The tag has the following format, with TPID set to `0x8100`.
 ///
+/// ```
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |   16 bits   | 3 bits  | 1 bit | 12 bits |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -182,6 +55,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// +    TPID     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |             |   PCP   |  DEI  |   VID   |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
 ///
 /// TPID                16-bit tag protocol identifier, located at the same
 ///                     position as the EtherType field in untagged frames.
@@ -204,11 +78,13 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///
 /// The frame may be double tagged as per IEEE 802.1ad.
 ///
+/// ```
 ///  0                   1                   2                   3
 ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |  Dst MAC  |  Src MAC  | S-TAG | C-TAG |Typ|     Payload       |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
 ///
 /// Double tagging can be useful for ISPs, allowing them to use VLANs internally
 /// while mixing traffic from clients that are already VLAN tagged. The outer
@@ -222,21 +98,25 @@ pub struct Ethernet {
 }
 
 impl Ethernet {
+    /// Returns the source MAC address.
     #[inline]
     pub fn src(&self) -> MacAddr {
         self.header().src
     }
 
+    /// Sets the source MAC address.
     #[inline]
     pub fn set_src(&mut self, src: MacAddr) {
         self.header_mut().src = src
     }
 
+    /// Returns the destination MAC address.
     #[inline]
     pub fn dst(&self) -> MacAddr {
         self.header().dst
     }
 
+    /// Sets the destination MAC address.
     #[inline]
     pub fn set_dst(&mut self, dst: MacAddr) {
         self.header_mut().dst = dst
@@ -248,6 +128,7 @@ impl Ethernet {
         unsafe { u16::from_be(self.header().chunk.ether_type) }
     }
 
+    /// Returns the protocol identifier of the payload.
     #[inline]
     pub fn ether_type(&self) -> EtherType {
         let header = self.header();
@@ -262,6 +143,7 @@ impl Ethernet {
         EtherType::new(u16::from_be(ether_type))
     }
 
+    /// Sets the protocol identifier of the payload.
     #[inline]
     pub fn set_ether_type(&mut self, ether_type: EtherType) {
         let ether_type = u16::to_be(ether_type.0);
@@ -278,12 +160,13 @@ impl Ethernet {
         self.vlan_marker() == VLAN_802_1Q
     }
 
-    /// Returns whether the frame is VLAN 802.1ad double tagged.
+    /// Returns whether the frame is VLAN 802.1ad tagged.
     #[inline]
     pub fn is_vlan_802_1ad(&self) -> bool {
         self.vlan_marker() == VLAN_802_1AD
     }
 
+    /// Swaps the source MAC address with the destination MAC address.
     #[inline]
     pub fn swap_addresses(&mut self) {
         let src = self.src();
@@ -404,10 +287,147 @@ impl Packet for Ethernet {
     }
 }
 
+/// The protocol identifier of the ethernet frame payload.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[repr(C, packed)]
+pub struct EtherType(pub u16);
+
+impl EtherType {
+    pub fn new(value: u16) -> Self {
+        EtherType(value)
+    }
+}
+
+/// Supported ethernet payload protocol types.
+#[allow(non_snake_case)]
+#[allow(non_upper_case_globals)]
+pub mod EtherTypes {
+    use super::EtherType;
+
+    // Address resolution protocol.
+    pub const ARP: EtherType = EtherType(0x0806);
+    // Internet Protocol version 4.
+    pub const Ipv4: EtherType = EtherType(0x0800);
+    // Internet Protocol version 6.
+    pub const Ipv6: EtherType = EtherType(0x86DD);
+}
+
+impl fmt::Display for EtherType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                EtherTypes::ARP => "ARP".to_string(),
+                EtherTypes::Ipv4 => "IPv4".to_string(),
+                EtherTypes::Ipv6 => "IPv6".to_string(),
+                _ => {
+                    let t = self.0;
+                    format!("0x{:04x}", t)
+                }
+            }
+        )
+    }
+}
+
+// Tag protocol identifiers.
+const VLAN_802_1Q: u16 = 0x8100;
+const VLAN_802_1AD: u16 = 0x88a8;
+
+/// VLAN tag.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct VlanTag {
+    tpid: u16,
+    tci: u16,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+impl VlanTag {
+    /// Returns the tag protocol identifier, either 802.1q or 802.1ad.
+    pub fn tag_id(&self) -> u16 {
+        self.tpid
+    }
+
+    /// Returns the priority code point.
+    pub fn priority(&self) -> u8 {
+        (self.tci >> 13) as u8
+    }
+
+    /// Returns whether the frame is eligible to be dropped in the presence
+    /// of congestion.
+    pub fn drop_eligible(&self) -> bool {
+        self.tci & 0x1000 > 0
+    }
+
+    /// Returns the VLAN identifier.
+    pub fn identifier(&self) -> u16 {
+        self.tci & 0x0fff
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct Chunk802_1q {
+    tag: VlanTag,
+    ether_type: u16,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct Chunk802_1ad {
+    stag: VlanTag,
+    ctag: VlanTag,
+    ether_type: u16,
+}
+
+/// The ethernet header chunk follows the source mac addr.
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub union Chunk {
+    ether_type: u16,
+    chunk_802_1q: Chunk802_1q,
+    chunk_802_1ad: Chunk802_1ad,
+}
+
+impl Default for Chunk {
+    fn default() -> Chunk {
+        Chunk {
+            ether_type: Default::default(),
+        }
+    }
+}
+
+/// Ethernet header.
+#[derive(Clone, Copy, Default)]
+#[repr(C, packed)]
+pub struct EthernetHeader {
+    dst: MacAddr,
+    src: MacAddr,
+    chunk: Chunk,
+}
+
+impl Header for EthernetHeader {}
+
+impl SizeOf for EthernetHeader {
+    /// Size of the ethernet header.
+    ///
+    /// Because the ethernet header is not fixed and modeled with a union, the
+    /// memory layout size is not the correct header size. For a brand new
+    /// ethernet header, we will always report 14 bytes as the fixed portion,
+    /// which is the minimum size without any tags. `Ethernet::header_len()`
+    /// will report the correct instance size based on the presence or absence
+    /// of VLAN tags.
+    #[inline]
+    fn size_of() -> usize {
+        14
+    }
+}
+
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const VLAN_802_1Q_PACKET: [u8; 64] = [
-    // ** ethernet header
+    // ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid
@@ -427,7 +447,7 @@ pub const VLAN_802_1Q_PACKET: [u8; 64] = [
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const VLAN_802_1AD_PACKET: [u8; 68] = [
-    // ** ethernet header
+    // ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid
