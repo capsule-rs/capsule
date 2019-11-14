@@ -6,166 +6,111 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
 
-/*  From https://tools.ietf.org/html/rfc791#section-3.1
-    Internet Datagram Header
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |Version|  IHL  |    DSCP_ECN   |          Total Length         |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |         Identification        |Flags|      Fragment Offset    |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |  Time to Live |    Protocol   |         Header Checksum       |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                       Source Address                          |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                    Destination Address                        |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                    Options                    |    Padding    |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    Version:  4 bits
-        The Version field indicates the format of the internet header.  This
-        document describes version 4.
-
-    IHL:  4 bits
-        Internet Header Length is the length of the internet header in 32
-        bit words, and thus points to the beginning of the data.  Note that
-        the minimum value for a correct header is 5.
-
-    DSCP_ECN:  8 bits
-        Differentiated services (via RFC 2474 ~ https://tools.ietf.org/html/rfc2474)
-        enhancements to the Internet protocol are intended to enable scalable
-        service discrimination in the Internet without the need for per-flow
-        state and signaling at every hop.  A variety of services may be built
-        from a small, well-defined set of building blocks which are deployed in
-        network nodes. The services may be either end-to-end or intra-domain;
-        they include both those that can satisfy quantitative performance
-        requirements (e.g., peak bandwidth) and those based on relative
-        performance (e.g., "class" differentiation).
-
-        Taking the last two bits, is ECN, the addition of Explicit
-        Congestion Notification to IP; RFC-3168
-        (https://tools.ietf.org/html/rfc3168) covers this in detail.
-        This uses an ECN field in the IP header with two bits, making four ECN
-        codepoints, '00' to '11'.  The ECN-Capable Transport (ECT) codepoints
-        '10' and '01' are set by the data sender to indicate that the end-points
-        of the transport protocol are ECN-capable; we call them ECT(0) and
-        ECT(1) respectively.  The phrase "the ECT codepoint" in this documents
-        refers to either of the two ECT codepoints.  Routers treat the ECT(0)
-        and ECT(1) codepoints as equivalent.  Senders are free to use either the
-        ECT(0) or the ECT(1) codepoint to indicate ECT, on a packet-by-packet
-        basis.
-
-    Total Length:  16 bits
-        Total Length is the length of the datagram, measured in octets,
-        including internet header and data.
-
-    Identification:  16 bits
-        An identifying value assigned by the sender to aid in assembling the
-        fragments of a datagram.
-
-    Flags:  3 bits
-        Various Control Flags.
-
-        Bit 0: reserved, must be zero
-        Bit 1: (DF) 0 = May Fragment,  1 = Don't Fragment.
-        Bit 2: (MF) 0 = Last Fragment, 1 = More Fragments.
-
-          0   1   2
-        +---+---+---+
-        |   | D | M |
-        | 0 | F | F |
-        +---+---+---+
-
-    Fragment Offset:  13 bits
-        This field indicates where in the datagram this fragment belongs.
-        The fragment offset is measured in units of 8 octets (64 bits).  The
-        first fragment has offset zero.
-
-    Time to Live:  8 bits
-        This field indicates the maximum time the datagram is allowed to
-        remain in the internet system.  If this field contains the value
-        zero, then the datagram must be destroyed.  This field is modified
-        in internet header processing.  The time is measured in units of
-        seconds, but since every module that processes a datagram must
-        decrease the TTL by at least one even if it process the datagram in
-        less than a second, the TTL must be thought of only as an upper
-        bound on the time a datagram may exist.  The intention is to cause
-        undeliverable datagrams to be discarded, and to bound the maximum
-        datagram lifetime.
-
-    Protocol:  8 bits
-        This field indicates the next level protocol used in the data
-        portion of the internet datagram.  The values for various protocols
-        are specified in "Assigned Numbers".
-
-    Header Checksum:  16 bits
-        A checksum on the header only.  Since some header fields change
-        (e.g., time to live), this is recomputed and verified at each point
-        that the internet header is processed.
-
-    Source Address:  32 bits
-        The source address.
-
-    Destination Address:  32 bits
-        The destination address.
-
-    Options:  variable
-        The options may appear or not in datagrams.  They must be
-        implemented by all IP modules (host and gateways).  What is optional
-        is their transmission in any particular datagram, not their
-        implementation.
-*/
-
-// Masks
+// Masks.
 const DSCP: u8 = 0b1111_1100;
 const ECN: u8 = !DSCP;
-
-// Flags
 const FLAGS_DF: u16 = 0b0100_0000_0000_0000;
 const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 
-/// IPv4 header.
+/// Internet Protocol v4 based on [IETF RFC 791].
 ///
-/// The header only include the fixed portion of the IPv4 header.
-/// Options are parsed separately.
-#[derive(Clone, Copy, Debug)]
-#[repr(C, packed)]
-pub struct Ipv4Header {
-    version_ihl: u8,
-    dscp_ecn: u8,
-    total_length: u16,
-    identification: u16,
-    flags_to_frag_offset: u16,
-    ttl: u8,
-    protocol: u8,
-    checksum: u16,
-    src: Ipv4Addr,
-    dst: Ipv4Addr,
-}
-
-impl Default for Ipv4Header {
-    fn default() -> Ipv4Header {
-        Ipv4Header {
-            version_ihl: 0x45,
-            dscp_ecn: 0,
-            total_length: 0,
-            identification: 0,
-            flags_to_frag_offset: 0,
-            ttl: 0,
-            protocol: 0,
-            checksum: 0,
-            src: Ipv4Addr::UNSPECIFIED,
-            dst: Ipv4Addr::UNSPECIFIED,
-        }
-    }
-}
-
-impl Header for Ipv4Header {}
-
-/// IPv4 packet.
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |Version|  IHL  |    DSCP   |ECN|          Total Length         |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |         Identification        |Flags|      Fragment Offset    |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |  Time to Live |    Protocol   |         Header Checksum       |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                       Source Address                          |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                    Destination Address                        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                    Options                    |    Padding    |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// Version:  4 bits
+///     The Version field indicates the format of the internet header.  This
+///     document describes version 4.
+///
+/// IHL:  4 bits
+///     Internet Header Length is the length of the internet header in 32
+///     bit words, and thus points to the beginning of the data.  Note that
+///     the minimum value for a correct header is 5.
+///
+/// DSCP:  6 bits
+///     Differentiated services codepoint defined in [IETF RFC 2474]. Used to
+///     select the per hop behavior a packet experiences at each node.
+///
+/// ECN:   2 bits
+///     Explicit congestion notification codepoint defined in [IETF RFC 3168].
+///
+/// Total Length:  16 bits
+///     Total Length is the length of the datagram, measured in octets,
+///     including internet header and data.
+///
+/// Identification:  16 bits
+///     An identifying value assigned by the sender to aid in assembling the
+///     fragments of a datagram.
+///
+/// Flags:  3 bits
+///     Various Control Flags.
+///
+///     Bit 0: reserved, must be zero
+///     Bit 1: (DF) 0 = May Fragment,  1 = Don't Fragment.
+///     Bit 2: (MF) 0 = Last Fragment, 1 = More Fragments.
+///
+///       0   1   2
+///     +---+---+---+
+///     |   | D | M |
+///     | 0 | F | F |
+///     +---+---+---+
+///
+/// Fragment Offset:  13 bits
+///     This field indicates where in the datagram this fragment belongs.
+///     The fragment offset is measured in units of 8 octets (64 bits).  The
+///     first fragment has offset zero.
+///
+/// Time to Live:  8 bits
+///     This field indicates the maximum time the datagram is allowed to
+///     remain in the internet system.  If this field contains the value
+///     zero, then the datagram must be destroyed.  This field is modified
+///     in internet header processing.  The time is measured in units of
+///     seconds, but since every module that processes a datagram must
+///     decrease the TTL by at least one even if it process the datagram in
+///     less than a second, the TTL must be thought of only as an upper
+///     bound on the time a datagram may exist.  The intention is to cause
+///     undeliverable datagrams to be discarded, and to bound the maximum
+///     datagram lifetime.
+///
+/// Protocol:  8 bits
+///     This field indicates the next level protocol used in the data
+///     portion of the internet datagram.  The values for various protocols
+///     are specified in "Assigned Numbers".
+///
+/// Header Checksum:  16 bits
+///     A checksum on the header only.  Since some header fields change
+///     (e.g., time to live), this is recomputed and verified at each point
+///     that the internet header is processed.
+///
+/// Source Address:  32 bits
+///     The source address.
+///
+/// Destination Address:  32 bits
+///     The destination address.
+///
+/// Options:  variable
+///     The options may appear or not in datagrams.  They must be
+///     implemented by all IP modules (host and gateways).  What is optional
+///     is their transmission in any particular datagram, not their
+///     implementation.
+///
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791#section-3.1
+/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 #[derive(Clone)]
 pub struct Ipv4 {
     envelope: CondRc<Ethernet>,
@@ -174,12 +119,14 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
+    /// Returns the protocol version. Should always be `4`.
     #[inline]
     pub fn version(&self) -> u8 {
-        // Protocol Version, should always be `4`
         (self.header().version_ihl & 0xf0) >> 4
     }
 
+    /// Returns the length of the internet header measured in number of
+    /// 32-bit words. This indicates where the data begins.
     #[inline]
     pub fn ihl(&self) -> u8 {
         self.header().version_ihl & 0x0f
@@ -191,91 +138,114 @@ impl Ipv4 {
         self.header_mut().version_ihl = (self.header().version_ihl & 0x0f) | (ihl & 0x0f);
     }
 
+    /// Returns the differentiated services codepoint.
     #[inline]
     pub fn dscp(&self) -> u8 {
         self.header().dscp_ecn >> 2
     }
 
+    /// Sets the differentiated services codepoint.
     #[inline]
     pub fn set_dscp(&mut self, dscp: u8) {
         self.header_mut().dscp_ecn = (self.header().dscp_ecn & ECN) | (dscp << 2);
     }
 
+    /// Returns the explicit congestion notification codepoint.
     #[inline]
     pub fn ecn(&self) -> u8 {
         self.header().dscp_ecn & ECN
     }
 
+    /// Sets the explicit congestion notification codepoint.
     #[inline]
     pub fn set_ecn(&mut self, ecn: u8) {
         self.header_mut().dscp_ecn = (self.header().dscp_ecn & DSCP) | (ecn & ECN);
     }
 
+    /// Returns the length of the packet, measured in octets, including
+    /// the header and data.
     #[inline]
     pub fn total_length(&self) -> u16 {
         u16::from_be(self.header().total_length)
     }
 
+    /// Sets the length of the packet.
     #[inline]
     fn set_total_length(&mut self, total_length: u16) {
         self.header_mut().total_length = u16::to_be(total_length);
     }
 
+    /// Returns the identifying value assigned by the sender to aid in
+    /// assembling the fragments of a packet.
     #[inline]
     pub fn identification(&self) -> u16 {
         u16::from_be(self.header().identification)
     }
 
+    /// Sets the identifying value.
     #[inline]
     pub fn set_identification(&mut self, identification: u16) {
         self.header_mut().identification = u16::to_be(identification);
     }
 
+    /// Returns a flag indicating whether the packet can be fragmented.
     #[inline]
     pub fn dont_fragment(&self) -> bool {
         u16::from_be(self.header().flags_to_frag_offset) & FLAGS_DF != 0
     }
 
+    /// Sets the don't fragment flag to indicate that the packet must not
+    /// be fragmented.
     #[inline]
     pub fn set_dont_fragment(&mut self) {
         self.header_mut().flags_to_frag_offset =
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) | FLAGS_DF);
     }
 
+    /// Unsets the don't fragment flag to indicate that the packet may be
+    /// fragmented.
     #[inline]
     pub fn unset_dont_fragment(&mut self) {
         self.header_mut().flags_to_frag_offset =
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !FLAGS_DF);
     }
 
+    /// Returns a flag indicating whether there are more fragments.
     #[inline]
     pub fn more_fragments(&self) -> bool {
         u16::from_be(self.header().flags_to_frag_offset) & FLAGS_MF != 0
     }
 
+    /// Sets the more fragment flag indicating there are more fragments.
     #[inline]
     pub fn set_more_fragments(&mut self) {
         self.header_mut().flags_to_frag_offset =
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) | FLAGS_MF);
     }
 
+    /// Unsets the more fragment flag indicating this is the last fragment.
     #[inline]
     pub fn unset_more_fragments(&mut self) {
         self.header_mut().flags_to_frag_offset =
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !FLAGS_MF);
     }
 
+    /// Clears the don't fragment and more fragments flags.
     #[inline]
     pub fn clear_flags(&mut self) {
         self.header_mut().flags_to_frag_offset =
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !0xe000);
     }
 
+    /// Returns an offset indicating where in the datagram this fragment
+    /// belongs. It is measured in units of 8 octets or 64 bits. The first
+    /// fragment has offset zero.
     #[inline]
     pub fn fragment_offset(&self) -> u16 {
         u16::from_be(self.header().flags_to_frag_offset) & 0x1fff
     }
 
+    /// Sets the fragment offset.
     #[inline]
     pub fn set_fragment_offset(&mut self, offset: u16) {
         self.header_mut().flags_to_frag_offset = u16::to_be(
@@ -283,52 +253,62 @@ impl Ipv4 {
         );
     }
 
+    /// Returns the packet's time to live.
     #[inline]
     pub fn ttl(&self) -> u8 {
         self.header().ttl
     }
 
+    /// Sets the time to live.
     #[inline]
     pub fn set_ttl(&mut self, ttl: u8) {
         self.header_mut().ttl = ttl;
     }
 
+    /// Returns the next level protocol in the packet payload.
     #[inline]
     pub fn protocol(&self) -> ProtocolNumber {
         ProtocolNumber::new(self.header().protocol)
     }
 
+    /// Sets the next level protocol.
     #[inline]
     pub fn set_protocol(&mut self, protocol: ProtocolNumber) {
         self.header_mut().protocol = protocol.0;
     }
 
+    /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
         u16::from_be(self.header().checksum)
     }
 
+    /// Sets the checksum.
     #[allow(dead_code)]
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
         self.header_mut().checksum = u16::to_be(checksum);
     }
 
+    /// Returns the source address.
     #[inline]
     pub fn src(&self) -> Ipv4Addr {
         self.header().src
     }
 
+    /// Sets the source address.
     #[inline]
     pub fn set_src(&mut self, src: Ipv4Addr) {
         self.header_mut().src = src;
     }
 
+    /// Returns the destination address.
     #[inline]
     pub fn dst(&self) -> Ipv4Addr {
         self.header().dst
     }
 
+    /// Sets the destination address.
     #[inline]
     pub fn set_dst(&mut self, dst: Ipv4Addr) {
         self.header_mut().dst = dst;
@@ -496,6 +476,44 @@ impl IpPacket for Ipv4 {
         }
     }
 }
+
+/// IPv4 header.
+///
+/// The header only include the fixed portion of the IPv4 header.
+/// Options are parsed separately.
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct Ipv4Header {
+    version_ihl: u8,
+    dscp_ecn: u8,
+    total_length: u16,
+    identification: u16,
+    flags_to_frag_offset: u16,
+    ttl: u8,
+    protocol: u8,
+    checksum: u16,
+    src: Ipv4Addr,
+    dst: Ipv4Addr,
+}
+
+impl Default for Ipv4Header {
+    fn default() -> Ipv4Header {
+        Ipv4Header {
+            version_ihl: 0x45,
+            dscp_ecn: 0,
+            total_length: 0,
+            identification: 0,
+            flags_to_frag_offset: 0,
+            ttl: 0,
+            protocol: 0,
+            checksum: 0,
+            src: Ipv4Addr::UNSPECIFIED,
+            dst: Ipv4Addr::UNSPECIFIED,
+        }
+    }
+}
+
+impl Header for Ipv4Header {}
 
 #[cfg(test)]
 mod tests {

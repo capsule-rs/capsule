@@ -26,6 +26,7 @@ pub enum NdpOptions {
     Undefined(u8, u8),
 }
 
+/// Common behaviors shared by NDP options.
 pub trait NdpOption {
     #[doc(hidden)]
     fn do_push(mbuf: &mut Mbuf) -> Result<Self>
