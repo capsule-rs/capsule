@@ -5,6 +5,10 @@ use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
+// Tag protocol identifiers.
+const VLAN_802_1Q: u16 = 0x8100;
+const VLAN_802_1AD: u16 = 0x88a8;
+
 /// Ethernet II frame.
 ///
 /// This is an implementation of the Ethernet II frame specified in IEEE
@@ -329,10 +333,6 @@ impl fmt::Display for EtherType {
         )
     }
 }
-
-// Tag protocol identifiers.
-const VLAN_802_1Q: u16 = 0x8100;
-const VLAN_802_1AD: u16 = 0x88a8;
 
 /// VLAN tag.
 #[derive(Clone, Copy, Debug, Default)]

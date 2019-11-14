@@ -10,6 +10,16 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
+/// The minimum IPv6 MTU defined in [IETF RFC 2460].
+///
+/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-5
+pub const IPV6_MIN_MTU: usize = 1280;
+
+// Masks
+const DSCP: u32 = 0x0fc0_0000;
+const ECN: u32 = 0x0030_0000;
+const FLOW: u32 = 0xfffff;
+
 /// Internet Protocol v6 based on [IETF RFC 8200].
 ///
 /// ```
@@ -20,9 +30,9 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |         Payload Length        |  Next Header  |   Hop Limit   |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                         Source Address                        |
+/// |            Source Address (128 bits IPv6 address)             |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                      Destination Address                      |
+/// |          Destination Address (128 bits IPv6 address)          |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
@@ -338,16 +348,6 @@ impl Ipv6Packet for Ipv6 {
         self.header_mut().next_header = next_header.0;
     }
 }
-
-/// The minimum IPv6 MTU defined in [IETF RFC 2460].
-///
-/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-5
-pub const IPV6_MIN_MTU: usize = 1280;
-
-// Masks
-const DSCP: u32 = 0x0fc0_0000;
-const ECN: u32 = 0x0030_0000;
-const FLOW: u32 = 0xfffff;
 
 /// Common behaviors shared by IPv6 and extension packets.
 pub trait Ipv6Packet: IpPacket {

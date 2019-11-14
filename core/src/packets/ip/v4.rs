@@ -6,6 +6,12 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
 
+// Masks.
+const DSCP: u8 = 0b1111_1100;
+const ECN: u8 = !DSCP;
+const FLAGS_DF: u16 = 0b0100_0000_0000_0000;
+const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
+
 /// Internet Protocol v4 based on [IETF RFC 791].
 ///
 /// ```
@@ -470,12 +476,6 @@ impl IpPacket for Ipv4 {
         }
     }
 }
-
-// Masks.
-const DSCP: u8 = 0b1111_1100;
-const ECN: u8 = !DSCP;
-const FLAGS_DF: u16 = 0b0100_0000_0000_0000;
-const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 
 /// IPv4 header.
 ///

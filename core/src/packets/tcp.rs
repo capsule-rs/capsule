@@ -5,6 +5,16 @@ use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
 
+// TCP control flag bitmasks.
+const CWR: u8 = 0b1000_0000;
+const ECE: u8 = 0b0100_0000;
+const URG: u8 = 0b0010_0000;
+const ACK: u8 = 0b0001_0000;
+const PSH: u8 = 0b0000_1000;
+const RST: u8 = 0b0000_0100;
+const SYN: u8 = 0b0000_0010;
+const FIN: u8 = 0b0000_0001;
+
 /// Transmission Control Protocol packet based on [IETF RFC 793].
 ///
 /// ```
@@ -531,16 +541,6 @@ impl<E: IpPacket> Packet for Tcp<E> {
         self.envelope.into_owned()
     }
 }
-
-// TCP control flag bitmasks.
-const CWR: u8 = 0b1000_0000;
-const ECE: u8 = 0b0100_0000;
-const URG: u8 = 0b0010_0000;
-const ACK: u8 = 0b0001_0000;
-const PSH: u8 = 0b0000_1000;
-const RST: u8 = 0b0000_0100;
-const SYN: u8 = 0b0000_0010;
-const FIN: u8 = 0b0000_0001;
 
 /// TCP header.
 ///

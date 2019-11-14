@@ -91,12 +91,13 @@ impl<E: IpPacket> Udp<E> {
         self.header_mut().length = u16::to_be(length);
     }
 
-    /// Returns the packet's checksum.
+    /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
         u16::from_be(self.header().checksum)
     }
 
+    /// Sets the checksum.
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
         // For UDP, if the computed checksum is zero, it is transmitted as
