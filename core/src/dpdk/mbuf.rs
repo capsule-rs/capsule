@@ -37,7 +37,7 @@ pub trait SizeOf {
 
 impl<T> SizeOf for T {
     #[inline]
-    fn size_of() -> usize {
+    default fn size_of() -> usize {
         std::mem::size_of::<T>()
     }
 }
