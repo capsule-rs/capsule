@@ -23,6 +23,7 @@ use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::{EtherType, EtherTypes, Ethernet, Packet, Tcp, Udp};
+use crate::testils::Rvg;
 use crate::Mbuf;
 use proptest::arbitrary::{any, Arbitrary};
 use proptest::collection::vec;
@@ -106,12 +107,20 @@ impl StrategyMap {
         StrategyMap(inner)
     }
 
-    fn get<T: Arbitrary + Clone + 'static>(&self, key: &field) -> impl Strategy<Value = T> {
+    fn checked_value<T: Arbitrary + Clone + 'static>(&self, key: &field) -> Option<T> {
         if let Some(ref v) = self.0.get(key) {
             let v = v
                 .downcast_ref::<T>()
                 .unwrap_or_else(|| panic!("value doesn't match type for field '{:?}'", key));
-            Just(v.clone()).boxed()
+            Some(v.clone())
+        } else {
+            None
+        }
+    }
+
+    fn get<T: Arbitrary + Clone + 'static>(&self, key: &field) -> impl Strategy<Value = T> {
+        if let Some(v) = self.checked_value(key) {
+            Just(v).boxed()
         } else {
             any::<T>().boxed()
         }
@@ -145,17 +154,26 @@ impl StrategyMap {
         self.get::<Ipv6Addr>(key)
     }
 
-    fn sr_segments(&self) -> impl Strategy<Value = Vec<Ipv6Addr>> {
-        if let Some(ref v) = self.0.get(&field::sr_segments) {
-            let v = v.downcast_ref::<Vec<Ipv6Addr>>().unwrap_or_else(|| {
-                panic!(
-                    "value doesn't match type for field '{:?}'",
-                    field::sr_segments
+    fn sr_segments(&self) -> impl Strategy<Value = (Vec<Ipv6Addr>, usize)> {
+        let mut rvg = Rvg::new();
+
+        match (
+            self.checked_value::<Vec<Ipv6Addr>>(&field::sr_segments),
+            self.checked_value::<usize>(&field::sr_segments_left),
+        ) {
+            (Some(v), None) => {
+                let segments_left = rvg.generate(0..=v.len());
+                (Just(v).boxed(), Just(segments_left))
+            }
+            (None, Some(v)) => (vec(any::<Ipv6Addr>(), 1..=v).boxed(), Just(v)),
+            (Some(segments), Some(segments_left)) => (Just(segments).boxed(), Just(segments_left)),
+            _ => {
+                let segments_left = rvg.generate(0..=(8 as usize));
+                (
+                    vec(any::<Ipv6Addr>(), 1..=segments_left + 1).boxed(),
+                    Just(segments_left),
                 )
-            });
-            Just(v.clone()).boxed()
-        } else {
-            vec(any::<Ipv6Addr>(), 1..8).boxed()
+            }
         }
     }
 }
@@ -271,20 +289,16 @@ fn srh<E: Debug + Ipv6Packet>(
     next_header: ProtocolNumber,
     map: &StrategyMap,
 ) -> impl Strategy<Value = SegmentRouting<E>> {
-    (
-        envelope,
-        map.sr_segments(),
-        map.u8(&field::sr_segments_left),
-        map.u16(&field::sr_tag),
-    )
-        .prop_map(move |(packet, segments, segments_left, tag)| {
+    (envelope, map.sr_segments(), map.u16(&field::sr_tag)).prop_map(
+        move |(packet, (segments, segments_left), tag)| {
             let mut packet = packet.push::<SegmentRouting<E>>().unwrap();
             packet.set_segments(&segments).unwrap();
-            packet.set_segments_left(segments_left);
             packet.set_tag(tag);
             packet.set_next_header(next_header);
+            packet.set_segments_left(segments_left as u8);
             packet
-        })
+        },
+    )
 }
 
 fn tcp<E: Debug + IpPacket>(

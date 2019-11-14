@@ -194,13 +194,18 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
         if !segments.is_empty() {
             let old_len = self.last_entry() + 1;
             let new_len = segments.len() as u8;
+
             let segments_offset = self.offset + SegmentRoutingHeader::size_of();
 
             let mbuf = self.mbuf_mut();
-            mbuf.resize(
-                segments_offset,
-                (new_len as isize - old_len as isize) * Ipv6Addr::size_of() as isize,
-            )?;
+
+            // if it's a true 1:1 segments replace, don't resize first
+            if old_len != new_len {
+                mbuf.resize(
+                    segments_offset,
+                    (new_len as isize - old_len as isize) * Ipv6Addr::size_of() as isize,
+                )?;
+            }
             self.segments = mbuf.write_data_slice(segments_offset, segments)?;
             self.set_hdr_ext_len(new_len * 2);
             self.set_last_entry(new_len - 1);
