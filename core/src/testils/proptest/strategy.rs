@@ -8,6 +8,7 @@ use crate::packets::{EtherType, EtherTypes, Ethernet, Packet, Tcp, Udp};
 use crate::Mbuf;
 use proptest::arbitrary::{any, Arbitrary};
 use proptest::collection::vec;
+use proptest::prelude::*;
 use proptest::prop_oneof;
 use proptest::strategy::{Just, Strategy};
 use std::any::Any;
@@ -259,12 +260,18 @@ fn srh<E: Debug + Ipv6Packet>(
         map.u8(&field::sr_segments_left),
         map.u16(&field::sr_tag),
     )
-        .prop_map(move |(packet, segments, segments_left, tag)| {
+        .prop_perturb(move |(packet, segments, segments_left, tag), mut rng| {
             let mut packet = packet.push::<SegmentRouting<E>>().unwrap();
             packet.set_segments(&segments).unwrap();
-            packet.set_segments_left(segments_left);
             packet.set_tag(tag);
             packet.set_next_header(next_header);
+
+            let num_segments = segments.len() as u8;
+            if segments_left > num_segments {
+                packet.set_segments_left(rng.gen_range(0, num_segments));
+            } else {
+                packet.set_segments_left(segments_left);
+            }
             packet
         })
 }
