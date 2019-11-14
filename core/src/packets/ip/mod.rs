@@ -26,9 +26,9 @@ use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
-/// Assigned internet protocol number.
+/// [IANA] assigned internet protocol number.
 ///
-/// From https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+/// [IANA]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct ProtocolNumber(pub u8);
@@ -137,6 +137,7 @@ impl Default for Flow {
 }
 
 impl Flow {
+    /// Returns a new IP flow.
     pub fn new(
         src_ip: IpAddr,
         dst_ip: IpAddr,
@@ -153,56 +154,67 @@ impl Flow {
         }
     }
 
+    /// Returns the source address.
     #[inline]
     pub fn src_ip(&self) -> IpAddr {
         self.src_ip
     }
 
+    /// Sets the source address.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) {
         self.src_ip = src_ip
     }
 
+    /// Returns the destination address.
     #[inline]
     pub fn dst_ip(&self) -> IpAddr {
         self.dst_ip
     }
 
+    /// Sets the destination address.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) {
         self.dst_ip = dst_ip
     }
 
+    /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
         self.src_port
     }
 
+    /// Sets the source port.
     #[inline]
     pub fn set_src_port(&mut self, src_port: u16) {
         self.src_port = src_port
     }
 
+    /// Returns the destination port.
     #[inline]
     pub fn dst_port(&self) -> u16 {
         self.dst_port
     }
 
+    /// Sets the destination port.
     #[inline]
     pub fn set_dst_port(&mut self, dst_port: u16) {
         self.dst_port = dst_port
     }
 
+    /// Returns the flow protocol.
     #[inline]
     pub fn protocol(&self) -> ProtocolNumber {
         self.protocol
     }
 
+    /// Sets the flow protocol.
     #[inline]
     pub fn set_protocol(&mut self, protocol: ProtocolNumber) {
         self.protocol = protocol
     }
 
+    /// Reverses the flow by swapping the source and destination.
     #[inline]
     pub fn reverse(&self) -> Self {
         Flow {

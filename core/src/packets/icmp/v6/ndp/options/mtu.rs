@@ -22,50 +22,30 @@ use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/*  From https://tools.ietf.org/html/rfc4861#section-4.6.4
-    MTU
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |     Type      |    Length     |           Reserved            |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                              MTU                              |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    Type            5
-
-    Length          1
-
-    Reserved        This field is unused.  It MUST be initialized to
-                    zero by the sender and MUST be ignored by the
-                    receiver.
-
-    MTU             32-bit unsigned integer.  The recommended MTU for
-                    the link.
-*/
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C, packed)]
-struct MtuFields {
-    option_type: u8,
-    length: u8,
-    reserved: u16,
-    mtu: u32,
-}
-
-impl Default for MtuFields {
-    fn default() -> MtuFields {
-        MtuFields {
-            option_type: MTU,
-            length: 1,
-            reserved: 0,
-            mtu: 0,
-        }
-    }
-}
-
-/// Maximum transmission unit option.
+/// MTU option defined in [IETF RFC 4861].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |    Length     |           Reserved            |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                              MTU                              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// Type            5
+///
+/// Length          1
+///
+/// Reserved        This field is unused.  It MUST be initialized to
+///                 zero by the sender and MUST be ignored by the
+///                 receiver.
+///
+/// MTU             32-bit unsigned integer.  The recommended MTU for
+///                 the link.
+///
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.6.4
 pub struct Mtu {
     fields: NonNull<MtuFields>,
     offset: usize,
@@ -85,7 +65,7 @@ impl Mtu {
         Ok(Mtu { fields, offset })
     }
 
-    /// Returns the message buffer offset for this option
+    /// Returns the message buffer offset for this option.
     pub fn offset(&self) -> usize {
         self.offset
     }
@@ -100,19 +80,24 @@ impl Mtu {
         unsafe { self.fields.as_mut() }
     }
 
+    /// Returns the option type. Should always be `5`.
     #[inline]
     pub fn option_type(&self) -> u8 {
         self.fields().option_type
     }
 
+    /// Returns the length of the option measured in units of 8 octets.
+    /// Should always be `1`.
     pub fn length(&self) -> u8 {
         self.fields().length
     }
 
+    /// Returns the recommended MTU for the link.
     pub fn mtu(&self) -> u32 {
         u32::from_be(self.fields().mtu)
     }
 
+    /// Sets the recommended MTU for the link.
     pub fn set_mtu(&mut self, mtu: u32) {
         self.fields_mut().mtu = u32::to_be(mtu);
     }
@@ -138,6 +123,27 @@ impl NdpOption for Mtu {
         mbuf.extend(offset, MtuFields::size_of())?;
         let fields = mbuf.write_data(offset, &MtuFields::default())?;
         Ok(Mtu { fields, offset })
+    }
+}
+
+/// MTU option fields.
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+struct MtuFields {
+    option_type: u8,
+    length: u8,
+    reserved: u16,
+    mtu: u32,
+}
+
+impl Default for MtuFields {
+    fn default() -> MtuFields {
+        MtuFields {
+            option_type: MTU,
+            length: 1,
+            reserved: 0,
+            mtu: 0,
+        }
     }
 }
 

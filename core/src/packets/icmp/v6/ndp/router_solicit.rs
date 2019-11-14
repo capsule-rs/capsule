@@ -21,49 +21,33 @@ use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, 
 use crate::packets::ip::v6::Ipv6Packet;
 use std::fmt;
 
-/*  From https://tools.ietf.org/html/rfc4861#section-4.1
-    Router Solicitation Message Format
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |     Type      |     Code      |          Checksum             |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                            Reserved                           |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |   Options ...
-    +-+-+-+-+-+-+-+-+-+-+-+-
-
-    Reserved        This field is unused.  It MUST be initialized to
-                    zero by the sender and MUST be ignored by the
-                    receiver.
-
-   Valid Options:
-
-    Source link-layer address
-                    The link-layer address of the sender, if
-                    known.  MUST NOT be included if the Source Address
-                    is the unspecified address.  Otherwise, it SHOULD
-                    be included on link layers that have addresses.
-*/
-
-/// NDP router solicitation message.
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C, packed)]
-pub struct RouterSolicitation {
-    reserved: u32,
-}
-
-impl Icmpv6Payload for RouterSolicitation {
-    #[inline]
-    fn msg_type() -> Icmpv6Type {
-        Icmpv6Types::RouterSolicitation
-    }
-}
-
-impl NdpPayload for RouterSolicitation {}
-
-/// NDP router solicitation packet.
+/// Router Solicitation Message defined in [IETF RFC 4861].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                            Reserved                           |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |   Options ...
+/// +-+-+-+-+-+-+-+-+-+-+-+-
+/// ```
+///
+/// Reserved        This field is unused.  It MUST be initialized to
+///                 zero by the sender and MUST be ignored by the
+///                 receiver.
+///
+/// Valid Options:
+///
+/// Source link-layer address
+///                 The link-layer address of the sender, if
+///                 known.  MUST NOT be included if the Source Address
+///                 is the unspecified address.  Otherwise, it SHOULD
+///                 be included on link layers that have addresses.
+///
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.1
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
     pub fn reserved(&self) -> u32 {
@@ -81,6 +65,22 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
             .finish()
     }
 }
+
+/// The ICMPv6 payload for router solicitation message.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct RouterSolicitation {
+    reserved: u32,
+}
+
+impl Icmpv6Payload for RouterSolicitation {
+    #[inline]
+    fn msg_type() -> Icmpv6Type {
+        Icmpv6Types::RouterSolicitation
+    }
+}
+
+impl NdpPayload for RouterSolicitation {}
 
 #[cfg(test)]
 #[rustfmt::skip]

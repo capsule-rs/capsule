@@ -33,156 +33,42 @@ use crate::{Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/*  From (https://tools.ietf.org/html/rfc4443)
-    The ICMPv6 messages have the following general format:
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |     Type      |     Code      |          Checksum             |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    +                         Message Body                          +
-    |                                                               |
-
-    The type field indicates the type of the message.  Its value
-    determines the format of the remaining data.
-
-    The code field depends on the message type.  It is used to create an
-    additional level of message granularity.
-
-    The checksum field is used to detect data corruption in the ICMPv6
-    message and parts of the IPv6 header.
-*/
-
-/// Type of ICMPv6 message.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[repr(C, packed)]
-pub struct Icmpv6Type(pub u8);
-
-impl Icmpv6Type {
-    pub fn new(value: u8) -> Self {
-        Icmpv6Type(value)
-    }
-}
-
-/// Supported ICMPv6 message types.
-#[allow(non_snake_case)]
-#[allow(non_upper_case_globals)]
-pub mod Icmpv6Types {
-    use super::Icmpv6Type;
-
-    pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
-    pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
-    pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
-
-    // NDP types
-    pub const RouterSolicitation: Icmpv6Type = Icmpv6Type(133);
-    pub const RouterAdvertisement: Icmpv6Type = Icmpv6Type(134);
-    pub const NeighborSolicitation: Icmpv6Type = Icmpv6Type(135);
-    pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
-    pub const Redirect: Icmpv6Type = Icmpv6Type(137);
-}
-
-impl fmt::Display for Icmpv6Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                Icmpv6Types::PacketTooBig => "Packet Too Big".to_string(),
-                Icmpv6Types::EchoRequest => "Echo Request".to_string(),
-                Icmpv6Types::EchoReply => "Echo Reply".to_string(),
-                Icmpv6Types::RouterSolicitation => "Router Solicitation".to_string(),
-                Icmpv6Types::RouterAdvertisement => "Router Advertisement".to_string(),
-                Icmpv6Types::NeighborSolicitation => "Neighbor Solicitation".to_string(),
-                Icmpv6Types::NeighborAdvertisement => "Neighbor Advertisement".to_string(),
-                Icmpv6Types::Redirect => "Redirect".to_string(),
-                _ => format!("{}", self.0),
-            }
-        )
-    }
-}
-
-/// ICMPv6 packet header.
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C, packed)]
-pub struct Icmpv6Header {
-    msg_type: u8,
-    code: u8,
-    checksum: u16,
-}
-
-impl Header for Icmpv6Header {}
-
-/// ICMPv6 packet payload.
+/// Internet Control Message Protocol v6 packet based on [IETF RFC 4443].
 ///
-/// The ICMPv6 packet may contain a variable length payload. This
-/// is only the fixed portion. The variable length portion has to
-/// be parsed separately.
-pub trait Icmpv6Payload: Clone + Default + SizeOf {
-    /// Returns the ICMPv6 message type that corresponds to the payload
-    fn msg_type() -> Icmpv6Type;
-}
-
-/// ICMPv6 unit payload `()`.
-impl Icmpv6Payload for () {
-    fn msg_type() -> Icmpv6Type {
-        // Unit payload does not have a type
-        unreachable!();
-    }
-}
-
-/// Common behaviors shared by ICMPv6 packets.
-pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
-    Packet<Header = Icmpv6Header, Envelope = E>
-{
-    /// Returns a reference to the fixed payload
-    fn payload(&self) -> &P;
-
-    /// Returns a mutable reference to the fixed payload
-    fn payload_mut(&mut self) -> &mut P;
-
-    #[inline]
-    fn msg_type(&self) -> Icmpv6Type {
-        Icmpv6Type::new(self.header().msg_type)
-    }
-
-    #[inline]
-    fn code(&self) -> u8 {
-        self.header().code
-    }
-
-    #[inline]
-    fn set_code(&mut self, code: u8) {
-        self.header_mut().code = code
-    }
-
-    #[inline]
-    fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
-    }
-
-    #[inline]
-    fn compute_checksum(&mut self) {
-        self.header_mut().checksum = 0;
-
-        if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
-            let data = unsafe { data.as_ref() };
-            let pseudo_header_sum = self
-                .envelope()
-                .pseudo_header(data.len() as u16, ProtocolNumbers::Icmpv6)
-                .sum();
-            let checksum = checksum::compute(pseudo_header_sum, data);
-            self.header_mut().checksum = u16::to_be(checksum);
-        } else {
-            // we are reading till the end of buffer, should never run out
-            unreachable!()
-        }
-    }
-}
-
-/// ICMPv6 packet.
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                                                               |
+/// +                         Message Body                          +
+/// |                                                               |
+/// ```
+///
+/// The type field indicates the type of the message.  Its value
+/// determines the format of the remaining data.
+///
+/// The code field depends on the message type.  It is used to create an
+/// additional level of message granularity.
+///
+/// The checksum field is used to detect data corruption in the ICMPv6
+/// message and parts of the IPv6 header.
+///
+/// The message body varies based on the type field. The packet needs to
+/// be first parsed with the unit `()` payload before the type field can
+/// be read.
+///
+/// # Example
+///
+/// ```
+/// if ipv6.next_header() == NextHeaders::Icmpv6 {
+///     let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+///     println!("{}", icmpv6.msg_type());
+/// }
+/// ```
+///
+/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443
 #[derive(Clone)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     envelope: CondRc<E>,
@@ -191,23 +77,13 @@ pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     offset: usize,
 }
 
-/// ICMPv6 packet with unit payload.
-///
-/// Use unit payload `()` when the payload type is not known yet.
-///
-/// # Example
-///
-/// ```
-/// if ipv6.next_header() == NextHeaders::Icmpv6 {
-///     let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
-/// }
-/// ```
 impl<E: Ipv6Packet> Icmpv6<E, ()> {
-    /// Downcasts from unit payload to typed payload
+    /// Downcasts from unit payload to a typed payload.
     ///
     /// # Example
     ///
     /// ```
+    /// let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
     /// if icmpv6.msg_type() == Icmpv6Types::RouterAdvertisement {
     ///     let advert = icmpv6.downcast::<RouterAdvertisement>().unwrap();
     /// }
@@ -332,6 +208,137 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     }
 }
 
+/// Type of ICMPv6 message.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[repr(C, packed)]
+pub struct Icmpv6Type(pub u8);
+
+impl Icmpv6Type {
+    pub fn new(value: u8) -> Self {
+        Icmpv6Type(value)
+    }
+}
+
+/// Supported ICMPv6 message types.
+#[allow(non_snake_case)]
+#[allow(non_upper_case_globals)]
+pub mod Icmpv6Types {
+    use super::Icmpv6Type;
+
+    pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
+    pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
+    pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
+
+    // NDP types
+    pub const RouterSolicitation: Icmpv6Type = Icmpv6Type(133);
+    pub const RouterAdvertisement: Icmpv6Type = Icmpv6Type(134);
+    pub const NeighborSolicitation: Icmpv6Type = Icmpv6Type(135);
+    pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
+    pub const Redirect: Icmpv6Type = Icmpv6Type(137);
+}
+
+impl fmt::Display for Icmpv6Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                Icmpv6Types::PacketTooBig => "Packet Too Big".to_string(),
+                Icmpv6Types::EchoRequest => "Echo Request".to_string(),
+                Icmpv6Types::EchoReply => "Echo Reply".to_string(),
+                Icmpv6Types::RouterSolicitation => "Router Solicitation".to_string(),
+                Icmpv6Types::RouterAdvertisement => "Router Advertisement".to_string(),
+                Icmpv6Types::NeighborSolicitation => "Neighbor Solicitation".to_string(),
+                Icmpv6Types::NeighborAdvertisement => "Neighbor Advertisement".to_string(),
+                Icmpv6Types::Redirect => "Redirect".to_string(),
+                _ => format!("{}", self.0),
+            }
+        )
+    }
+}
+
+/// ICMPv6 packet header.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct Icmpv6Header {
+    msg_type: u8,
+    code: u8,
+    checksum: u16,
+}
+
+impl Header for Icmpv6Header {}
+
+/// ICMPv6 packet payload.
+///
+/// The ICMPv6 packet may contain a variable length payload. This
+/// is only the fixed portion. The variable length portion has to
+/// be parsed separately.
+pub trait Icmpv6Payload: Clone + Default + SizeOf {
+    /// Returns the ICMPv6 message type that corresponds to the payload.
+    fn msg_type() -> Icmpv6Type;
+}
+
+/// ICMPv6 unit payload `()`.
+impl Icmpv6Payload for () {
+    fn msg_type() -> Icmpv6Type {
+        // Unit payload does not have a type
+        unreachable!();
+    }
+}
+
+/// Common behaviors shared by ICMPv6 packets.
+pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
+    Packet<Header = Icmpv6Header, Envelope = E>
+{
+    /// Returns a reference to the fixed payload.
+    fn payload(&self) -> &P;
+
+    /// Returns a mutable reference to the fixed payload.
+    fn payload_mut(&mut self) -> &mut P;
+
+    /// Returns the message type.
+    #[inline]
+    fn msg_type(&self) -> Icmpv6Type {
+        Icmpv6Type::new(self.header().msg_type)
+    }
+
+    /// Returns the code.
+    #[inline]
+    fn code(&self) -> u8 {
+        self.header().code
+    }
+
+    /// Sets the code.
+    #[inline]
+    fn set_code(&mut self, code: u8) {
+        self.header_mut().code = code
+    }
+
+    /// Returns the checksum.
+    #[inline]
+    fn checksum(&self) -> u16 {
+        u16::from_be(self.header().checksum)
+    }
+
+    #[inline]
+    fn compute_checksum(&mut self) {
+        self.header_mut().checksum = 0;
+
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
+            let data = unsafe { data.as_ref() };
+            let pseudo_header_sum = self
+                .envelope()
+                .pseudo_header(data.len() as u16, ProtocolNumbers::Icmpv6)
+                .sum();
+            let checksum = checksum::compute(pseudo_header_sum, data);
+            self.header_mut().checksum = u16::to_be(checksum);
+        } else {
+            // we are reading till the end of buffer, should never run out
+            unreachable!()
+        }
+    }
+}
+
 /// An ICMPv6 message with parsed payload.
 pub enum Icmpv6Message<E: Ipv6Packet> {
     EchoRequest(Icmpv6<E, EchoRequest>),
@@ -344,11 +351,13 @@ pub enum Icmpv6Message<E: Ipv6Packet> {
     Undefined(Icmpv6<E, ()>),
 }
 
-/// ICMPv6 helper functions for IPv6 packets
+/// ICMPv6 helper functions for IPv6 packets.
 pub trait Icmpv6Parse {
     type Envelope: Ipv6Packet;
 
-    /// Parses the payload as an ICMPv6 packet
+    /// Automatically detects the ICMP message type and parses the payload
+    /// as that type. If the message type is not supported, then `Undefined`
+    /// is returned.
     ///
     /// # Example
     ///
@@ -407,11 +416,11 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const ICMPV6_PACKET: [u8; 62] = [
-    // ** ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x86, 0xDD,
-    // ** IPv6 header
+// IPv6 header
     0x60, 0x00, 0x00, 0x00,
     // payload length
     0x00, 0x08,
@@ -419,7 +428,7 @@ pub const ICMPV6_PACKET: [u8; 62] = [
     0xff,
     0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd4, 0xf0, 0x45, 0xff, 0xfe, 0x0c, 0x66, 0x4b,
     0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    // ** ICMPv6 header
+// ICMPv6 header
     // unknown type
     0xFF,
     // code
