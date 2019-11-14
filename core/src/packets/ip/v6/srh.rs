@@ -8,123 +8,74 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
-/*  From https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-16#section-2
-    Segment Routing Extension Header (SRH)
-
-    A new type of the Routing Header (originally defined in [RFC8200]) is
-    defined: the Segment Routing Header (SRH) which has a new Routing
-    Type, (suggested value 4) to be assigned by IANA.
-
-    The Segment Routing Header (SRH) is defined as follows:
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    | Next Header   |  Hdr Ext Len  | Routing Type  | Segments Left |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |  Last Entry   |     Flags     |              Tag              |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    |            Segment List[0] (128 bits IPv6 address)            |
-    |                                                               |
-    |                                                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    |                                                               |
-                                 ...
-    |                                                               |
-    |                                                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    |            Segment List[n] (128 bits IPv6 address)            |
-    |                                                               |
-    |                                                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    //                                                             //
-    //         Optional Type Length Value objects (variable)       //
-    //                                                             //
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    where:
-
-    Next Header: 8-bit selector. Identifies the type of header
-    immediately following the SRH.
-
-    Hdr Ext Len: 8-bit unsigned integer, is the length of the SRH
-    header in 8-octet units, not including the first 8 octets.
-
-    Routing Type: TBD, to be assigned by IANA (suggested value: 4).
-
-    Segments Left: 8-bit unsigned integer Number of route segments
-    remaining, i.e., number of explicitly listed intermediate nodes
-    still to be visited before reaching the final destination.
-
-    Last Entry: contains the index (zero based), in the Segment List,
-    of the last element of the Segment List.
-
-    Flags: 8 bits of flags.  Following flags are defined:
-
-         0 1 2 3 4 5 6 7
-        +-+-+-+-+-+-+-+-+
-        |U U U U U U U U|
-        +-+-+-+-+-+-+-+-+
-
-        U: Unused and for future use.  MUST be 0 on transmission and
-        ignored on receipt.
-
-    Tag: tag a packet as part of a class or group of packets, e.g.,
-    packets sharing the same set of properties. When tag is not used
-    at source it MUST be set to zero on transmission. When tag is not
-    used during SRH Processing it SHOULD be ignored. The allocation
-    and use of tag is outside the scope of this document.
-
-    Segment List[n]: 128 bit IPv6 addresses representing the nth
-    segment in the Segment List.  The Segment List is encoded starting
-    from the last segment of the SR Policy.  I.e., the first element
-    of the segment list (Segment List [0]) contains the last segment
-    of the SR Policy, the second element contains the penultimate
-    segment of the SR Policy and so on.
-
-    Type Length Value (TLV) are described in Section 2.1.
-*/
-
-/// IPv6 segment routing header.
+/// IPv6 Segment Routing based on [IETF DRAFT].
 ///
-/// The segment routing header contains only the fixed portion of the
-/// header. `segment_list` and `tlv` are parsed separately.
-#[derive(Clone, Copy, Debug)]
-#[repr(C, packed)]
-pub struct SegmentRoutingHeader {
-    next_header: u8,
-    hdr_ext_len: u8,
-    routing_type: u8,
-    segments_left: u8,
-    last_entry: u8,
-    flags: u8,
-    tag: u16,
-}
-
-impl Default for SegmentRoutingHeader {
-    fn default() -> SegmentRoutingHeader {
-        SegmentRoutingHeader {
-            next_header: 0,
-            hdr_ext_len: 2,
-            routing_type: 4,
-            segments_left: 0,
-            last_entry: 0,
-            flags: 0,
-            tag: 0,
-        }
-    }
-}
-
-impl Header for SegmentRoutingHeader {}
-
-/// Error when the segment list length is 0.
-#[derive(Debug, Fail)]
-#[fail(display = "Segment list length must be greater than 0")]
-pub struct BadSegmentsError;
-
+/// Routing Headers are defined in [IETF RFC 8200]. The Segment Routing
+/// Header has a new Routing Type (suggested value 4) to be assigned by
+/// IANA.
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// | Next Header   |  Hdr Ext Len  | Routing Type  | Segments Left |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |  Last Entry   |     Flags     |              Tag              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |            Segment List[0] (128 bits IPv6 address)            |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                                                               |
+///                              ...
+/// |                                                               |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |            Segment List[n] (128 bits IPv6 address)            |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |         Optional Type Length Value objects (variable)         |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// Next Header: 8-bit selector. Identifies the type of header
+/// immediately following the SRH.
+///
+/// Hdr Ext Len: 8-bit unsigned integer, is the length of the SRH
+/// header in 8-octet units, not including the first 8 octets.
+///
+/// Routing Type: TBD, to be assigned by IANA (suggested value: 4).
+///
+/// Segments Left: 8-bit unsigned integer Number of route segments
+/// remaining, i.e., number of explicitly listed intermediate nodes
+/// still to be visited before reaching the final destination.
+///
+/// Last Entry: contains the index (zero based), in the Segment List,
+/// of the last element of the Segment List.
+///
+/// Flags: 8 bits of flags.  Following flags are defined:
+///
+///      0 1 2 3 4 5 6 7
+///     +-+-+-+-+-+-+-+-+
+///     |U U U U U U U U|
+///     +-+-+-+-+-+-+-+-+
+///
+///    U: Unused and for future use.  MUST be 0 on transmission and
+///     ignored on receipt.
+///
+/// Tag: tag a packet as part of a class or group of packets, e.g.,
+/// packets sharing the same set of properties. When tag is not used
+/// at source it MUST be set to zero on transmission. When tag is not
+/// used during SRH Processing it SHOULD be ignored. The allocation
+/// and use of tag is outside the scope of this document.
+///
+/// Segment List[n]: 128 bit IPv6 addresses representing the nth
+/// segment in the Segment List.  The Segment List is encoded starting
+/// from the last segment of the SR Policy.  I.e., the first element
+/// of the segment list (Segment List [0]) contains the last segment
+/// of the SR Policy, the second element contains the penultimate
+/// segment of the SR Policy and so on.
+///
+/// Type Length Value (TLV) are described in Section 2.1.
+///   
+/// [IETF Draft]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
+/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-4.4
 #[derive(Clone)]
 pub struct SegmentRouting<E: Ipv6Packet> {
     envelope: CondRc<E>,
@@ -134,67 +85,80 @@ pub struct SegmentRouting<E: Ipv6Packet> {
 }
 
 impl<E: Ipv6Packet> SegmentRouting<E> {
+    /// Returns the length of the segment routing header in 8-octet units,
+    /// not including the first 8 octets.
     #[inline]
     pub fn hdr_ext_len(&self) -> u8 {
         self.header().hdr_ext_len
     }
 
+    /// Sets the length of the segment routing header.
     #[inline]
     fn set_hdr_ext_len(&mut self, hdr_ext_len: u8) {
         self.header_mut().hdr_ext_len = hdr_ext_len;
     }
 
+    /// Returns the routing type. Suggested value is `4`.
     #[inline]
     pub fn routing_type(&self) -> u8 {
         self.header().routing_type
     }
 
+    /// Sets the routing type.
     #[inline]
     pub fn set_routing_type(&mut self, routing_type: u8) {
         self.header_mut().routing_type = routing_type;
     }
 
+    /// Returns the number of route segments remaining.
     #[inline]
     pub fn segments_left(&self) -> u8 {
         self.header().segments_left
     }
 
-    /// Sets segments left.
+    /// Sets the number of route segments remaining.
     ///
     /// # Remarks
     ///
-    /// Should also call `set_dst` on `Ipv6` to keep the packet's destination
+    /// Should also call `Ipv6::set_dst` to keep the packet's destination
     /// in sync with the segment routing header.
     #[inline]
     pub fn set_segments_left(&mut self, segments_left: u8) {
         self.header_mut().segments_left = segments_left;
     }
 
+    /// Returns the index of the last element of the segment list, 0 based.
     #[inline]
     pub fn last_entry(&self) -> u8 {
         self.header().last_entry
     }
 
+    /// Sets the index of the last element of the segment list.
     #[inline]
     fn set_last_entry(&mut self, last_entry: u8) {
         self.header_mut().last_entry = last_entry;
     }
 
+    /// Returns the flags. All are currently unused.
     #[inline]
     pub fn flags(&self) -> u8 {
         self.header().flags
     }
 
+    /// Returns the tag that marks a packet as part of a class or group of
+    /// packets.
     #[inline]
     pub fn tag(&self) -> u16 {
         u16::from_be(self.header().tag)
     }
 
+    /// Tags a packet as part of a class or group of packets.
     #[inline]
     pub fn set_tag(&mut self, tag: u16) {
         self.header_mut().tag = u16::to_be(tag);
     }
 
+    /// Returns the segment list.
     #[inline]
     pub fn segments(&self) -> &[Ipv6Addr] {
         unsafe { self.segments.as_ref() }
@@ -202,17 +166,11 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
 
     /// Sets the segment list.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// srh.set_segments(&vec![segment1, segment2, segment3, segment4])
-    /// ```
-    ///
     /// # Remarks
     ///
-    /// Be aware that when you call this function, it can affect Tcp and Udp
-    /// checksum calculations, as the last segment is used as part of the pseudo
-    /// header.
+    /// Be aware that when invoking this function, it can affect Tcp and Udp
+    /// checksum calculations, as the last segment is used as part of the
+    /// pseudo header.
     #[inline]
     pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Result<()> {
         if !segments.is_empty() {
@@ -321,7 +279,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        // also add a default segment list of one element
+        // adds a default segment list of one element.
         mbuf.extend(offset, Self::Header::size_of() + Ipv6Addr::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
         let segments =
@@ -404,13 +362,16 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
         }
     }
 
-    // From https://tools.ietf.org/html/rfc8200#section-8.1
-    //
-    // If the IPv6 packet contains a Routing header, the Destination Address
-    // used in the pseudo-header is that of the final destination.  At the
-    // originating node, that address will be in the last element of the Routing
-    // header; at the recipient(s), that address will be in the Destination
-    // Address field of the IPv6 header.
+    /// Returns the pseudo header.
+    ///
+    /// Based on [IETF RFC 8200], if the IPv6 packet contains a Routing
+    /// header, the Destination Address used in the pseudo-header is that
+    /// of the final destination. At the originating node, that address will
+    /// be in the last element of the Routing header; at the recipient(s),
+    /// that address will be in the Destination Address field of the IPv6
+    /// header.
+    ///
+    /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-8.1
     #[inline]
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader {
         let dst = match self.dst() {
@@ -444,14 +405,51 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
     }
 }
 
+/// Error when the segment list length is 0.
+#[derive(Debug, Fail)]
+#[fail(display = "Segment list length must be greater than 0")]
+pub struct BadSegmentsError;
+
+/// IPv6 segment routing header.
+///
+/// The segment routing header contains only the fixed portion of the
+/// header. `segment_list` and `tlv` are parsed separately.
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct SegmentRoutingHeader {
+    next_header: u8,
+    hdr_ext_len: u8,
+    routing_type: u8,
+    segments_left: u8,
+    last_entry: u8,
+    flags: u8,
+    tag: u16,
+}
+
+impl Default for SegmentRoutingHeader {
+    fn default() -> SegmentRoutingHeader {
+        SegmentRoutingHeader {
+            next_header: 0,
+            hdr_ext_len: 2,
+            routing_type: 4,
+            segments_left: 0,
+            last_entry: 0,
+            flags: 0,
+            tag: 0,
+        }
+    }
+}
+
+impl Header for SegmentRoutingHeader {}
+
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const SRH_PACKET: [u8; 170] = [
-    // ** ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x86, 0xDD,
-    // ** IPv6 Header
+// IPv6 Header
     0x60, 0x00, 0x00, 0x00,
     // payload length
     0x00, 0x74,
@@ -460,7 +458,7 @@ pub const SRH_PACKET: [u8; 170] = [
     0x02,
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-    // ** SRv6 header
+// SRv6 header
     // next header (tcp)
     0x06,
     // hdr ext len (3 segments, units of 8 octets)
@@ -481,7 +479,7 @@ pub const SRH_PACKET: [u8; 170] = [
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
     // segments[2] 2001:0db8:85a3:0000:0000:8a2e:0370:7335
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x35,
-    // ** TCP header
+// TCP header
     // src port
     0x0d, 0x88,
     // dst port

@@ -1,7 +1,7 @@
 use crate::packets::{Header, Packet};
 use crate::{Mbuf, Result};
 
-/// Unit header.
+// Unit header use to implement `Packet` trait for `Mbuf`.
 impl Header for () {}
 
 // make the message buffer behave like a packet.

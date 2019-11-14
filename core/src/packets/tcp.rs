@@ -5,155 +5,86 @@ use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
 
-/*  From https://tools.ietf.org/html/rfc793#section-3.1
-    TCP Header Format
-
-     0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |          Source Port          |       Destination Port        |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                        Sequence Number                        |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                    Acknowledgment Number                      |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |  Data |     |N|C|E|U|A|P|R|S|F|                               |
-    | Offset| Res |S|W|C|R|C|S|S|Y|I|            Window             |
-    |       |     | |R|E|G|K|H|T|N|N|                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |           Checksum            |         Urgent Pointer        |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                    Options                    |    Padding    |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                             data                              |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    Source Port:  16 bits
-        The source port number.
-
-    Destination Port:  16 bits
-        The destination port number.
-
-    Sequence Number:  32 bits
-        The sequence number of the first data octet in this segment (except
-        when SYN is present). If SYN is present the sequence number is the
-        initial sequence number (ISN) and the first data octet is ISN+1.
-
-    Acknowledgment Number:  32 bits
-        If the ACK control bit is set this field contains the value of the
-        next sequence number the sender of the segment is expecting to
-        receive.  Once a connection is established this is always sent.
-
-    Data Offset:  4 bits
-        The number of 32 bit words in the TCP Header.  This indicates where
-        the data begins.  The TCP header (even one including options) is an
-        integral number of 32 bits long.
-
-    Control Bits:  9 bits (from left to right):
-        NS:   ECN-nonce nonce sum (see https://tools.ietf.org/html/rfc3540)
-        CWR:  Congestion Window Reduced flag (see https://tools.ietf.org/html/rfc3168)
-        ECE:  ECN-Echo flag (see https://tools.ietf.org/html/rfc3168)
-        URG:  Urgent Pointer field significant
-        ACK:  Acknowledgment field significant
-        PSH:  Push Function
-        RST:  Reset the connection
-        SYN:  Synchronize sequence numbers
-        FIN:  No more data from sender
-
-    Window:  16 bits
-        The number of data octets beginning with the one indicated in the
-        acknowledgment field which the sender of this segment is willing to
-        accept.
-
-    Checksum:  16 bits
-        The checksum field is the 16 bit one's complement of the one's
-        complement sum of all 16 bit words in the header and text.  If a
-        segment contains an odd number of header and text octets to be
-        checksummed, the last octet is padded on the right with zeros to
-        form a 16 bit word for checksum purposes.  The pad is not
-        transmitted as part of the segment.  While computing the checksum,
-        the checksum field itself is replaced with zeros.
-
-        The checksum also covers a 96 bit pseudo header conceptually
-        prefixed to the TCP header.  This pseudo header contains the Source
-        Address, the Destination Address, the Protocol, and TCP length.
-        This gives the TCP protection against misrouted segments.  This
-        information is carried in the Internet Protocol and is transferred
-        across the TCP/Network interface in the arguments or results of
-        calls by the TCP on the IP.
-
-                    +--------+--------+--------+--------+
-                    |           Source Address          |
-                    +--------+--------+--------+--------+
-                    |         Destination Address       |
-                    +--------+--------+--------+--------+
-                    |  zero  |  PTCL  |    TCP Length   |
-                    +--------+--------+--------+--------+
-
-        The TCP Length is the TCP header length plus the data length in
-        octets (this is not an explicitly transmitted quantity, but is
-        computed), and it does not count the 12 octets of the pseudo
-        header.
-
-    Urgent Pointer:  16 bits
-        This field communicates the current value of the urgent pointer as a
-        positive offset from the sequence number in this segment.  The
-        urgent pointer points to the sequence number of the octet following
-        the urgent data.  This field is only be interpreted in segments with
-        the URG control bit set.
-
-    Options:  variable
-        Options may occupy space at the end of the TCP header and are a
-        multiple of 8 bits in length.  All options are included in the
-        checksum.
-*/
-
-/// TCP header.
+/// Transmission Control Protocol packet based on [IETF RFC 793].
 ///
-/// The header only include the fixed portion of the TCP header.
-/// Options are parsed separately.
-#[derive(Clone, Copy, Debug)]
-#[repr(C, packed)]
-pub struct TcpHeader {
-    src_port: u16,
-    dst_port: u16,
-    seq_no: u32,
-    ack_no: u32,
-    offset_to_ns: u8,
-    flags: u8,
-    window: u16,
-    checksum: u16,
-    urgent_pointer: u16,
-}
-
-impl Default for TcpHeader {
-    fn default() -> TcpHeader {
-        TcpHeader {
-            src_port: 0,
-            dst_port: 0,
-            seq_no: 0,
-            ack_no: 0,
-            offset_to_ns: 5 << 4,
-            flags: 0,
-            window: 0,
-            checksum: 0,
-            urgent_pointer: 0,
-        }
-    }
-}
-
-impl Header for TcpHeader {}
-
-const CWR: u8 = 0b1000_0000;
-const ECE: u8 = 0b0100_0000;
-const URG: u8 = 0b0010_0000;
-const ACK: u8 = 0b0001_0000;
-const PSH: u8 = 0b0000_1000;
-const RST: u8 = 0b0000_0100;
-const SYN: u8 = 0b0000_0010;
-const FIN: u8 = 0b0000_0001;
-
-/// TCP packet.
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |          Source Port          |       Destination Port        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                        Sequence Number                        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                    Acknowledgment Number                      |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |  Data |     |N|C|E|U|A|P|R|S|F|                               |
+/// | Offset| Res |S|W|C|R|C|S|S|Y|I|            Window             |
+/// |       |     | |R|E|G|K|H|T|N|N|                               |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Checksum            |         Urgent Pointer        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                    Options                    |    Padding    |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                             data                              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// Source Port:  16 bits
+///     The source port number.
+///
+/// Destination Port:  16 bits
+///     The destination port number.
+///
+/// Sequence Number:  32 bits
+///     The sequence number of the first data octet in this segment (except
+///     when SYN is present). If SYN is present the sequence number is the
+///     initial sequence number (ISN) and the first data octet is ISN+1.
+///
+/// Acknowledgment Number:  32 bits
+///     If the ACK control bit is set this field contains the value of the
+///     next sequence number the sender of the segment is expecting to
+///     receive.  Once a connection is established this is always sent.
+///
+/// Data Offset:  4 bits
+///     The number of 32 bit words in the TCP Header.  This indicates where
+///     the data begins.  The TCP header (even one including options) is an
+///     integral number of 32 bits long.
+///
+/// Control Bits:  9 bits (from left to right):
+///     NS:   ECN-nonce nonce sum [IETF RFC 3540]
+///     CWR:  Congestion Window Reduced flag [IETF RFC 3168]
+///     ECE:  ECN-Echo flag [IETF RFC 3168]
+///     URG:  Urgent Pointer field significant
+///     ACK:  Acknowledgment field significant
+///     PSH:  Push Function
+///     RST:  Reset the connection
+///     SYN:  Synchronize sequence numbers
+///     FIN:  No more data from sender
+///
+/// Window:  16 bits
+///     The number of data octets beginning with the one indicated in the
+///     acknowledgment field which the sender of this segment is willing to
+///     accept.
+///
+/// Checksum:  16 bits
+///     The checksum field is the 16 bit one's complement of the one's
+///     complement sum of all 16 bit words in the header and text.
+///
+/// Urgent Pointer:  16 bits
+///     This field communicates the current value of the urgent pointer as a
+///     positive offset from the sequence number in this segment.  The
+///     urgent pointer points to the sequence number of the octet following
+///     the urgent data.  This field is only be interpreted in segments with
+///     the URG control bit set.
+///
+/// Options:  variable
+///     Options may occupy space at the end of the TCP header and are a
+///     multiple of 8 bits in length.  All options are included in the
+///     checksum.
+///
+/// [IETF RFC 793]: https://tools.ietf.org/html/rfc793#section-3.1
+/// [IETF RFC 3540]: https://tools.ietf.org/html/rfc3540
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 #[derive(Clone)]
 pub struct Tcp<E: IpPacket> {
     envelope: CondRc<E>,
@@ -162,46 +93,56 @@ pub struct Tcp<E: IpPacket> {
 }
 
 impl<E: IpPacket> Tcp<E> {
+    /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
         u16::from_be(self.header().src_port)
     }
 
+    /// Sets the source port.
     #[inline]
     pub fn set_src_port(&mut self, src_port: u16) {
         self.header_mut().src_port = u16::to_be(src_port);
     }
 
+    /// Returns the destination port.
     #[inline]
     pub fn dst_port(&self) -> u16 {
         u16::from_be(self.header().dst_port)
     }
 
+    /// Sets the destination port.
     #[inline]
     pub fn set_dst_port(&mut self, dst_port: u16) {
         self.header_mut().dst_port = u16::to_be(dst_port);
     }
 
+    /// Returns the sequence number.
     #[inline]
     pub fn seq_no(&self) -> u32 {
         u32::from_be(self.header().seq_no)
     }
 
+    /// Sets the sequence number.
     #[inline]
     pub fn set_seq_no(&mut self, seq_no: u32) {
         self.header_mut().seq_no = u32::to_be(seq_no);
     }
 
+    /// Returns the acknowledgment number.
     #[inline]
     pub fn ack_no(&self) -> u32 {
         u32::from_be(self.header().ack_no)
     }
 
+    /// Sets the acknowledgment number.
     #[inline]
     pub fn set_ack_no(&mut self, ack_no: u32) {
         self.header_mut().ack_no = u32::to_be(ack_no);
     }
 
+    /// Returns the number of 32 bit words in the TCP Header. This indicates
+    /// where the data begins.
     #[inline]
     pub fn data_offset(&self) -> u8 {
         (self.header().offset_to_ns & 0xf0) >> 4
@@ -214,176 +155,215 @@ impl<E: IpPacket> Tcp<E> {
         self.header_mut().offset_to_ns = (self.header().offset_to_ns & 0x0f) | (data_offset << 4);
     }
 
+    /// Returns the nonce sum bit.
     #[inline]
     pub fn ns(&self) -> bool {
         (self.header().offset_to_ns & 0x01) != 0
     }
 
+    /// Sets the nonce sum bit.
     #[inline]
     pub fn set_ns(&mut self) {
         self.header_mut().offset_to_ns |= 0x01;
     }
 
+    /// Unsets the nonce sum bit.
     #[inline]
     pub fn unset_ns(&mut self) {
         self.header_mut().offset_to_ns &= !0x1;
     }
 
+    /// Returns whether the congestion window has been reduced.
     #[inline]
     pub fn cwr(&self) -> bool {
         (self.header().flags & CWR) != 0
     }
 
+    /// Sets the congestion window reduced flag.
     #[inline]
     pub fn set_cwr(&mut self) {
         self.header_mut().flags |= CWR;
     }
 
+    /// Unsets the congestion window reduced flag.
     #[inline]
     pub fn unset_cwr(&mut self) {
         self.header_mut().flags &= !CWR;
     }
 
+    /// Returns the ECN-echo flag.
     #[inline]
     pub fn ece(&self) -> bool {
         (self.header().flags & ECE) != 0
     }
 
+    /// Sets the ECN-echo flag.
     #[inline]
     pub fn set_ece(&mut self) {
         self.header_mut().flags |= ECE;
     }
 
+    /// Unsets the ECN-echo flag.
     #[inline]
     pub fn unset_ece(&mut self) {
         self.header_mut().flags &= !ECE;
     }
 
+    /// Returns a flag indicating the packet contains urgent data and should
+    /// be prioritized.
     #[inline]
     pub fn urg(&self) -> bool {
         (self.header().flags & URG) != 0
     }
 
+    /// Sets the urgent flag.
     #[inline]
     pub fn set_urg(&mut self) {
         self.header_mut().flags |= URG;
     }
 
+    /// Unsets the urgent flag.
     #[inline]
     pub fn unset_urg(&mut self) {
         self.header_mut().flags &= !URG;
     }
 
+    /// Returns a flag acknowledging the successful receipt of a packet.
     #[inline]
     pub fn ack(&self) -> bool {
         (self.header().flags & ACK) != 0
     }
 
+    /// Sets the acknowledgment flag.
     #[inline]
     pub fn set_ack(&mut self) {
         self.header_mut().flags |= ACK;
     }
 
+    /// Unsets the acknowledgment flag.
     #[inline]
     pub fn unset_ack(&mut self) {
         self.header_mut().flags &= !ACK;
     }
 
+    /// Returns a flag instructing the sender to push the packet immediately
+    /// without waiting for more data.
     #[inline]
     pub fn psh(&self) -> bool {
         (self.header().flags & PSH) != 0
     }
 
+    /// Sets the push function flag.
     #[inline]
     pub fn set_psh(&mut self) {
         self.header_mut().flags |= PSH;
     }
 
+    /// Unsets the push function flag.
     #[inline]
     pub fn unset_psh(&mut self) {
         self.header_mut().flags &= !PSH;
     }
 
+    /// Returns a flag indicating the connection should be reset.
     #[inline]
     pub fn rst(&self) -> bool {
         (self.header().flags & RST) != 0
     }
 
+    /// Sets the reset flag.
     #[inline]
     pub fn set_rst(&mut self) {
         self.header_mut().flags |= RST;
     }
 
+    /// Unsets the reset flag.
     #[inline]
     pub fn unset_rst(&mut self) {
         self.header_mut().flags &= !RST;
     }
 
+    /// Returns a flag indicating to synchronize the sequence numbers to
+    /// initiate a new TCP connection.
     #[inline]
     pub fn syn(&self) -> bool {
         (self.header().flags & SYN) != 0
     }
 
+    /// Sets the synchronize sequence numbers flag.
     #[inline]
     pub fn set_syn(&mut self) {
         self.header_mut().flags |= SYN;
     }
 
+    /// Unsets the synchronize sequence numbers flag.
     #[inline]
     pub fn unset_syn(&mut self) {
         self.header_mut().flags &= !SYN;
     }
 
+    /// Returns whether `SYN` and `ACK` flags are both set. This check is
+    /// part of the 3-way handshake when initializing a new TCP connection.
     #[inline]
     pub fn syn_ack(&self) -> bool {
         self.syn() && self.ack()
     }
 
+    /// Returns a flag indicating no more data from sender.
     #[inline]
     pub fn fin(&self) -> bool {
         (self.header().flags & FIN) != 0
     }
 
+    /// Sets the finished flag.
     #[inline]
     pub fn set_fin(&mut self) {
         self.header_mut().flags |= FIN;
     }
 
+    /// Unsets the finished flag.
     #[inline]
     pub fn unset_fin(&mut self) {
         self.header_mut().flags &= !FIN;
     }
 
+    /// Returns the TCP window.
     #[inline]
     pub fn window(&self) -> u16 {
         u16::from_be(self.header().window)
     }
 
+    /// Sets the TCP window.
     #[inline]
     pub fn set_window(&mut self, window: u16) {
         self.header_mut().window = u16::to_be(window);
     }
 
+    /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
         u16::from_be(self.header().checksum)
     }
 
+    /// Sets the checksum.
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
         self.header_mut().checksum = u16::to_be(checksum);
     }
 
+    /// Returns the urgent pointer.
     #[inline]
     pub fn urgent_pointer(&self) -> u16 {
         u16::from_be(self.header().urgent_pointer)
     }
 
+    /// Sets the urgent pointer.
     #[inline]
     pub fn set_urgent_pointer(&mut self, urgent_pointer: u16) {
         self.header_mut().urgent_pointer = u16::to_be(urgent_pointer);
     }
 
+    /// Returns the 5-tuple that uniquely identifies a TCP connection.
     #[inline]
     pub fn flow(&self) -> Flow {
         Flow::new(
@@ -396,6 +376,10 @@ impl<E: IpPacket> Tcp<E> {
     }
 
     /// Sets the layer-3 source address and recomputes the checksum.
+    ///
+    /// It recomputes the checksum using the incremental method. This is more
+    /// efficient if the only change made is the address. Otherwise should use
+    /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().src();
@@ -406,6 +390,10 @@ impl<E: IpPacket> Tcp<E> {
     }
 
     /// Sets the layer-3 destination address and recomputes the checksum.
+    ///
+    /// It recomputes the checksum using the incremental method. This is more
+    /// efficient if the only change made is the address. Otherwise should use
+    /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().dst();
@@ -544,14 +532,60 @@ impl<E: IpPacket> Packet for Tcp<E> {
     }
 }
 
+// TCP control flag bitmasks.
+const CWR: u8 = 0b1000_0000;
+const ECE: u8 = 0b0100_0000;
+const URG: u8 = 0b0010_0000;
+const ACK: u8 = 0b0001_0000;
+const PSH: u8 = 0b0000_1000;
+const RST: u8 = 0b0000_0100;
+const SYN: u8 = 0b0000_0010;
+const FIN: u8 = 0b0000_0001;
+
+/// TCP header.
+///
+/// The header only include the fixed portion of the TCP header. Variable
+/// sized options are parsed separately.
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct TcpHeader {
+    src_port: u16,
+    dst_port: u16,
+    seq_no: u32,
+    ack_no: u32,
+    offset_to_ns: u8,
+    flags: u8,
+    window: u16,
+    checksum: u16,
+    urgent_pointer: u16,
+}
+
+impl Default for TcpHeader {
+    fn default() -> TcpHeader {
+        TcpHeader {
+            src_port: 0,
+            dst_port: 0,
+            seq_no: 0,
+            ack_no: 0,
+            offset_to_ns: 5 << 4,
+            flags: 0,
+            window: 0,
+            checksum: 0,
+            urgent_pointer: 0,
+        }
+    }
+}
+
+impl Header for TcpHeader {}
+
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const TCP_PACKET: [u8; 58] = [
-    // ** ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x08, 0x00,
-    // ** IPv4 header
+// IPv4 header
     0x45, 0x00,
     // IPv4 payload length
     0x00, 0x2c,
@@ -563,7 +597,7 @@ pub const TCP_PACKET: [u8; 58] = [
     0x8b, 0x85, 0xd9, 0x6e,
     // dst = 139.133.233.2
     0x8b, 0x85, 0xe9, 0x02,
-    // ** TCP header
+// TCP header
     // src_port = 36869, dst_port = 23
     0x90, 0x05, 0x00, 0x17,
     // seq_no = 1913975060

@@ -392,9 +392,7 @@ pub union Chunk {
 
 impl Default for Chunk {
     fn default() -> Chunk {
-        Chunk {
-            ether_type: Default::default(),
-        }
+        Chunk { ether_type: 0 }
     }
 }
 
@@ -427,7 +425,7 @@ impl SizeOf for EthernetHeader {
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const VLAN_802_1Q_PACKET: [u8; 64] = [
-    // ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid
@@ -447,7 +445,7 @@ pub const VLAN_802_1Q_PACKET: [u8; 64] = [
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const VLAN_802_1AD_PACKET: [u8; 68] = [
-    // ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid

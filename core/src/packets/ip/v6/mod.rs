@@ -10,132 +10,58 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
-/// Common behaviors shared by IPv6 and extension packets.
-pub trait Ipv6Packet: IpPacket {
-    /// Returns the next header type.
-    fn next_header(&self) -> ProtocolNumber;
-
-    /// Sets the next header type.
-    fn set_next_header(&mut self, next_header: ProtocolNumber);
-}
-
-/// The minimum IPv6 MTU.
+/// Internet Protocol v6 based on [IETF RFC 8200].
 ///
-/// https://tools.ietf.org/html/rfc2460#section-5
-pub const IPV6_MIN_MTU: usize = 1280;
-
-/*  From https://tools.ietf.org/html/rfc8200#section-3
-    and https://tools.ietf.org/html/rfc3168 (succeeding traffic class)
-    IPv6 Header Format
-
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |Version|    DSCP_ECN   |           Flow Label                  |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |         Payload Length        |  Next Header  |   Hop Limit   |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    +                                                               +
-    |                                                               |
-    +                         Source Address                        +
-    |                                                               |
-    +                                                               +
-    |                                                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                                                               |
-    +                                                               +
-    |                                                               |
-    +                      Destination Address                      +
-    |                                                               |
-    +                                                               +
-    |                                                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    Version             4-bit Internet Protocol version number = 6.
-
-    DSCP_ECN:           8-bit Differentiated services (via RFC 2474 ~
-                        https://tools.ietf.org/html/rfc2474) enhancements to the
-                        Internet protocol are intended to enable scalable
-                        service discrimination in the Internet without the need
-                        for per-flow state and signaling at every hop.  A
-                        variety of services may be built from a small,
-                        well-defined set of building blocks which are deployed
-                        in network nodes. The services may be either end-to-end
-                        or intra-domain; they include both those that can
-                        satisfy quantitative performance requirements (e.g.,
-                        peak bandwidth) and those based on relative performance
-                        (e.g., "class" differentiation).
-
-                        Taking the last two bits, is ECN, the addition of
-                        Explicit Congestion Notification to IP; RFC-3168
-                        (https://tools.ietf.org/html/rfc3168) covers this in
-                        detail. This uses an ECN field in the IP header with two
-                        bits, making four ECN codepoints, '00' to '11'.  The
-                        ECN-Capable Transport (ECT) codepoints '10' and '01' are
-                        set by the data sender to indicate that the end-points
-                        of the transport protocol are ECN-capable; we call them
-                        ECT(0) and ECT(1) respectively.  The phrase "the ECT
-                        codepoint" in this documents refers to either of the two
-                        ECT codepoints.  Routers treat the ECT(0) and ECT(1)
-                        codepoints as equivalent.  Senders are free to use
-                        either the ECT(0) or the ECT(1) codepoint to indicate
-                        ECT, on a packet-by-packet basis.
-
-    Flow Label          20-bit flow label.
-
-    Payload Length      16-bit unsigned integer.  Length of the IPv6
-                        payload, i.e., the rest of the packet following
-                        this IPv6 header, in octets.  (Note that any
-                        extension headers present are considered part of
-                        the payload, i.e., included in the length count.)
-
-    Next Header         8-bit selector.  Identifies the type of header
-                        immediately following the IPv6 header.  Uses the
-                        same values as the IPv4 Protocol field [RFC-1700
-                        et seq.].
-
-    Hop Limit           8-bit unsigned integer.  Decremented by 1 by
-                        each node that forwards the packet. The packet
-                        is discarded if Hop Limit is decremented to
-                        zero.
-
-    Source Address      128-bit address of the originator of the packet.
-
-    Destination Address 128-bit address of the intended recipient of the
-                        packet (possibly not the ultimate recipient, if
-                        a Routing header is present).
-*/
-
-// Masks
-const DSCP: u32 = 0x0fc0_0000;
-const ECN: u32 = 0x0030_0000;
-const FLOW: u32 = 0xfffff;
-
-/// IPv6 header.
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub struct Ipv6Header {
-    version_to_flow_label: u32,
-    payload_length: u16,
-    next_header: u8,
-    hop_limit: u8,
-    src: Ipv6Addr,
-    dst: Ipv6Addr,
-}
-
-impl Default for Ipv6Header {
-    fn default() -> Ipv6Header {
-        Ipv6Header {
-            version_to_flow_label: u32::to_be(6 << 28),
-            payload_length: 0,
-            next_header: 0,
-            hop_limit: 0,
-            src: Ipv6Addr::UNSPECIFIED,
-            dst: Ipv6Addr::UNSPECIFIED,
-        }
-    }
-}
-
-impl Header for Ipv6Header {}
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |Version|    DSCP   |ECN|              Flow Label               |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |         Payload Length        |  Next Header  |   Hop Limit   |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                         Source Address                        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                      Destination Address                      |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// Version             4-bit Internet Protocol version number = 6.
+///
+/// DSCP                6-bit Differentiated services codepoint defined
+///                     in [IETF RFC 2474]. Used to select the per hop
+///                     behavior a packet experiences at each node.
+///
+/// ECN                 2-bit Explicit congestion notification codepoint
+///                     defined in [IETF RFC 3168].
+///
+/// Flow Label          20-bit flow label.
+///
+/// Payload Length      16-bit unsigned integer.  Length of the IPv6
+///                     payload, i.e., the rest of the packet following
+///                     this IPv6 header, in octets.  (Note that any
+///                     extension headers present are considered part of
+///                     the payload, i.e., included in the length count.)
+///
+/// Next Header         8-bit selector.  Identifies the type of header
+///                     immediately following the IPv6 header.  Uses the
+///                     same values as the IPv4 Protocol field [RFC-1700
+///                     et seq.].
+///
+/// Hop Limit           8-bit unsigned integer.  Decremented by 1 by
+///                     each node that forwards the packet. The packet
+///                     is discarded if Hop Limit is decremented to
+///                     zero.
+///
+/// Source Address      128-bit address of the originator of the packet.
+///
+/// Destination Address 128-bit address of the intended recipient of the
+///                     packet (possibly not the ultimate recipient, if
+///                     a Routing header is present).
+///
+/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
+/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 
 /// IPv6 packet.
 #[derive(Clone)]
@@ -146,17 +72,19 @@ pub struct Ipv6 {
 }
 
 impl Ipv6 {
+    /// Returns the protocol version. Should always be `6`.
     #[inline]
     pub fn version(&self) -> u8 {
-        // Protocol Version, should always be `6`
         ((u32::from_be(self.header().version_to_flow_label) & 0xf000_0000) >> 28) as u8
     }
 
+    /// Returns the differentiated services codepoint.
     #[inline]
     pub fn dscp(&self) -> u8 {
         ((u32::from_be(self.header().version_to_flow_label) & DSCP) >> 22) as u8
     }
 
+    /// Sets the differentiated services codepoint.
     #[inline]
     pub fn set_dscp(&mut self, dscp: u8) {
         self.header_mut().version_to_flow_label = u32::to_be(
@@ -165,11 +93,13 @@ impl Ipv6 {
         );
     }
 
+    /// Returns the explicit congestion notification codepoint.
     #[inline]
     pub fn ecn(&self) -> u8 {
         ((u32::from_be(self.header().version_to_flow_label) & ECN) >> 20) as u8
     }
 
+    /// Sets the explicit congestion notification codepoint.
     #[inline]
     pub fn set_ecn(&mut self, ecn: u8) {
         self.header_mut().version_to_flow_label = u32::to_be(
@@ -178,11 +108,13 @@ impl Ipv6 {
         );
     }
 
+    /// Returns the flow label.
     #[inline]
     pub fn flow_label(&self) -> u32 {
         u32::from_be(self.header().version_to_flow_label) & FLOW
     }
 
+    /// Sets the flow label.
     #[inline]
     pub fn set_flow_label(&mut self, flow_label: u32) {
         self.header_mut().version_to_flow_label = u32::to_be(
@@ -190,41 +122,49 @@ impl Ipv6 {
         );
     }
 
+    /// Returns the length of the payload measured in octets.
     #[inline]
     pub fn payload_length(&self) -> u16 {
         u16::from_be(self.header().payload_length)
     }
 
+    /// Sets the length of the payload.
     #[inline]
     fn set_payload_length(&mut self, payload_length: u16) {
         self.header_mut().payload_length = u16::to_be(payload_length);
     }
 
+    /// Returns the packet's hop limit.
     #[inline]
     pub fn hop_limit(&self) -> u8 {
         self.header().hop_limit
     }
 
+    /// Sets the packet's hop limit.
     #[inline]
     pub fn set_hop_limit(&mut self, hop_limit: u8) {
         self.header_mut().hop_limit = hop_limit;
     }
 
+    /// Returns the source address.
     #[inline]
     pub fn src(&self) -> Ipv6Addr {
         self.header().src
     }
 
+    /// Sets the source address.
     #[inline]
     pub fn set_src(&mut self, src: Ipv6Addr) {
         self.header_mut().src = src;
     }
 
+    /// Returns the destination address.
     #[inline]
     pub fn dst(&self) -> Ipv6Addr {
         self.header().dst
     }
 
+    /// Sets the destination address.
     #[inline]
     pub fn set_dst(&mut self, dst: Ipv6Addr) {
         self.header_mut().dst = dst;
@@ -399,14 +339,60 @@ impl Ipv6Packet for Ipv6 {
     }
 }
 
+/// The minimum IPv6 MTU defined in [IETF RFC 2460].
+///
+/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-5
+pub const IPV6_MIN_MTU: usize = 1280;
+
+// Masks
+const DSCP: u32 = 0x0fc0_0000;
+const ECN: u32 = 0x0030_0000;
+const FLOW: u32 = 0xfffff;
+
+/// Common behaviors shared by IPv6 and extension packets.
+pub trait Ipv6Packet: IpPacket {
+    /// Returns the next header type.
+    fn next_header(&self) -> ProtocolNumber;
+
+    /// Sets the next header type.
+    fn set_next_header(&mut self, next_header: ProtocolNumber);
+}
+
+/// IPv6 header.
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct Ipv6Header {
+    version_to_flow_label: u32,
+    payload_length: u16,
+    next_header: u8,
+    hop_limit: u8,
+    src: Ipv6Addr,
+    dst: Ipv6Addr,
+}
+
+impl Default for Ipv6Header {
+    fn default() -> Ipv6Header {
+        Ipv6Header {
+            version_to_flow_label: u32::to_be(6 << 28),
+            payload_length: 0,
+            next_header: 0,
+            hop_limit: 0,
+            src: Ipv6Addr::UNSPECIFIED,
+            dst: Ipv6Addr::UNSPECIFIED,
+        }
+    }
+}
+
+impl Header for Ipv6Header {}
+
 #[cfg(any(test, feature = "testils"))]
 #[rustfmt::skip]
 pub const IPV6_PACKET: [u8; 78] = [
-    // ** ethernet header
+// ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x86, 0xDD,
-    // ** IPv6 header
+// IPv6 header
     // version, dscp, ecn, flow label
     0x60, 0x00, 0x00, 0x00,
     // payload length
@@ -419,7 +405,7 @@ pub const IPV6_PACKET: [u8; 78] = [
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     // dst addr
     0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-    // ** TCP header
+// TCP header
     // src_port = 36869, dst_port = 23
     0x90, 0x05, 0x00, 0x17,
     // seq_no = 1913975060
