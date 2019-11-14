@@ -55,3 +55,46 @@ impl Rvg {
             .current()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dpdk::SizeOf;
+    use crate::fieldmap;
+    use crate::packets::{Packet, UdpHeader};
+    use crate::testils::packet::PacketExt;
+    use crate::testils::proptest::*;
+    use std::net::Ipv6Addr;
+
+    #[nb2::test]
+    fn gen_v4_packet() {
+        let mut gen = Rvg::new();
+        let packet = gen.generate(v4_udp());
+        let udp = packet.into_v4_udp();
+        assert_eq!(UdpHeader::size_of(), udp.len());
+    }
+
+    #[nb2::test]
+    fn gen_sr_packets() {
+        let mut gen = Rvg::new();
+        let srhs = gen.generate_vec(&sr_tcp().prop_map(|v| v.into_sr_tcp()), 10);
+        assert_eq!(10, srhs.len());
+    }
+
+    #[nb2::test]
+    fn gen_sr_packets_with_fieldmap() {
+        let mut gen = Rvg::new();
+
+        let segments = vec![
+            "::2".parse::<Ipv6Addr>().unwrap(),
+            "::3".parse::<Ipv6Addr>().unwrap(),
+            "::4".parse::<Ipv6Addr>().unwrap(),
+        ];
+        let srhs = gen.generate_vec(
+            &sr_tcp_with(fieldmap! {field::sr_segments => segments}).prop_map(|v| v.into_sr()),
+            10,
+        );
+        assert_eq!(10, srhs.len());
+        let _ = srhs.iter().map(|srh| assert_eq!(3, srh.segments().len()));
+    }
+}
