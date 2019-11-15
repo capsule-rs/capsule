@@ -30,9 +30,9 @@ fn new_counter(name: &'static str, kni: &str, dir: &'static str) -> Counter {
 pub struct KniRx {
     raw: NonNull<ffi::rte_kni>,
     #[cfg(feature = "metrics")]
-    pkt_counter: Counter,
+    packets: Counter,
     #[cfg(feature = "metrics")]
-    byte_counter: Counter,
+    octets: Counter,
 }
 
 impl KniRx {
@@ -46,12 +46,12 @@ impl KniRx {
     #[cfg(feature = "metrics")]
     pub fn new(raw: NonNull<ffi::rte_kni>) -> Self {
         let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };
-        let pkt_counter = new_counter("packets", &name, "rx");
-        let byte_counter = new_counter("octets", &name, "rx");
+        let packets = new_counter("packets", &name, "rx");
+        let octets = new_counter("octets", &name, "rx");
         KniRx {
             raw,
-            pkt_counter,
-            byte_counter,
+            packets,
+            octets,
         }
     }
 
@@ -84,10 +84,10 @@ impl KniRx {
 
         #[cfg(feature = "metrics")]
         {
-            self.pkt_counter.record(mbufs.len() as u64);
+            self.packets.record(mbufs.len() as u64);
 
             let bytes: usize = mbufs.iter().map(Mbuf::data_len).sum();
-            self.byte_counter.record(bytes as u64);
+            self.octets.record(bytes as u64);
         }
 
         mbufs
@@ -118,11 +118,11 @@ pub struct KniTx {
     raw: NonNull<ffi::rte_kni>,
     tx_deque: Option<UnboundedReceiver<Vec<Mbuf>>>,
     #[cfg(feature = "metrics")]
-    pkt_counter: Counter,
+    packets: Counter,
     #[cfg(feature = "metrics")]
-    byte_counter: Counter,
+    octets: Counter,
     #[cfg(feature = "metrics")]
-    drop_counter: Counter,
+    dropped: Counter,
 }
 
 impl KniTx {
@@ -139,15 +139,15 @@ impl KniTx {
     #[cfg(feature = "metrics")]
     pub fn new(raw: NonNull<ffi::rte_kni>, tx_deque: UnboundedReceiver<Vec<Mbuf>>) -> Self {
         let name = unsafe { ffi::rte_kni_get_name(raw.as_ref()).as_str().to_owned() };
-        let pkt_counter = new_counter("packets", &name, "tx");
-        let byte_counter = new_counter("octets", &name, "tx");
-        let drop_counter = new_counter("dropped", &name, "tx");
+        let packets = new_counter("packets", &name, "tx");
+        let octets = new_counter("octets", &name, "tx");
+        let dropped = new_counter("dropped", &name, "tx");
         KniTx {
             raw,
             tx_deque: Some(tx_deque),
-            pkt_counter,
-            byte_counter,
-            drop_counter,
+            packets,
+            octets,
+            dropped,
         }
     }
 
@@ -167,10 +167,10 @@ impl KniTx {
             if sent > 0 {
                 #[cfg(feature = "metrics")]
                 {
-                    self.pkt_counter.record(sent as u64);
+                    self.packets.record(sent as u64);
 
                     let bytes: usize = packets[..sent as usize].iter().map(Mbuf::data_len).sum();
-                    self.byte_counter.record(bytes as u64);
+                    self.octets.record(bytes as u64);
                 }
 
                 if to_send - sent > 0 {
@@ -191,7 +191,7 @@ impl KniTx {
                 // tx queue is full and we can't make progress, start dropping packets
                 // to avoid potentially stuck in an endless loop.
                 #[cfg(feature = "metrics")]
-                self.drop_counter.record(to_send as u64);
+                self.dropped.record(to_send as u64);
 
                 Mbuf::free_bulk(packets);
                 break;

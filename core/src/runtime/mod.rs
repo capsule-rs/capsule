@@ -8,7 +8,7 @@ use crate::dpdk::{
 };
 use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
-use futures::{future, stream, Future, StreamExt};
+use futures::{future, stream, StreamExt};
 use libc;
 use std::collections::{HashMap, HashSet};
 use std::mem::ManuallyDrop;
@@ -178,7 +178,7 @@ impl Runtime {
     /// `port` is the logical name that identifies the port. The `installer`
     /// is a closure that takes in a `PortQueue` and returns a `Pipeline`
     /// that will be spawned onto the thread executor.
-    pub fn add_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
+    pub fn add_pipeline_to_port<T: Pipeline + 'static, F>(
         &mut self,
         port: &str,
         installer: F,
@@ -199,6 +199,7 @@ impl Runtime {
             // is spawned locally and the type bounds are less restricting.
             thread.spawn(future::lazy(move |_| {
                 let fut = f(port_q);
+                debug!("spawned pipeline {}.", fut.name());
                 current_thread::spawn(fut);
             }))?;
 
@@ -229,7 +230,7 @@ impl Runtime {
     ///     .add_kni_rx_pipeline_to_port("kni0", batch::splice)?
     ///     .execute()
     /// ```
-    pub fn add_kni_rx_pipeline_to_port<T: Future<Output = ()> + 'static, F>(
+    pub fn add_kni_rx_pipeline_to_port<T: Pipeline + 'static, F>(
         &mut self,
         port: &str,
         installer: F,
@@ -257,6 +258,7 @@ impl Runtime {
         // target core instead of the master core.
         thread.spawn(future::lazy(move |_| {
             let fut = installer(kni_rx, port_q);
+            debug!("spawned kni rx pipeline {}.", fut.name());
             current_thread::spawn(fut);
         }))?;
 
@@ -271,7 +273,7 @@ impl Runtime {
     /// `core` is the logical id that identifies the core. The `installer`
     /// is a closure that takes in a hashmap of `PortQueue`s and returns a
     /// `Pipeline` that will be spawned onto the thread executor of the core.
-    pub fn add_pipeline_to_core<T: Future<Output = ()> + 'static, F>(
+    pub fn add_pipeline_to_core<T: Pipeline + 'static, F>(
         &mut self,
         core: usize,
         installer: F,
@@ -287,6 +289,7 @@ impl Runtime {
         // target core instead of the master core.
         thread.spawn(future::lazy(move |_| {
             let fut = installer(port_qs);
+            debug!("spawned pipeline {}.", fut.name());
             current_thread::spawn(fut);
         }))?;
 
@@ -326,6 +329,7 @@ impl Runtime {
         // associated with the correct timer instance.
         thread.spawn(future::lazy(move |_| {
             let mut pipeline = installer(port_qs);
+            debug!("spawned periodic pipeline {}.", pipeline.name());
             let fut = Interval::new_interval(dur).for_each(move |_| {
                 pipeline.run_once();
                 future::ready(())
@@ -362,6 +366,7 @@ impl Runtime {
                 task();
                 future::ready(())
             });
+            debug!("spawned periodic task.");
             current_thread::spawn(fut);
         }))?;
 
