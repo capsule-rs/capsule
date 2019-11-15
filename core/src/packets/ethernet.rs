@@ -309,7 +309,7 @@ pub mod EtherTypes {
     use super::EtherType;
 
     // Address resolution protocol.
-    pub const ARP: EtherType = EtherType(0x0806);
+    pub const Arp: EtherType = EtherType(0x0806);
     // Internet Protocol version 4.
     pub const Ipv4: EtherType = EtherType(0x0800);
     // Internet Protocol version 6.
@@ -322,7 +322,7 @@ impl fmt::Display for EtherType {
             f,
             "{}",
             match *self {
-                EtherTypes::ARP => "ARP".to_string(),
+                EtherTypes::Arp => "ARP".to_string(),
                 EtherTypes::Ipv4 => "IPv4".to_string(),
                 EtherTypes::Ipv6 => "IPv6".to_string(),
                 _ => {
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn ether_type_to_string() {
-        assert_eq!("ARP", EtherTypes::ARP.to_string());
+        assert_eq!("ARP", EtherTypes::Arp.to_string());
         assert_eq!("IPv4", EtherTypes::Ipv4.to_string());
         assert_eq!("IPv6", EtherTypes::Ipv6.to_string());
         assert_eq!("0x0000", EtherType::new(0).to_string());
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
         assert!(ethernet.is_vlan_802_1q());
-        assert_eq!(EtherTypes::ARP, ethernet.ether_type());
+        assert_eq!(EtherTypes::Arp, ethernet.ether_type());
         assert_eq!(18, ethernet.header_len());
     }
 
@@ -514,7 +514,7 @@ mod tests {
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
         assert!(ethernet.is_vlan_802_1ad());
-        assert_eq!(EtherTypes::ARP, ethernet.ether_type());
+        assert_eq!(EtherTypes::Arp, ethernet.ether_type());
         assert_eq!(22, ethernet.header_len());
     }
 
