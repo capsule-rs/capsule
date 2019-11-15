@@ -33,6 +33,7 @@ pub use self::packet::*;
 pub use self::rvg::*;
 
 use crate::dpdk::{self, Mempool, SocketId, MEMPOOL};
+use crate::metrics;
 use std::ptr;
 use std::sync::Once;
 
@@ -42,6 +43,7 @@ static TEST_INIT: Once = Once::new();
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
         dpdk::eal_init(vec!["nb2_test".to_owned()]).unwrap();
+        let _ = metrics::init();
     });
 }
 

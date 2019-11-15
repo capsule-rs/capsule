@@ -58,6 +58,17 @@
 //! * `mempool.free`, total number of mbufs available for allocation.
 //!
 //! Each metric is labeled with the mempool name.
+//!
+//!
+//! # Pipeline Metrics
+//!
+//! * `pipeline.processed`, total number of successfully processed packets.
+//! * `pipeline.dropped`, total number of packets intentionally dropped.
+//! * `pipeline.errors`, total number of packet dropped due to processing
+//! errors.
+//!
+//! Each metric is labeled with the pipeline name. If the pipeline doesn't
+//! have a name, it will be labeled as "default".
 
 // re-export some metrics types to make feature gated imports easier.
 pub(crate) use metrics_core::{labels, Key};

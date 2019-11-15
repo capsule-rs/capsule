@@ -255,16 +255,32 @@ pub trait Batch {
         Replace::new(self, f)
     }
 
-    /// Turns the batch pipeline into an executable task.
+    /// Turns the batch pipeline into an executable task with default name.
     ///
     /// Send marks the end of the batch pipeline. No more combinators can be
     /// appended after send.
+    ///
+    /// To give the pipeline a unique name, use `Batch::send_named` instead.
     #[inline]
     fn send<Tx: PacketTx>(self, tx: Tx) -> Send<Self, Tx>
     where
         Self: Sized,
     {
-        Send::new(self, tx)
+        Batch::send_named(self, "default", tx)
+    }
+
+    /// Turns the batch pipeline into an executable task.
+    ///
+    /// `name` is used for logging and metrics. It does not need to be unique.
+    /// Multiple pipeline instances with the same name are aggregated together
+    /// into one set of metrics. Give each pipeline a different name to keep
+    /// metrics separated.
+    #[inline]
+    fn send_named<Tx: PacketTx>(self, name: &str, tx: Tx) -> Send<Self, Tx>
+    where
+        Self: Sized,
+    {
+        Send::new(name.to_owned(), self, tx)
     }
 }
 
@@ -279,6 +295,9 @@ pub trait Batch {
 /// }
 /// ```
 pub trait Pipeline: futures::Future<Output = ()> {
+    /// Returns the name of the pipeline.
+    fn name(&self) -> &str;
+
     /// Runs the pipeline once to process one batch of packets.
     fn run_once(&mut self);
 }

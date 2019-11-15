@@ -82,7 +82,7 @@ pub struct PortQueue {
     txq: TxQueueIndex,
     kni: Option<KniTxQueue>,
     #[cfg(feature = "metrics")]
-    counter: Option<Counter>,
+    dropped: Option<Counter>,
 }
 
 impl PortQueue {
@@ -93,7 +93,7 @@ impl PortQueue {
             txq,
             kni: None,
             #[cfg(feature = "metrics")]
-            counter: None,
+            dropped: None,
         }
     }
 
@@ -154,7 +154,7 @@ impl PortQueue {
                 // tx queue is full and we can't make progress, start dropping packets
                 // to avoid potentially stuck in an endless loop.
                 #[cfg(feature = "metrics")]
-                self.counter.as_ref().unwrap().record(packets.len() as u64);
+                self.dropped.as_ref().unwrap().record(packets.len() as u64);
 
                 Mbuf::free_bulk(packets);
                 break;
@@ -177,7 +177,7 @@ impl PortQueue {
     /// queue is full.
     #[cfg(feature = "metrics")]
     fn set_counter(&mut self, counter: Counter) {
-        self.counter = Some(counter);
+        self.dropped = Some(counter);
     }
 
     /// Returns the MAC address of the port.
