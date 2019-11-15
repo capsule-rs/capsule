@@ -16,8 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+mod fragment;
 mod srh;
 
+pub use self::fragment::*;
 pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
@@ -207,7 +209,7 @@ impl fmt::Debug for Ipv6 {
             .field("dscp", &self.dscp())
             .field("ecn", &self.ecn())
             .field("flow_label", &self.flow_label())
-            .field("total_length", &self.len())
+            .field("payload_length", &self.payload_length())
             .field("next_header", &format!("{}", self.next_header()))
             .field("hop_limit", &self.hop_limit())
             .field("$offset", &self.offset())

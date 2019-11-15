@@ -529,6 +529,8 @@ impl Runtime {
 
         self.shutdown_cores();
         self.stop_ports();
+        info!("runtime terminated.");
+
         Ok(())
     }
 }
