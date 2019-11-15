@@ -36,6 +36,9 @@ pub mod ProtocolNumbers {
     // Routing Header for IPv6.
     pub const Ipv6Route: ProtocolNumber = ProtocolNumber(0x2B);
 
+    // Fragment Header for IPv6.
+    pub const Ipv6Frag: ProtocolNumber = ProtocolNumber(0x2C);
+
     // Internet Control Message Protocol for IPv6.
     pub const Icmpv6: ProtocolNumber = ProtocolNumber(0x3A);
 
@@ -52,6 +55,7 @@ impl fmt::Display for ProtocolNumber {
                 ProtocolNumbers::Tcp => "TCP".to_string(),
                 ProtocolNumbers::Udp => "UDP".to_string(),
                 ProtocolNumbers::Ipv6Route => "IPv6 Route".to_string(),
+                ProtocolNumbers::Ipv6Frag => "IPv6 Frag".to_string(),
                 ProtocolNumbers::Icmpv6 => "ICMPv6".to_string(),
                 _ => format!("0x{:02x}", self.0),
             }
