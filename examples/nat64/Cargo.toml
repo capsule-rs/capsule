@@ -1,0 +1,25 @@
+[package]
+name = "nat64"
+version = "0.1.0"
+authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+license = "Apache-2.0"
+keywords = []
+publish = false
+edition = "2018"
+build = "build.rs"
+description = "IPv6 to IPv4 NAT gateway example"
+readme = "README.md"
+categories = []
+
+[[bin]]
+name = "nat64"
+path = "main.rs"
+doctest = false
+
+[dependencies]
+capsule = { path = "../../core" }
+chashmap = "2.2"
+failure = "0.1"
+once_cell = "1.2"
+tracing = "0.1"
+tracing-subscriber = "0.1"

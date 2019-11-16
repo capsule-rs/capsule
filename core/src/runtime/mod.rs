@@ -311,7 +311,7 @@ impl Runtime {
             current_thread::spawn(fut);
         }))?;
 
-        info!("installed pipeline for core {:?}.", core_id);
+        info!("installed pipeline for {:?}.", core_id);
 
         Ok(self)
     }
@@ -355,7 +355,7 @@ impl Runtime {
             current_thread::spawn(fut);
         }))?;
 
-        info!("installed periodic pipeline for core {:?}.", core_id);
+        info!("installed periodic pipeline for {:?}.", core_id);
 
         Ok(self)
     }
@@ -388,7 +388,7 @@ impl Runtime {
             current_thread::spawn(fut);
         }))?;
 
-        info!("installed periodic task for core {:?}.", core_id);
+        info!("installed periodic task for {:?}.", core_id);
 
         Ok(self)
     }
