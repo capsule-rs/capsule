@@ -222,7 +222,7 @@ fn multi_push(c: &mut Criterion) {
     c.bench_function("packets::multi_push_udp", |b| {
         b.iter_batched(
             || Mbuf::new().unwrap(),
-            |mbuf| multi_push_udp(mbuf),
+            multi_push_udp,
             BatchSize::NumIterations(BATCH_SIZE as u64),
         )
     });
