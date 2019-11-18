@@ -1,16 +1,16 @@
 [package]
-name = "ping6d"
+name = "ping4d"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
 keywords = []
 edition = "2018"
 build = "build.rs"
-description = "Icmp V6 echo response on packets example"
+description = "Icmp V4 echo response on packets example"
 categories = []
 
 [[bin]]
-name = "ping6d"
+name = "ping4d"
 path = "main.rs"
 doctest = false
 
