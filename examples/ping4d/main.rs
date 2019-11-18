@@ -1,12 +1,12 @@
-use nb2::packets::icmp::v6::{EchoReply, EchoRequest, Icmpv6};
-use nb2::packets::ip::v6::Ipv6;
+use nb2::packets::icmp::v4::{EchoReply, EchoRequest, Icmpv4};
+use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::{Ethernet, Packet};
 use nb2::settings::load_config;
 use nb2::{Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Result<Icmpv6<Ipv6, EchoReply>> {
+fn reply_echo(packet: &Mbuf) -> Result<Icmpv4<Ipv4, EchoReply>> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -14,13 +14,14 @@ fn reply_echo(packet: &Mbuf) -> Result<Icmpv6<Ipv6, EchoReply>> {
     reply.set_src(ethernet.dst());
     reply.set_dst(ethernet.src());
 
-    let ipv6 = ethernet.peek::<Ipv6>()?;
-    let mut reply = reply.push::<Ipv6>()?;
-    reply.set_src(ipv6.dst());
-    reply.set_dst(ipv6.src());
+    let ipv4 = ethernet.peek::<Ipv4>()?;
+    let mut reply = reply.push::<Ipv4>()?;
+    reply.set_src(ipv4.dst());
+    reply.set_dst(ipv4.src());
+    reply.set_ttl(255);
 
-    let request = ipv6.peek::<Icmpv6<Ipv6, EchoRequest>>()?;
-    let mut reply = reply.push::<Icmpv6<Ipv6, EchoReply>>()?;
+    let request = ipv4.peek::<Icmpv4<Ipv4, EchoRequest>>()?;
+    let mut reply = reply.push::<Icmpv4<Ipv4, EchoReply>>()?;
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;
