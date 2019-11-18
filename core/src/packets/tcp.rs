@@ -1,6 +1,6 @@
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, CondRc, Header, Packet};
-use crate::{Result, SizeOf};
+use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -493,6 +493,11 @@ impl<E: IpPacket> Packet for Tcp<E> {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_proto() == ProtocolNumbers::Tcp,
+            ParseError::new("not a TCP packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -618,6 +623,7 @@ mod tests {
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::ip::v6::{Ipv6, SegmentRouting, SRH_PACKET};
     use crate::packets::Ethernet;
+    use crate::testils::byte_arrays::UDP_PACKET;
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -650,6 +656,15 @@ mod tests {
         assert!(!tcp.rst());
         assert!(tcp.syn());
         assert!(!tcp.fin());
+    }
+
+    #[nb2::test]
+    fn parse_non_tcp_packet() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+
+        assert!(ipv4.parse::<Tcp<Ipv4>>().is_err());
     }
 
     #[nb2::test]

@@ -2,7 +2,7 @@ use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::{CondRc, Header, Packet, ParseError};
-use crate::{Result, SizeOf};
+use crate::{ensure, Result, SizeOf};
 use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -254,6 +254,11 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_header() == ProtocolNumbers::Ipv6Route,
+            ParseError::new("not an IPv6 routing packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data::<Self::Header>(offset)?;
@@ -540,6 +545,15 @@ mod tests {
         assert_eq!("2001:db8:85a3::8a2e:370:7333", segments[0].to_string());
         assert_eq!("2001:db8:85a3::8a2e:370:7334", segments[1].to_string());
         assert_eq!("2001:db8:85a3::8a2e:370:7335", segments[2].to_string());
+    }
+
+    #[nb2::test]
+    fn parse_non_segment_routing_packet() {
+        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+
+        assert!(ipv6.parse::<SegmentRouting<Ipv6>>().is_err());
     }
 
     #[nb2::test]
