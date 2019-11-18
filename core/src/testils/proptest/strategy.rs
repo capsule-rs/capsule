@@ -136,24 +136,24 @@ impl StrategyMap {
         self.get::<Ipv6Addr>(key)
     }
 
-    fn sr_segments(&self) -> impl Strategy<Value = (Vec<Ipv6Addr>, usize)> {
+    fn sr_segments(&self) -> impl Strategy<Value = (Vec<Ipv6Addr>, u8)> {
         let mut rvg = Rvg::new();
 
         match (
             self.checked_value::<Vec<Ipv6Addr>>(&field::sr_segments),
-            self.checked_value::<usize>(&field::sr_segments_left),
+            self.checked_value::<u8>(&field::sr_segments_left),
         ) {
             (Some(v), None) => {
                 let segments_left = rvg.generate(0..=v.len());
-                (Just(v).boxed(), Just(segments_left))
+                (Just(v).boxed(), Just(segments_left as u8))
             }
-            (None, Some(v)) => (vec(any::<Ipv6Addr>(), 1..=v).boxed(), Just(v)),
+            (None, Some(v)) => (vec(any::<Ipv6Addr>(), 1..=v as usize).boxed(), Just(v)),
             (Some(segments), Some(segments_left)) => (Just(segments).boxed(), Just(segments_left)),
             _ => {
-                let segments_left = rvg.generate(0..=(8 as usize));
+                let segments_left = rvg.generate(0..=8usize);
                 (
                     vec(any::<Ipv6Addr>(), 1..=segments_left + 1).boxed(),
-                    Just(segments_left),
+                    Just(segments_left as u8),
                 )
             }
         }
