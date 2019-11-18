@@ -6,9 +6,9 @@ license = "TBD"
 keywords = []
 edition = "2018"
 build = "build.rs"
-description = "Dpdk-Kni example"
+description = "Kernel NIC interface example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/kni"
-readme = "../../README.md"
+readme = "README.md"
 categories = []
 
 [[bin]]

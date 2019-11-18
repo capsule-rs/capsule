@@ -6,9 +6,9 @@ license = "TBD"
 keywords = []
 edition = "2018"
 build = "build.rs"
-description = "Icmp V4 echo response on packets example"
+description = "Ping4 daemon example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/ping4d"
-readme = "../../README.md"
+readme = "README.md"
 categories = []
 
 [[bin]]
