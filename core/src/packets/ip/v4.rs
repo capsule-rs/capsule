@@ -18,8 +18,8 @@
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet};
-use crate::{Result, SizeOf};
+use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
@@ -390,6 +390,11 @@ impl Packet for Ipv4 {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.ether_type() == EtherTypes::Ipv4,
+            ParseError::new("not an IPv4 packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -537,7 +542,7 @@ impl Header for Ipv4Header {}
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::UDP_PACKET;
+    use crate::testils::byte_arrays::{IPV6_PACKET, UDP_PACKET};
     use crate::Mbuf;
 
     #[test]
@@ -565,6 +570,14 @@ mod tests {
         assert_eq!(0xf700, ipv4.checksum());
         assert_eq!("139.133.217.110", ipv4.src().to_string());
         assert_eq!("139.133.233.2", ipv4.dst().to_string());
+    }
+
+    #[capsule::test]
+    fn parse_non_ipv4_packet() {
+        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+
+        assert!(ethernet.parse::<Ipv4>().is_err());
     }
 
     #[capsule::test]

@@ -22,8 +22,8 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
-use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet};
-use crate::{Result, SizeOf};
+use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
@@ -251,6 +251,11 @@ impl Packet for Ipv6 {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.ether_type() == EtherTypes::Ipv6,
+            ParseError::new("not an IPv6 packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -442,6 +447,7 @@ pub const IPV6_PACKET: [u8; 78] = [
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::testils::byte_arrays::UDP_PACKET;
     use crate::Mbuf;
 
     #[test]
@@ -464,6 +470,14 @@ mod tests {
         assert_eq!(2, ipv6.hop_limit());
         assert_eq!("2001:db8:85a3::1", ipv6.src().to_string());
         assert_eq!("2001:db8:85a3::8a2e:370:7334", ipv6.dst().to_string());
+    }
+
+    #[capsule::test]
+    fn parse_non_ipv6_packet() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+
+        assert!(ethernet.parse::<Ipv6>().is_err());
     }
 
     #[capsule::test]

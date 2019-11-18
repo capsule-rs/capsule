@@ -29,7 +29,7 @@ pub use self::too_big::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{Result, SizeOf};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -150,6 +150,11 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_proto() == ProtocolNumbers::Icmpv6,
+            ParseError::new("not an ICMPv6 packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -442,7 +447,7 @@ pub const ICMPV6_PACKET: [u8; 62] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::{Ipv6, IPV6_PACKET};
     use crate::packets::Ethernet;
     use crate::Mbuf;
 
@@ -461,6 +466,15 @@ mod tests {
         assert_eq!(Icmpv6Type::new(0xFF), icmpv6.msg_type());
         assert_eq!(0, icmpv6.code());
         assert_eq!(0x01f0, icmpv6.checksum());
+    }
+
+    #[capsule::test]
+    fn parse_non_icmpv6_packet() {
+        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+
+        assert!(ipv6.parse::<Icmpv6<Ipv6, ()>>().is_err());
     }
 
     #[capsule::test]

@@ -17,8 +17,8 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, CondRc, Header, Packet};
-use crate::{Result, SizeOf};
+use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -241,6 +241,11 @@ impl<E: IpPacket> Packet for Udp<E> {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_proto() == ProtocolNumbers::Udp,
+            ParseError::new("not a UDP packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -337,6 +342,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::Ethernet;
+    use crate::testils::byte_arrays::TCP_PACKET;
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -356,6 +362,15 @@ mod tests {
         assert_eq!(1087, udp.dst_port());
         assert_eq!(18, udp.length());
         assert_eq!(0x7228, udp.checksum());
+    }
+
+    #[capsule::test]
+    fn parse_non_udp_packet() {
+        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+
+        assert!(ipv4.parse::<Udp<Ipv4>>().is_err());
     }
 
     #[capsule::test]
