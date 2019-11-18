@@ -53,7 +53,7 @@ impl<T: Packet> Batch for Bridge<T> {
 }
 
 /// Builder closure for a sub batch from a bridge.
-pub type GroupByBatchBuilder<T> = dyn Fn(Bridge<T>) -> Box<dyn Batch<Item = T>>;
+pub type GroupByBatchBuilder<T> = dyn FnOnce(Bridge<T>) -> Box<dyn Batch<Item = T>>;
 
 /// A batch that splits the underlying batch into multiple sub batches.
 ///
