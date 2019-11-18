@@ -56,7 +56,7 @@ where
                     match (self.f)(&orig) {
                         Ok(new) => {
                             // keeps the original in the temp slot, we will mark it dropped
-                            // in the interation immediately follows.
+                            // in the iteration that immediately follows.
                             self.slot.replace(orig);
                             Disposition::Act(new)
                         }

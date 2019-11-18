@@ -1,18 +1,18 @@
 [package]
-name = "ping6d"
+name = "ping4d"
 version = "0.1.0"
 authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = []
 edition = "2018"
 build = "build.rs"
-description = "Icmp V6 echo response on packets example"
-repository = "https://github.com/williamofockham/nb2/tree/master/examples/ping6d"
+description = "Icmp V4 echo response on packets example"
+repository = "https://github.com/williamofockham/nb2/tree/master/examples/ping4d"
 readme = "../../README.md"
 categories = []
 
 [[bin]]
-name = "ping6d"
+name = "ping4d"
 path = "main.rs"
 doctest = false
 

@@ -1,4 +1,4 @@
-app_name = "ping6d"
+app_name = "ping4d"
 master_core = 0
 cores = []
 duration = 5
