@@ -7,7 +7,7 @@ pub use self::echo_request::*;
 use crate::packets::ip::IpPacket;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{Result, SizeOf};
+use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -82,6 +82,11 @@ impl<E: IpPacket, P: Icmpv4Payload> Packet for Icmpv4<E, P> {
     #[doc(hidden)]
     #[inline]
     fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_proto() == ProtocolNumbers::Icmpv4,
+            ParseError::new("not an ICMPv4 packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -315,6 +320,7 @@ mod tests {
     use crate::packets::icmp::v4::EchoRequest;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::Ethernet;
+    use crate::testils::byte_arrays::UDP_PACKET;
     use crate::Mbuf;
 
     #[test]
@@ -332,6 +338,15 @@ mod tests {
         assert_eq!(Icmpv4Type::new(0x8), icmpv4.msg_type());
         assert_eq!(0, icmpv4.code());
         assert_eq!(0x2a5c, icmpv4.checksum());
+    }
+
+    #[nb2::test]
+    fn parse_non_icmpv6_packet() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+
+        assert!(ipv4.parse::<Icmpv4<Ipv4, ()>>().is_err());
     }
 
     #[nb2::test]
