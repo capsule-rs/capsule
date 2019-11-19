@@ -56,7 +56,7 @@ impl<'de> Deserialize<'de> for Ipv6Cidr {
 }
 
 /// Runtime settings.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct RuntimeSettings {
     /// Application name. This must be unique if you want to run multiple
     /// DPDK applications on the same system.
@@ -195,7 +195,7 @@ impl fmt::Debug for RuntimeSettings {
 }
 
 /// Mempool settings.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct MempoolSettings {
     /// The maximum number of Mbufs the mempool can allocate. The optimum
     /// size (in terms of memory usage) is when n is a power of two minus
@@ -228,7 +228,7 @@ impl fmt::Debug for MempoolSettings {
 }
 
 /// Port settings.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct PortSettings {
     /// The application assigned logical name of the port.
     ///
