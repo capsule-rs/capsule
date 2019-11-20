@@ -78,7 +78,7 @@ impl<E: Ipv6Packet> Icmpv6<E, ()> {
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("icmpv6")
-            .field("type", &self.msg_type())
+            .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("$offset", &self.offset())

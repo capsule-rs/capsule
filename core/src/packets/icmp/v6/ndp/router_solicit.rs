@@ -40,7 +40,7 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("router solicit")
-            .field("type", &self.msg_type())
+            .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("reserved", &self.reserved())
