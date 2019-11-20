@@ -197,8 +197,8 @@ impl fmt::Display for Icmpv4Type {
             f,
             "{}",
             match *self {
-                // Icmpv4Types::EchoRequest => "Echo Request".to_string(),
-                // Icmpv4Types::EchoReply => "Echo Reply".to_string(),
+                Icmpv4Types::EchoRequest => "Echo Request".to_string(),
+                Icmpv4Types::EchoReply => "Echo Reply".to_string(),
                 _ => format!("{}", self.0),
             }
         )
@@ -290,8 +290,8 @@ pub trait Icmpv4Packet<E: IpPacket, P: Icmpv4Payload>:
 
 /// An ICMPv4 message with parsed payload.
 pub enum Icmpv4Message<E: IpPacket> {
-    // EchoRequest(Icmpv4<E, EchoRequest>),
-    // EchoReply(Icmpv4<E, EchoReply>),
+    EchoRequest(Icmpv4<E, EchoRequest>),
+    EchoReply(Icmpv4<E, EchoReply>),
     /// an ICMPv4 message with undefined payload
     Undefined(Icmpv4<E, ()>),
 }
@@ -310,14 +310,14 @@ impl<T: IpPacket> Icmpv4Parse for T {
         if self.next_proto() == ProtocolNumbers::Icmpv4 {
             let icmpv4 = self.parse::<Icmpv4<Self::Envelope, ()>>()?;
             match icmpv4.msg_type() {
-                // Icmpv4Types::EchoRequest => {
-                //     let packet = icmpv4.downcast::<EchoRequest>()?;
-                //     Ok(Icmpv4Message::EchoRequest(packet))
-                // }
-                // Icmpv4Types::EchoReply => {
-                //     let packet = icmpv4.downcast::<EchoReply>()?;
-                //     Ok(Icmpv4Message::EchoReply(packet))
-                // }
+                Icmpv4Types::EchoRequest => {
+                    let packet = icmpv4.downcast::<EchoRequest>()?;
+                    Ok(Icmpv4Message::EchoRequest(packet))
+                }
+                Icmpv4Types::EchoReply => {
+                    let packet = icmpv4.downcast::<EchoReply>()?;
+                    Ok(Icmpv4Message::EchoReply(packet))
+                }
                 _ => Ok(Icmpv4Message::Undefined(icmpv4)),
             }
         } else {
@@ -414,7 +414,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        if let Ok(Icmpv4Message::Undefined(icmpv4)) = ipv4.parse_icmpv4() {
+        if let Ok(Icmpv4Message::EchoRequest(icmpv4)) = ipv4.parse_icmpv4() {
             assert_eq!(Icmpv4Type::new(0x8), icmpv4.msg_type());
         } else {
             panic!("bad packet");
