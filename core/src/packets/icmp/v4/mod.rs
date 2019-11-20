@@ -63,7 +63,7 @@ impl<E: IpPacket> Icmpv4<E, ()> {
 impl<E: IpPacket> fmt::Debug for Icmpv4<E, ()> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("icmpv4")
-            .field("type", &self.msg_type())
+            .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("$offset", &self.offset())
