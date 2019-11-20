@@ -11,6 +11,41 @@ use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
+/// Base Internet Control Message Protocol (for v4 packet) based on [IETF RFC 792].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// |                                                               |
+/// +                         Message Body                          +
+/// |                                                               |
+/// ```
+/// The type field indicates the type of the message.  Its value
+/// determines the format of the remaining data.
+///
+/// The code field depends on the message type.  It is used to create an
+/// additional level of message granularity.
+///
+/// The checksum field is used to detect data corruption in the ICMPv4
+/// message and parts of the IPv4 header.
+///
+/// The message body varies based on the type field. The packet needs to
+/// be first parsed with the unit `()` payload before the type field can
+/// be read.
+///
+/// # Example
+///
+/// ```
+/// if ipv4.protocol() == ProtocolNumbers::Icmpv4 {
+///     let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
+///     println!("{}", icmpv4.msg_type());
+/// }
+/// ```
+///
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
+
 #[derive(Clone)]
 pub struct Icmpv4<E: IpPacket, P: Icmpv4Payload> {
     envelope: CondRc<E>,

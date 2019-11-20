@@ -4,6 +4,29 @@ use crate::packets::Packet;
 use crate::{Result, SizeOf};
 use std::fmt;
 
+/// Echo Reply Message defined in [IETF RFC 792].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Identifier          |        Sequence Number        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Data ...
+/// +-+-+-+-+-
+/// ```
+///
+/// Identifier      The identifier from the invoking Echo Request message.
+///
+/// Sequence Number
+///                 The sequence number from the invoking Echo Request
+///                 message.
+///
+/// Data            The data from the invoking Echo Request message.
+///
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792 (page 14)
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoReply {

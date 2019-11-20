@@ -5,8 +5,7 @@ use nb2::packets::{Ethernet, Packet, Udp};
 use nb2::testils::criterion::BencherExt;
 use nb2::testils::proptest::*;
 use nb2::testils::{PacketExt, Rvg};
-use nb2::Mbuf;
-use nb2::{fieldmap, Result};
+use nb2::{fieldmap, Mbuf, Result};
 use proptest::prelude::*;
 use std::net::Ipv6Addr;
 

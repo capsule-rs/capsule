@@ -4,6 +4,30 @@ use crate::packets::Packet;
 use crate::{Result, SizeOf};
 use std::fmt;
 
+/// Echo Request Message defined in [IETF RFC 792].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Identifier          |        Sequence Number        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Data ...
+/// +-+-+-+-+-
+/// ```
+///
+/// Identifier      An identifier to aid in matching Echo Replies
+///                 to this Echo Request.  May be zero.
+///
+/// Sequence Number
+///                 A sequence number to aid in matching Echo Replies
+///                 to this Echo Request.  May be zero.
+///
+/// Data            Zero or more octets of arbitrary data.
+///
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792 (page 14)
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoRequest {
