@@ -22,6 +22,29 @@ use crate::packets::Packet;
 use crate::{Result, SizeOf};
 use std::fmt;
 
+/// Echo Reply Message defined in [IETF RFC 792].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Type      |     Code      |          Checksum             |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |           Identifier          |        Sequence Number        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Data ...
+/// +-+-+-+-+-
+/// ```
+///
+/// Identifier      The identifier from the invoking Echo Request message.
+///
+/// Sequence Number
+///                 The sequence number from the invoking Echo Request
+///                 message.
+///
+/// Data            The data from the invoking Echo Request message.
+///
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoReply {
@@ -99,7 +122,7 @@ impl<E: IpPacket> Icmpv4<E, EchoReply> {
 impl<E: IpPacket> fmt::Debug for Icmpv4<E, EchoReply> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("icmpv4")
-            .field("type", &self.msg_type())
+            .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("identifier", &self.identifier())
