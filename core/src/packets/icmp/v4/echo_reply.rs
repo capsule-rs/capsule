@@ -26,7 +26,7 @@ use std::fmt;
 ///
 /// Data            The data from the invoking Echo Request message.
 ///
-/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792 (page 14)
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoReply {

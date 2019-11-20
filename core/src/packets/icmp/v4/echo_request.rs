@@ -27,7 +27,7 @@ use std::fmt;
 ///
 /// Data            Zero or more octets of arbitrary data.
 ///
-/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792 (page 14)
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct EchoRequest {
