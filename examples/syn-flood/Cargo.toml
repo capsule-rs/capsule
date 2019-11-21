@@ -8,7 +8,7 @@ edition = "2018"
 build = "build.rs"
 description = "TCP SYN flood example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/syn-flood"
-readme = "../../README.md"
+readme = "README.md"
 categories = []
 
 [[bin]]

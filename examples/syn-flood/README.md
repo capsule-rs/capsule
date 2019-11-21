@@ -16,9 +16,9 @@ The example is located in the `examples/syn-flood` sub-directory. To run the app
 
 ## Explanation
 
-The application schedules a periodic pipeline on port `eth1`'s assigned core. The pipeline will repeat every 10 milliseconds. Instead of receiving packets from the port, the pipeline uses `batch::poll_fn` to generate a batch of new SYN packets each iteration. Every packet is assigned a different spoofed source IP address.
+The application schedules a periodic pipeline on port `eth1`'s assigned core `1`. The pipeline will repeat every 10 milliseconds. Instead of receiving packets from the port, the pipeline uses `batch::poll_fn` to generate a batch of new SYN packets each iteration and sends them through the port. Every packet is assigned a different spoofed source IP address.
 
-On the main core, a scheduled task prints out the port metrics once every second.
+On the main core `0`, a scheduled task prints out the port metrics once every second.
 
 ```
 ---
