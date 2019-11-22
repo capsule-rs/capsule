@@ -162,13 +162,13 @@ impl StrategyMap {
             self.checked_value::<u8>(&field::sr_segments_left),
         ) {
             (Some(v), None) => {
-                let segments_left = rvg.generate(0..=v.len());
+                let segments_left = rvg.generate(&(0..=v.len()));
                 (Just(v).boxed(), Just(segments_left as u8))
             }
             (None, Some(v)) => (vec(any::<Ipv6Addr>(), 1..=v as usize).boxed(), Just(v)),
             (Some(segments), Some(segments_left)) => (Just(segments).boxed(), Just(segments_left)),
             _ => {
-                let segments_left = rvg.generate(0..=8usize);
+                let segments_left = rvg.generate(&(0..=8usize));
                 (
                     vec(any::<Ipv6Addr>(), 1..=segments_left + 1).boxed(),
                     Just(segments_left as u8),
