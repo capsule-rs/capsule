@@ -33,7 +33,7 @@ impl Rvg {
     /// let mut gen = Rvg::new();
     /// let udp = gen.generate(v4_udp());
     /// ```
-    pub fn generate<S: Strategy>(&mut self, strategy: S) -> S::Value {
+    pub fn generate<S: Strategy>(&mut self, strategy: &S) -> S::Value {
         strategy
             .new_tree(&mut self.runner)
             .expect("No value can be generated")
@@ -69,7 +69,7 @@ mod tests {
     #[nb2::test]
     fn gen_v4_packet() {
         let mut gen = Rvg::new();
-        let packet = gen.generate(v4_udp());
+        let packet = gen.generate(&v4_udp());
         let udp = packet.into_v4_udp();
         assert_eq!(UdpHeader::size_of(), udp.len());
     }
