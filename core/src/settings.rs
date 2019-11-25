@@ -62,6 +62,18 @@ pub struct RuntimeSettings {
     /// DPDK applications on the same system.
     pub app_name: String,
 
+    /// Indicating whether the process is a secondary process. Secondary
+    /// process cannot initialize shared memory, but can attach to pre-
+    /// initialized shared memory by the primary process and create objects
+    /// in it. The default value is `false`.
+    pub secondary: bool,
+
+    /// Application group name. Use this to group primary and secondary
+    /// processes together in a multi-process setup; and allow them to share
+    /// the same memory regions. The default value is the `app_name`. Each
+    /// process works independently.
+    pub app_group: Option<String>,
+
     /// The identifier of the master core. This is the core the main thread
     /// will run on. The default value is `0`.
     pub master_core: CoreId,
@@ -111,10 +123,25 @@ impl RuntimeSettings {
     pub(crate) fn to_eal_args(&self) -> Vec<String> {
         let mut eal_args = vec![];
 
-        // add the app name
+        // adds the app name
         eal_args.push(self.app_name.clone());
 
-        // add all the ports
+        let proc_type = if self.secondary {
+            "secondary".to_owned()
+        } else {
+            "primary".to_owned()
+        };
+
+        // adds the proc type
+        eal_args.push("--proc-type".to_owned());
+        eal_args.push(proc_type);
+
+        // adds the mem file prefix
+        let prefix = self.app_group.as_ref().unwrap_or(&self.app_name);
+        eal_args.push("--file-prefix".to_owned());
+        eal_args.push(prefix.clone());
+
+        // adds all the ports
         let pcie = Regex::new(r"^\d{4}:\d{2}:\d{2}\.\d$").unwrap();
         self.ports.iter().for_each(|port| {
             if pcie.is_match(port.device.as_str()) {
@@ -131,11 +158,11 @@ impl RuntimeSettings {
             }
         });
 
-        // add the master core
+        // adds the master core
         eal_args.push("--master-lcore".to_owned());
         eal_args.push(self.master_core.raw().to_string());
 
-        // add the assigned cores
+        // adds the assigned cores
         let cores = self
             .all_cores()
             .into_iter()
@@ -145,7 +172,7 @@ impl RuntimeSettings {
         eal_args.push("-l".to_owned());
         eal_args.push(cores);
 
-        // add additional DPDK args
+        // adds additional DPDK args
         if let Some(args) = &self.dpdk_args {
             eal_args.extend(args.split_ascii_whitespace().map(str::to_owned));
         }
@@ -166,6 +193,8 @@ impl Default for RuntimeSettings {
     fn default() -> Self {
         RuntimeSettings {
             app_name: Default::default(),
+            secondary: false,
+            app_group: None,
             master_core: CoreId::new(0),
             cores: vec![],
             mempool: Default::default(),
@@ -180,6 +209,11 @@ impl fmt::Debug for RuntimeSettings {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut d = f.debug_struct("runtime");
         d.field("app_name", &self.app_name)
+            .field("secondary", &self.secondary)
+            .field(
+                "app_group",
+                self.app_group.as_ref().unwrap_or(&self.app_name),
+            )
             .field("master_core", &self.master_core)
             .field("cores", &self.cores)
             .field("mempool", &self.mempool)
@@ -294,6 +328,7 @@ impl fmt::Debug for PortSettings {
 // base config with app defaults
 static DEFAULT_TOML: &str = r#"
     app_name = "nb2"
+    secondary = false
     master_core = 0
     cores = []
     ports = []
@@ -335,6 +370,8 @@ mod tests {
             .merge(File::from_str(
                 r#"
                     app_name = "myapp"
+                    secondary = false
+                    app_group = "mygroup"
                     master_core = 0
                     cores = [1]
                     dpdk_args = "-v --log-level eal:8"
@@ -366,6 +403,10 @@ mod tests {
         assert_eq!(
             &[
                 "myapp",
+                "--proc-type",
+                "primary",
+                "--file-prefix",
+                "mygroup",
                 "--pci-whitelist",
                 "0000:00:01.0",
                 "--vdev",
