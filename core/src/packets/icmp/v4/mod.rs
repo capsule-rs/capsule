@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[nb2::test]
-    fn parse_non_icmpv6_packet() {
+    fn parse_non_icmpv4_packet() {
         let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();

@@ -6,9 +6,9 @@ license = "TBD"
 keywords = []
 edition = "2018"
 build = "build.rs"
-description = "Signal-handling example"
+description = "Linux signal handling example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/signals"
-readme = "../../README.md"
+readme = "README.md"
 categories = []
 
 [[bin]]
