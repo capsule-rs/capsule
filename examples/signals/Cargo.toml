@@ -4,9 +4,11 @@ version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
 keywords = []
+publish = false
 edition = "2018"
 build = "build.rs"
-description = "Signal-handling example"
+description = "Linux signal handling example"
+readme = "README.md"
 categories = []
 
 [[bin]]
