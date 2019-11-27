@@ -1,4 +1,4 @@
-use nb2::settings::load_config;
+use nb2::config::load_config;
 use nb2::UnixSignal::{self, *};
 use nb2::{Result, Runtime};
 use tracing::{info, Level};

@@ -1,9 +1,9 @@
 use colored::*;
+use nb2::config::load_config;
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::ip::v6::Ipv6;
 use nb2::packets::ip::IpPacket;
 use nb2::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use nb2::settings::load_config;
 use nb2::{compose, Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

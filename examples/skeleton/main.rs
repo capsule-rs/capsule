@@ -1,4 +1,4 @@
-use nb2::settings::load_config;
+use nb2::config::load_config;
 use nb2::{Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

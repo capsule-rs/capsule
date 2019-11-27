@@ -1,7 +1,7 @@
 use metrics_core::{Builder, Drain, Observe};
 use metrics_runtime::observers::YamlBuilder;
+use nb2::config::load_config;
 use nb2::metrics;
-use nb2::settings::load_config;
 use nb2::{batch, Result, Runtime};
 use std::time::Duration;
 use tracing::{debug, Level};

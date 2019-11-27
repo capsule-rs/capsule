@@ -1,9 +1,9 @@
 use metrics_core::{Builder, Drain, Observe};
 use metrics_runtime::observers::YamlBuilder;
+use nb2::config::load_config;
 use nb2::metrics;
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::{Ethernet, Packet, Tcp};
-use nb2::settings::load_config;
 use nb2::{batch, Batch, Mbuf, Pipeline, PortQueue, Result, Runtime};
 use std::collections::HashMap;
 use std::net::Ipv4Addr;

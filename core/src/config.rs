@@ -1,16 +1,14 @@
 use crate::dpdk::CoreId;
 use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
-use clap::clap_app;
-use config::{Config, ConfigError, File, FileFormat};
+use crate::Result;
+use clap::{clap_app, crate_version};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
+use std::fs;
 use std::str::FromStr;
 use std::time::Duration;
-
-pub const DEFAULT_MEMPOOL_CAPACITY: usize = 65535;
-pub const DEFAULT_PORT_RXD: usize = 128;
-pub const DEFAULT_PORT_TXD: usize = 128;
+use toml;
 
 // make `CoreId` serde deserializable.
 impl<'de> Deserialize<'de> for CoreId {
@@ -36,7 +34,7 @@ impl<'de> Deserialize<'de> for MacAddr {
 
 // make `Ipv4Cidr` serde deserializable.
 impl<'de> Deserialize<'de> for Ipv4Cidr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -47,7 +45,7 @@ impl<'de> Deserialize<'de> for Ipv4Cidr {
 
 // make `Ipv6Cidr` serde deserializable.
 impl<'de> Deserialize<'de> for Ipv6Cidr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -56,8 +54,8 @@ impl<'de> Deserialize<'de> for Ipv6Cidr {
     }
 }
 
-/// Deserializes a duration from whole seconds expressed as `u64`.
-pub fn duration_from_secs<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+/// Deserializes a duration from seconds expressed as `u64`.
+pub fn duration_from_secs<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -65,8 +63,10 @@ where
     Ok(Duration::from_secs(secs))
 }
 
-/// Deserializes an option of duration from whole seconds expressed as `u64`.
-pub fn duration_option_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+/// Deserializes an option of duration from seconds expressed as `u64`.
+pub fn duration_option_from_secs<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -85,9 +85,10 @@ where
     Ok(option)
 }
 
-/// Runtime settings.
+/// Runtime config settings.
 #[derive(Clone, Deserialize)]
-pub struct RuntimeSettings {
+#[serde(deny_unknown_fields)]
+pub struct RuntimeConfig {
     /// Application name. This must be unique if you want to run multiple
     /// DPDK applications on the same system.
     pub app_name: String,
@@ -95,37 +96,42 @@ pub struct RuntimeSettings {
     /// Indicating whether the process is a secondary process. Secondary
     /// process cannot initialize shared memory, but can attach to pre-
     /// initialized shared memory by the primary process and create objects
-    /// in it. The default value is `false`.
+    /// in it. Defaults to `false`.
+    #[serde(default)]
     pub secondary: bool,
 
     /// Application group name. Use this to group primary and secondary
     /// processes together in a multi-process setup; and allow them to share
     /// the same memory regions. The default value is the `app_name`. Each
     /// process works independently.
+    #[serde(default)]
     pub app_group: Option<String>,
 
     /// The identifier of the master core. This is the core the main thread
-    /// will run on. The default value is `0`.
+    /// will run on.
     pub master_core: CoreId,
 
     /// Additional cores that are available to the application, and can be
     /// used for running general tasks. Packet pipelines cannot be run on
     /// these cores unless the core is also assigned to a port separately.
-    /// The default is the empty list.
+    /// Defaults to empty list.
+    #[serde(default)]
     pub cores: Vec<CoreId>,
 
     /// Per mempool settings. On a system with multiple sockets, aka NUMA
     /// nodes, one mempool will be allocated for each socket the apllication
     /// uses.
-    pub mempool: MempoolSettings,
+    #[serde(default)]
+    pub mempool: MempoolConfig,
 
     /// The ports to use for the application. Must have at least one.
-    pub ports: Vec<PortSettings>,
+    pub ports: Vec<PortConfig>,
 
     /// Additional DPDK parameters to pass on for EAL initialization. When
     /// set, the values are passed through as is without validation.
     ///
     /// See https://doc.dpdk.org/guides/linux_gsg/linux_eal_parameters.html.
+    #[serde(default)]
     pub dpdk_args: Option<String>,
 
     /// If set, the application will stop after the duration expires. Useful
@@ -134,7 +140,7 @@ pub struct RuntimeSettings {
     pub duration: Option<Duration>,
 }
 
-impl RuntimeSettings {
+impl RuntimeConfig {
     /// Returns all the cores assigned to the runtime.
     pub(crate) fn all_cores(&self) -> Vec<CoreId> {
         let mut cores = vec![];
@@ -213,30 +219,11 @@ impl RuntimeSettings {
 
     /// Returns the number of KNI enabled ports
     pub(crate) fn num_knis(&self) -> usize {
-        self.ports
-            .iter()
-            .filter(|p| p.kni.unwrap_or_default())
-            .count()
+        self.ports.iter().filter(|p| p.kni).count()
     }
 }
 
-impl Default for RuntimeSettings {
-    fn default() -> Self {
-        RuntimeSettings {
-            app_name: Default::default(),
-            secondary: false,
-            app_group: None,
-            master_core: CoreId::new(0),
-            cores: vec![],
-            mempool: Default::default(),
-            ports: vec![],
-            dpdk_args: None,
-            duration: None,
-        }
-    }
-}
-
-impl fmt::Debug for RuntimeSettings {
+impl fmt::Debug for RuntimeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("runtime");
         d.field("app_name", &self.app_name)
@@ -259,31 +246,41 @@ impl fmt::Debug for RuntimeSettings {
     }
 }
 
-/// Mempool settings.
+/// Mempool config settings.
 #[derive(Clone, Deserialize)]
-pub struct MempoolSettings {
+pub struct MempoolConfig {
     /// The maximum number of Mbufs the mempool can allocate. The optimum
     /// size (in terms of memory usage) is when n is a power of two minus
-    /// one. The default is `65535` or `2 ^ 16 - 1`.
+    /// one. Defaults to `65535` or `2 ^ 16 - 1`.
+    #[serde(default = "default_capacity")]
     pub capacity: usize,
 
     /// The size of the per core object cache. If cache_size is non-zero,
     /// the library will try to limit the accesses to the common lockless
-    /// pool. The cache can be disabled if the argument is set to 0. The
-    /// default is `0`.
+    /// pool. The cache can be disabled if the argument is set to 0. Defaults
+    /// to `0`.
+    #[serde(default = "default_cache_size")]
     pub cache_size: usize,
 }
 
-impl Default for MempoolSettings {
+fn default_capacity() -> usize {
+    65535
+}
+
+fn default_cache_size() -> usize {
+    0
+}
+
+impl Default for MempoolConfig {
     fn default() -> Self {
-        MempoolSettings {
-            capacity: DEFAULT_MEMPOOL_CAPACITY,
-            cache_size: 0,
+        MempoolConfig {
+            capacity: default_capacity(),
+            cache_size: default_cache_size(),
         }
     }
 }
 
-impl fmt::Debug for MempoolSettings {
+impl fmt::Debug for MempoolConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("mempool")
             .field("capacity", &self.capacity)
@@ -292,9 +289,9 @@ impl fmt::Debug for MempoolSettings {
     }
 }
 
-/// Port settings.
+/// Port config settings.
 #[derive(Clone, Deserialize)]
-pub struct PortSettings {
+pub struct PortConfig {
     /// The application assigned logical name of the port.
     ///
     /// For applications with more than one port, this name can be used to
@@ -308,47 +305,50 @@ pub struct PortSettings {
     pub device: String,
 
     /// Additional arguments to configure a virtual device.
+    #[serde(default)]
     pub args: Option<String>,
 
     /// The cores assigned to the port for running the pipelines. The values
-    /// can overlap with the runtime cores. The default is `[0]`.
+    /// can overlap with the runtime cores.
     pub cores: Vec<CoreId>,
 
-    /// The receive queue capacity. The default is `128`.
+    /// The receive queue capacity. Defaults to `128`.
+    #[serde(default = "default_port_rxd")]
     pub rxd: usize,
 
-    /// The transmit queue capacity. The default is `128`.
+    /// The transmit queue capacity. Defaults to `128`.
+    #[serde(default = "default_port_txd")]
     pub txd: usize,
 
-    /// Whether promiscuous mode is enabled for this port.
-    pub promiscuous: Option<bool>,
+    /// Whether promiscuous mode is enabled for this port. Defaults to `false`.
+    #[serde(default)]
+    pub promiscuous: bool,
 
-    /// Whether multicast packet reception is enabled for this port.
-    pub multicast: Option<bool>,
+    /// Whether multicast packet reception is enabled for this port. Defaults
+    /// to `true`.
+    #[serde(default = "default_multicast_mode")]
+    pub multicast: bool,
 
     /// Whether kernel NIC interface is enabled for this port. with KNI, this
-    /// port can exchange packets with the kernel networking stack. The
-    /// default is `false`.
-    pub kni: Option<bool>,
+    /// port can exchange packets with the kernel networking stack. Defaults
+    /// to `false`.
+    #[serde(default)]
+    pub kni: bool,
 }
 
-impl Default for PortSettings {
-    fn default() -> Self {
-        PortSettings {
-            name: Default::default(),
-            device: Default::default(),
-            args: None,
-            cores: vec![CoreId::new(0)],
-            rxd: DEFAULT_PORT_RXD,
-            txd: DEFAULT_PORT_TXD,
-            promiscuous: None,
-            multicast: Some(true),
-            kni: None,
-        }
-    }
+fn default_port_rxd() -> usize {
+    128
 }
 
-impl fmt::Debug for PortSettings {
+fn default_port_txd() -> usize {
+    128
+}
+
+fn default_multicast_mode() -> bool {
+    true
+}
+
+impl fmt::Debug for PortConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("port");
         d.field("name", &self.name);
@@ -359,24 +359,12 @@ impl fmt::Debug for PortSettings {
         d.field("cores", &self.cores)
             .field("rxd", &self.rxd)
             .field("txd", &self.txd)
-            .field("promiscuous", &self.promiscuous.unwrap_or_default())
-            .field("multicast", &self.multicast.unwrap_or_default())
-            .field("kni", &self.kni.unwrap_or_default())
+            .field("promiscuous", &self.promiscuous)
+            .field("multicast", &self.multicast)
+            .field("kni", &self.kni)
             .finish()
     }
 }
-
-// base config with app defaults
-static DEFAULT_TOML: &str = r#"
-    app_name = "nb2"
-    secondary = false
-    master_core = 0
-    cores = []
-    ports = []
-    [mempool]
-      capacity = 65535
-      cache_size = 0
-"#;
 
 /// Loads the app config from a TOML file.
 ///
@@ -385,19 +373,16 @@ static DEFAULT_TOML: &str = r#"
 /// ```
 /// home$ ./myapp -f config.toml
 /// ```
-pub fn load_config() -> Result<RuntimeSettings, ConfigError> {
-    let matches = clap_app!(app =>
-        (version: "0.1.0")
+pub fn load_config() -> Result<RuntimeConfig> {
+    let matches = clap_app!(nb2 =>
+        (version: crate_version!())
         (@arg file: -f --file +required +takes_value "configuration file")
     )
     .get_matches();
 
-    let filename = matches.value_of("file").unwrap();
-
-    let mut config = Config::new();
-    config.merge(File::from_str(DEFAULT_TOML, FileFormat::Toml))?;
-    config.merge(File::with_name(filename))?;
-    config.try_into()
+    let path = matches.value_of("file").unwrap();
+    let content = fs::read_to_string(path)?;
+    toml::from_str(&content).map_err(|err| err.into())
 }
 
 #[cfg(test)]
@@ -405,41 +390,64 @@ mod tests {
     use super::*;
 
     #[test]
+    fn config_defaults() {
+        const CONFIG: &str = r#"
+            app_name = "myapp"
+            master_core = 0
+
+            [[ports]]
+                name = "eth0"
+                device = "0000:00:01.0"
+                cores = [2, 3]
+        "#;
+
+        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
+
+        assert_eq!(false, config.secondary);
+        assert_eq!(None, config.app_group);
+        assert!(config.cores.is_empty());
+        assert_eq!(None, config.dpdk_args);
+        assert_eq!(default_capacity(), config.mempool.capacity);
+        assert_eq!(default_cache_size(), config.mempool.cache_size);
+        assert_eq!(None, config.ports[0].args);
+        assert_eq!(default_port_rxd(), config.ports[0].rxd);
+        assert_eq!(default_port_txd(), config.ports[0].txd);
+        assert_eq!(false, config.ports[0].promiscuous);
+        assert_eq!(default_multicast_mode(), config.ports[0].multicast);
+        assert_eq!(false, config.ports[0].kni);
+    }
+
+    #[test]
     fn config_to_eal_args() {
-        let mut config = Config::new();
-        config
-            .merge(File::from_str(
-                r#"
-                    app_name = "myapp"
-                    secondary = false
-                    app_group = "mygroup"
-                    master_core = 0
-                    cores = [1]
-                    dpdk_args = "-v --log-level eal:8"
+        const CONFIG: &str = r#"
+            app_name = "myapp"
+            secondary = false
+            app_group = "mygroup"
+            master_core = 0
+            cores = [1]
+            dpdk_args = "-v --log-level eal:8"
 
-                    [mempool]
-                        capacity = 255
-                        cache_size = 16
+            [mempool]
+                capacity = 255
+                cache_size = 16
 
-                    [[ports]]
-                        name = "nic1"
-                        device = "0000:00:01.0"
-                        cores = [2, 3]
-                        rxd = 32
-                        txd = 32
+            [[ports]]
+                name = "eth0"
+                device = "0000:00:01.0"
+                cores = [2, 3]
+                rxd = 32
+                txd = 32
 
-                    [[ports]]
-                        name = "nic2"
-                        device = "net_pcap0"
-                        args = "rx=lo,tx=lo"
-                        cores = [0, 4]
-                        rxd = 32
-                        txd = 32
-                "#,
-                FileFormat::Toml,
-            ))
-            .unwrap();
-        let settings: RuntimeSettings = config.try_into().unwrap();
+            [[ports]]
+                name = "eth1"
+                device = "net_pcap0"
+                args = "rx=lo,tx=lo"
+                cores = [0, 4]
+                rxd = 32
+                txd = 32
+        "#;
+
+        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
 
         assert_eq!(
             &[
@@ -460,7 +468,7 @@ mod tests {
                 "--log-level",
                 "eal:8"
             ],
-            settings.to_eal_args().as_slice(),
+            config.to_eal_args().as_slice(),
         )
     }
 }

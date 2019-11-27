@@ -1,6 +1,5 @@
 app_name = "pktdump"
 master_core = 0
-cores = []
 duration = 5
 
 [mempool]
@@ -12,13 +11,9 @@ duration = 5
     device = "net_pcap0"
     args = "rx_pcap=tcp4.pcap,tx_iface=lo"
     cores = [0]
-    rxd = 256
-    txd = 256
 
 [[ports]]
     name = "eth2"
     device = "net_pcap1"
     args = "rx_pcap=tcp6.pcap,tx_iface=lo"
     cores = [0]
-    rxd = 256
-    txd = 256
