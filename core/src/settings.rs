@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 use std::str::FromStr;
+use std::time::Duration;
 
 pub const DEFAULT_MEMPOOL_CAPACITY: usize = 65535;
 pub const DEFAULT_PORT_RXD: usize = 128;
@@ -17,7 +18,7 @@ impl<'de> Deserialize<'de> for CoreId {
     where
         D: Deserializer<'de>,
     {
-        let i = <usize>::deserialize(deserializer)?;
+        let i = usize::deserialize(deserializer)?;
         Ok(CoreId::new(i))
     }
 }
@@ -28,7 +29,7 @@ impl<'de> Deserialize<'de> for MacAddr {
     where
         D: Deserializer<'de>,
     {
-        let s = <String>::deserialize(deserializer)?;
+        let s = String::deserialize(deserializer)?;
         MacAddr::from_str(&s).map_err(de::Error::custom)
     }
 }
@@ -39,7 +40,7 @@ impl<'de> Deserialize<'de> for Ipv4Cidr {
     where
         D: Deserializer<'de>,
     {
-        let s = <String>::deserialize(deserializer)?;
+        let s = String::deserialize(deserializer)?;
         Ipv4Cidr::from_str(&s).map_err(de::Error::custom)
     }
 }
@@ -50,9 +51,38 @@ impl<'de> Deserialize<'de> for Ipv6Cidr {
     where
         D: Deserializer<'de>,
     {
-        let s = <String>::deserialize(deserializer)?;
+        let s = String::deserialize(deserializer)?;
         Ipv6Cidr::from_str(&s).map_err(de::Error::custom)
     }
+}
+
+/// Deserializes a duration from whole seconds expressed as `u64`.
+pub fn duration_from_secs<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let secs = u64::deserialize(deserializer)?;
+    Ok(Duration::from_secs(secs))
+}
+
+/// Deserializes an option of duration from whole seconds expressed as `u64`.
+pub fn duration_option_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // for now this is the cleanest way to deserialize an option, till a better
+    // way is implemented, https://github.com/serde-rs/serde/issues/723
+    #[derive(Deserialize)]
+    struct Wrapper(#[serde(deserialize_with = "duration_from_secs")] Duration);
+
+    let option = Option::deserialize(deserializer)?.and_then(|Wrapper(dur)| {
+        if dur.as_secs() > 0 {
+            Some(dur)
+        } else {
+            None
+        }
+    });
+    Ok(option)
 }
 
 /// Runtime settings.
@@ -100,7 +130,8 @@ pub struct RuntimeSettings {
 
     /// If set, the application will stop after the duration expires. Useful
     /// for setting a timeout for integration tests.
-    pub duration: Option<u64>,
+    #[serde(default, deserialize_with = "duration_option_from_secs")]
+    pub duration: Option<Duration>,
 }
 
 impl RuntimeSettings {
