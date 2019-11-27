@@ -1,6 +1,5 @@
 app_name = "ping4d"
 master_core = 0
-cores = []
 duration = 5
 
 [mempool]
@@ -12,5 +11,3 @@ duration = 5
     device = "net_pcap0"
     args = "rx_pcap=echo.pcap,tx_iface=lo"
     cores = [0]
-    rxd = 256
-    txd = 256

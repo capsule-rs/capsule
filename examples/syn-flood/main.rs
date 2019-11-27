@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use capsule::config::load_config;
 use capsule::metrics;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet, Tcp};
-use capsule::settings::load_config;
 use capsule::{batch, Batch, Mbuf, Pipeline, PortQueue, Result, Runtime};
 use metrics_core::{Builder, Drain, Observe};
 use metrics_runtime::observers::YamlBuilder;

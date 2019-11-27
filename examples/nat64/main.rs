@@ -17,11 +17,11 @@
 */
 
 use capsule::batch::Either;
+use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::settings::load_config;
 use capsule::{compose, Batch, Pipeline, Poll, PortQueue, Result, Runtime};
 use chashmap::CHashMap;
 use once_cell::sync::Lazy;

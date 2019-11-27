@@ -1,6 +1,5 @@
 app_name = "nat64"
 master_core = 0
-cores = []
 
 [mempool]
     capacity = 65535
@@ -10,12 +9,8 @@ cores = []
     name = "eth1"
     device = "0000:00:08.0"
     cores = [1]
-    rxd = 512
-    txd = 512
 
 [[ports]]
     name = "eth2"
     device = "0000:00:09.0"
     cores = [1]
-    rxd = 512
-    txd = 512

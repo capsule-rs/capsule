@@ -18,7 +18,6 @@ doctest = false
 capsule-ffi = { path = "../ffi" }
 capsule-macros = { path = "../macros" }
 clap = "2.33"
-config = "0.9"
 criterion = { version = "0.3", optional = true }
 failure = "0.1"
 fallible-iterator = "0.2"
@@ -34,6 +33,7 @@ tokio = "=0.2.0-alpha.6"
 tokio-executor = { version = "=0.2.0-alpha.6", features = ["current-thread", "threadpool"] }
 tokio-net = { version = "=0.2.0-alpha.6", features = ["signal"] }
 tokio-timer = "=0.3.0-alpha.6"
+toml = "0.5"
 tracing = "0.1"
 
 [dev-dependencies]

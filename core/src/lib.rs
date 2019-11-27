@@ -23,6 +23,7 @@
 extern crate self as capsule;
 
 pub mod batch;
+pub mod config;
 mod dpdk;
 mod ffi;
 mod macros;
@@ -31,7 +32,6 @@ pub mod metrics;
 pub mod net;
 pub mod packets;
 mod runtime;
-pub mod settings;
 #[cfg(any(test, feature = "testils"))]
 pub mod testils;
 

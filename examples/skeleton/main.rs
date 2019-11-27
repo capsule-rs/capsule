@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::settings::load_config;
+use capsule::config::load_config;
 use capsule::{Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

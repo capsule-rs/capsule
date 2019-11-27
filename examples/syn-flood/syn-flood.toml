@@ -1,6 +1,5 @@
 app_name = "syn-flood"
 master_core = 0
-cores = []
 
 [mempool]
     capacity = 65535

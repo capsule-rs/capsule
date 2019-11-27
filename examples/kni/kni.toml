@@ -1,6 +1,5 @@
 app_name = "kni"
 master_core = 0
-cores = []
 
 [mempool]
     capacity = 65535
@@ -10,6 +9,4 @@ cores = []
     name = "kni0"
     device = "0000:00:08.0"
     cores = [1]
-    rxd = 256
-    txd = 256
     kni = true
