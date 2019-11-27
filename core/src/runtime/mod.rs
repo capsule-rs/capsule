@@ -401,20 +401,20 @@ impl Runtime {
     ///
     /// This mode is useful for running integration tests. The timeout
     /// duration can be set in `RuntimeSettings`.
-    fn wait_for_timeout(&mut self, timeout: u64) -> Result<()> {
+    fn wait_for_timeout(&mut self, timeout: Duration) -> Result<()> {
         let MasterExecutor {
             ref timer,
             ref mut thread,
             ..
         } = self.core_map.master_core;
 
-        let when = Instant::now() + Duration::from_secs(timeout);
+        let when = Instant::now() + timeout;
         let delay = timer.delay(when);
 
-        debug!("waiting for {} seconds...", timeout);
+        debug!("waiting for {:?}...", timeout);
         let _timer = timer::set_default(&timer);
         thread.block_on(delay);
-        info!("timed out after {} seconds.", timeout);
+        info!("timed out after {:?}.", timeout);
 
         Ok(())
     }
@@ -527,7 +527,7 @@ impl Runtime {
 
         // runs the app until main loop finishes.
         match self.config.duration {
-            None | Some(0) => self.wait_for_signal(),
+            None => self.wait_for_signal(),
             Some(d) => self.wait_for_timeout(d),
         }?;
 
