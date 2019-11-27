@@ -1,10 +1,10 @@
 use chashmap::CHashMap;
 use nb2::batch::Either;
+use nb2::config::load_config;
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::ip::v6::{Ipv6, Ipv6Packet};
 use nb2::packets::ip::ProtocolNumbers;
 use nb2::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use nb2::settings::load_config;
 use nb2::{compose, Batch, Pipeline, Poll, PortQueue, Result, Runtime};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;

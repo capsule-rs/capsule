@@ -1,7 +1,7 @@
+use nb2::config::load_config;
 use nb2::packets::icmp::v4::{EchoReply, EchoRequest, Icmpv4};
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::{Ethernet, Packet};
-use nb2::settings::load_config;
 use nb2::{Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

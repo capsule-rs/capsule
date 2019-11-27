@@ -1,16 +1,9 @@
 app_name = "skeleton"
 master_core = 0
-cores = []
 dpdk_args = "-v --log-level eal:8"
 duration = 5
-
-[mempool]
-    capacity = 65535
-    cache_size = 256
 
 [[ports]]
     name = "eth1"
     device = "net_ring0"
     cores = [0]
-    rxd = 256
-    txd = 256

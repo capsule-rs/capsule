@@ -3,10 +3,10 @@ mod core_map;
 pub use self::core_map::*;
 
 use super::Pipeline;
+use crate::config::RuntimeConfig;
 use crate::dpdk::{
     self, CoreId, KniError, KniRx, Mempool, Port, PortBuilder, PortError, PortQueue,
 };
-use crate::settings::RuntimeSettings;
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, StreamExt};
 use libc;
@@ -32,13 +32,13 @@ pub struct Runtime {
     mempools: ManuallyDrop<Vec<Mempool>>,
     core_map: CoreMap,
     on_signal: Arc<dyn Fn(UnixSignal) -> bool>,
-    config: RuntimeSettings,
+    config: RuntimeConfig,
 }
 
 impl Runtime {
     /// Builds a runtime from config settings.
     #[allow(clippy::cognitive_complexity)]
-    pub fn build(config: RuntimeSettings) -> Result<Self> {
+    pub fn build(config: RuntimeConfig) -> Result<Self> {
         info!("initializing EAL...");
         dpdk::eal_init(config.to_eal_args())?;
 
@@ -79,11 +79,7 @@ impl Runtime {
                 .cores(&conf.cores)?
                 .mempools(&mut mempools)
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
-                .finish(
-                    conf.promiscuous.unwrap_or_default(),
-                    conf.multicast.unwrap_or_default(),
-                    conf.kni.unwrap_or_default(),
-                )?;
+                .finish(conf.promiscuous, conf.multicast, conf.kni)?;
 
             debug!(?port);
             ports.push(port);
