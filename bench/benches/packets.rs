@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::ip::v6::{Ipv6, SegmentRouting};
 use nb2::packets::{Ethernet, Packet, Udp};
@@ -79,7 +79,7 @@ fn set_srh_segments(mut args: (SegmentRouting<Ipv6>, Vec<Ipv6Addr>)) -> Result<(
 
 #[nb2::bench(mempool_capacity = 511)]
 fn single_peek_vs_parse(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Single Peek vs Parse on Udp Packets");
+    let mut group = c.benchmark_group("packets::single_peek_vs_parse_on_udp");
 
     group.bench_function("packets::single_parse_udp", |b| {
         let s = v4_udp().prop_map(|v| {
@@ -102,7 +102,7 @@ fn single_peek_vs_parse(c: &mut Criterion) {
 
 #[nb2::bench(mempool_capacity = 511)]
 fn multi_peek_vs_parse(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Multi Peek vs Parse on Udp Packets");
+    let mut group = c.benchmark_group("packets::multi_peek_vs_parse_on_udp_packets");
 
     group.bench_function("packets::multi_parse_udp", |b| {
         let s = v4_udp();
@@ -119,8 +119,7 @@ fn multi_peek_vs_parse(c: &mut Criterion) {
 
 #[nb2::bench(mempool_capacity = 511)]
 fn single_parse_srh_segments_sizes(c: &mut Criterion) {
-    let mut group =
-        c.benchmark_group("Comparison on parsing to an SRH header across segment sizes");
+    let mut group = c.benchmark_group("packets::parsing_on_SRH_across_segment_sizes");
 
     let mut rvg = Rvg::new();
 
@@ -165,8 +164,7 @@ fn multi_parse_upto_variable_srh(c: &mut Criterion) {
 
 #[nb2::bench(mempool_capacity = 511)]
 fn set_srh_segments_sizes(c: &mut Criterion) {
-    let mut group =
-        c.benchmark_group("Comparison on setting segments on an SRH header across segment sizes");
+    let mut group = c.benchmark_group("packets::setting_segments_on_SRH_across_segment_sizes");
 
     let mut rvg = Rvg::new();
 
@@ -219,11 +217,8 @@ fn single_push(c: &mut Criterion) {
 #[nb2::bench(mempool_capacity = 511)]
 fn multi_push(c: &mut Criterion) {
     c.bench_function("packets::multi_push_udp", |b| {
-        b.iter_batched(
-            || Mbuf::new().unwrap(),
-            multi_push_udp,
-            BatchSize::NumIterations(BATCH_SIZE as u64),
-        )
+        let s = v4_udp().prop_map(|_v| Mbuf::new().unwrap());
+        b.iter_proptest_batched(s, multi_push_udp, BATCH_SIZE)
     });
 }
 
