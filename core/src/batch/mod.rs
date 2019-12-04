@@ -21,6 +21,7 @@ mod filter;
 mod filter_map;
 mod for_each;
 mod group_by;
+mod inspect;
 mod map;
 mod poll;
 mod replace;
@@ -32,6 +33,7 @@ pub use self::filter::*;
 pub use self::filter_map::*;
 pub use self::for_each::*;
 pub use self::group_by::*;
+pub use self::inspect::*;
 pub use self::map::*;
 pub use self::poll::*;
 pub use self::replace::*;
@@ -185,7 +187,7 @@ pub trait Batch {
     /// Calls a closure on each packet of the batch.
     ///
     /// Can be use for side-effect actions without the need to mutate the
-    /// packet.
+    /// packet. However, an error will abort the packet.
     #[inline]
     fn for_each<F>(self, f: F) -> ForEach<Self, F>
     where
@@ -193,6 +195,21 @@ pub trait Batch {
         Self: Sized,
     {
         ForEach::new(self, f)
+    }
+
+    /// Calls a closure on each packet of the batch, including ones that are
+    /// already dropped, emitted or aborted.
+    ///
+    /// Unlike `for_each`, `inspect` does not affect the packet disposition.
+    /// All errors are ignored and packets are passed to the next combinator
+    /// in the processing pipeline as is. Useful as a debugging tool.
+    #[inline]
+    fn inspect<F>(self, f: F) -> Inspect<Self, F>
+    where
+        F: FnMut(&Disposition<Self::Item>) -> Result<()>,
+        Self: Sized,
+    {
+        Inspect::new(self, f)
     }
 
     /// Splits the packets into multiple sub batches. Each sub batch runs
@@ -317,6 +334,7 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
+    use failure::format_err;
     use std::sync::mpsc::{self, TryRecvError};
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
@@ -395,6 +413,19 @@ mod tests {
         let mut batch = new_batch(&[&UDP_PACKET]).for_each(|_| {
             side_effect = true;
             Ok(())
+        });
+
+        assert!(batch.next().unwrap().is_act());
+        assert!(side_effect);
+    }
+
+    #[capsule::test]
+    fn inspect_batch() {
+        let mut side_effect = false;
+
+        let mut batch = new_batch(&[&UDP_PACKET]).inspect(|_| {
+            side_effect = true;
+            Err(format_err!("should be ignored"))
         });
 
         assert!(batch.next().unwrap().is_act());
