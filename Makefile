@@ -1,4 +1,4 @@
-CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D warnings
+CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 COVERAGE_PACKAGES = nb2
 COVERAGE_EXCLUDES = macros/*
 
@@ -55,5 +55,3 @@ ifdef WATCH
 else
 	@cargo watch --poll -x test --all
 endif
-
-

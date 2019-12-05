@@ -227,7 +227,7 @@ impl PrefixInformation {
 }
 
 impl fmt::Debug for PrefixInformation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("prefix information")
             .field("type", &self.option_type())
             .field("length", &self.length())

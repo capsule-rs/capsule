@@ -86,7 +86,7 @@ impl Mtu {
 }
 
 impl fmt::Debug for Mtu {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("link layer address")
             .field("type", &self.option_type())
             .field("length", &self.length())

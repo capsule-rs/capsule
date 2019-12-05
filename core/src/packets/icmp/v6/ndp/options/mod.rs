@@ -46,7 +46,7 @@ impl<'a> NdpOptionsIterator<'a> {
     }
 }
 
-impl<'a> FallibleIterator for NdpOptionsIterator<'a> {
+impl FallibleIterator for NdpOptionsIterator<'_> {
     type Item = NdpOptions;
     type Error = failure::Error;
 

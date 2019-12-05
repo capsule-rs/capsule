@@ -88,7 +88,7 @@ impl FromStr for Ipv4Cidr {
 }
 
 impl fmt::Display for Ipv4Cidr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", self.address(), self.length())
     }
 }

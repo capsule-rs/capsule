@@ -103,7 +103,7 @@ impl<E: IpPacket> Icmpv4<E, EchoRequest> {
 }
 
 impl<E: IpPacket> fmt::Debug for Icmpv4<E, EchoRequest> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv4")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())

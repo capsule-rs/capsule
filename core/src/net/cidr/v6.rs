@@ -88,7 +88,7 @@ impl FromStr for Ipv6Cidr {
 }
 
 impl fmt::Display for Ipv6Cidr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", self.address(), self.length())
     }
 }

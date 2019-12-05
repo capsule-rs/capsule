@@ -78,7 +78,7 @@ impl Mempool {
 }
 
 impl fmt::Debug for Mempool {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let raw = self.raw();
         f.debug_struct(self.name())
             .field("capacity", &raw.size)

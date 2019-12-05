@@ -176,7 +176,7 @@ impl<E: IpPacket> Udp<E> {
 }
 
 impl<E: IpPacket> fmt::Debug for Udp<E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("udp")
             .field("src_port", &self.src_port())
             .field("dst_port", &self.dst_port())
