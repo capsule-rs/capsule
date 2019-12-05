@@ -115,7 +115,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
 impl<B: Batch + Unpin, Tx: PacketTx + Unpin> Future for Send<B, Tx> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // executes a batch of packets.
         self.get_mut().run();
 

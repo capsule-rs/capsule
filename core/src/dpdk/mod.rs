@@ -102,7 +102,7 @@ impl SocketId {
 }
 
 impl fmt::Debug for SocketId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "socket{}", self.0)
     }
 }
@@ -157,7 +157,7 @@ impl CoreId {
 }
 
 impl fmt::Debug for CoreId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "core{}", self.0)
     }
 }

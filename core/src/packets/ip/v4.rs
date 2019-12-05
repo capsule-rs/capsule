@@ -334,7 +334,7 @@ impl Ipv4 {
 }
 
 impl fmt::Debug for Ipv4 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ipv4")
             .field("src", &format!("{}", self.src()))
             .field("dst", &format!("{}", self.dst()))

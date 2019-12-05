@@ -217,7 +217,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
 }
 
 impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("segment routing")
             .field("next_header", &format!("{}", self.next_header()))
             .field("hdr_ext_len", &self.hdr_ext_len())

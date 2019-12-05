@@ -94,7 +94,7 @@ impl<E: Ipv6Packet> Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv6")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
@@ -243,7 +243,7 @@ pub mod Icmpv6Types {
 }
 
 impl fmt::Display for Icmpv6Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",

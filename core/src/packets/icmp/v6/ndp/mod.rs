@@ -41,7 +41,7 @@ pub trait NdpPayload: Icmpv6Payload {}
 /// NDP packets are also ICMPv6 packets.
 pub trait NdpPacket<E: Ipv6Packet, P: NdpPayload>: Icmpv6Packet<E, P> {
     /// Returns an iterator that iterates through the options in the NDP packet.
-    fn options(&self) -> NdpOptionsIterator;
+    fn options(&self) -> NdpOptionsIterator<'_>;
 
     /// Add option to NDP messaged.
     fn push_option<T: NdpOption>(&mut self) -> Result<T>;
@@ -51,7 +51,7 @@ impl<E: Ipv6Packet, P: NdpPayload> NdpPacket<E, P> for Icmpv6<E, P>
 where
     Icmpv6<E, P>: Icmpv6Packet<E, P>,
 {
-    fn options(&self) -> NdpOptionsIterator {
+    fn options(&self) -> NdpOptionsIterator<'_> {
         let mbuf = self.mbuf();
         let offset = self.payload_offset() + P::size_of();
         NdpOptionsIterator::new(mbuf, offset)

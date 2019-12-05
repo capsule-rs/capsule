@@ -451,7 +451,7 @@ impl<E: IpPacket> Tcp<E> {
 }
 
 impl<E: IpPacket> fmt::Debug for Tcp<E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("tcp")
             .field("src_port", &self.src_port())
             .field("dst_port", &self.dst_port())

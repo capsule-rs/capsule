@@ -202,7 +202,7 @@ impl Ipv6 {
 }
 
 impl fmt::Debug for Ipv6 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ipv6")
             .field("src", &format!("{}", self.src()))
             .field("dst", &format!("{}", self.dst()))

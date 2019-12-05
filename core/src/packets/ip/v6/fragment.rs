@@ -119,7 +119,7 @@ impl<E: Ipv6Packet> Fragment<E> {
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("fragment")
             .field("next_header", &format!("{}", self.next_header()))
             .field("fragment_offset", &self.fragment_offset())

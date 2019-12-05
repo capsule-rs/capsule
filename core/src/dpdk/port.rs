@@ -58,7 +58,7 @@ impl PortId {
 }
 
 impl fmt::Debug for PortId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "port{}", self.0)
     }
 }
@@ -279,7 +279,7 @@ impl Port {
 }
 
 impl fmt::Debug for Port {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let info = self.dev_info;
         f.debug_struct(&self.name())
             .field("device", &self.device)
