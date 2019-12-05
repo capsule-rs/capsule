@@ -334,7 +334,7 @@ impl From<NonNull<ffi::rte_mbuf>> for Mbuf {
 }
 
 impl fmt::Debug for Mbuf {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let raw = self.raw();
         f.debug_struct(&format!("mbuf@{:p}", raw.buf_addr))
             .field("buf_len", &raw.buf_len)

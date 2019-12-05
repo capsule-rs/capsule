@@ -49,7 +49,7 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
 }
 
 impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, PacketTooBig> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv6")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())

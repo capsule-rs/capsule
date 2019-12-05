@@ -47,7 +47,7 @@ pub mod ProtocolNumbers {
 }
 
 impl fmt::Display for ProtocolNumber {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -214,7 +214,7 @@ impl Flow {
 }
 
 impl fmt::Debug for Flow {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("flow")
             .field("src_ip", &format!("{}", self.src_ip()))
             .field("src_port", &self.src_port())

@@ -181,7 +181,7 @@ impl Ethernet {
 }
 
 impl fmt::Debug for Ethernet {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ethernet")
             .field("src", &format!("{}", self.src()))
             .field("dst", &format!("{}", self.dst()))
@@ -317,7 +317,7 @@ pub mod EtherTypes {
 }
 
 impl fmt::Display for EtherType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",

@@ -206,7 +206,7 @@ impl Default for RuntimeSettings {
 }
 
 impl fmt::Debug for RuntimeSettings {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("runtime");
         d.field("app_name", &self.app_name)
             .field("secondary", &self.secondary)
@@ -253,7 +253,7 @@ impl Default for MempoolSettings {
 }
 
 impl fmt::Debug for MempoolSettings {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("mempool")
             .field("capacity", &self.capacity)
             .field("cache_size", &self.cache_size)
@@ -310,7 +310,7 @@ impl Default for PortSettings {
 }
 
 impl fmt::Debug for PortSettings {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("port");
         d.field("name", &self.name);
         d.field("device", &self.device);
