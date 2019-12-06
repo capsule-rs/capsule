@@ -4,15 +4,7 @@
 use crate::dpdk::Mbuf;
 use crate::net::MacAddr;
 use proptest::arbitrary::{any, Arbitrary, StrategyFor};
-use proptest::prop_compose;
-use proptest::strategy::{BoxedStrategy, LazyJust, MapInto, Strategy};
-
-prop_compose! {
-    fn new_mbuf_strategy()
-        (mbuf in LazyJust::new(|| Mbuf::new().unwrap()))-> Mbuf {
-            mbuf
-    }
-}
+use proptest::strategy::{MapInto, Strategy};
 
 impl Arbitrary for MacAddr {
     type Parameters = ();
@@ -25,9 +17,9 @@ impl Arbitrary for MacAddr {
 
 impl Arbitrary for Mbuf {
     type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
+    type Strategy = fn() -> Self;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        new_mbuf_strategy().boxed()
+        || Mbuf::new().unwrap()
     }
 }
