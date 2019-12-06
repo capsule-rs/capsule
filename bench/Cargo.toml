@@ -20,3 +20,11 @@ proptest = "0.9"
 [[bench]]
 name = "packets"
 harness = false
+
+[[bench]]
+name = "combinators"
+harness = false
+
+[[bench]]
+name = "mbuf"
+harness = false
