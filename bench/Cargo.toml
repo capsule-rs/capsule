@@ -22,7 +22,7 @@ name = "packets"
 harness = false
 
 [[bench]]
-name = "operators"
+name = "combinators"
 harness = false
 
 [[bench]]

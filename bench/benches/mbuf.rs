@@ -1,31 +1,17 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use nb2::testils::criterion::BencherExt;
-use nb2::testils::proptest::*;
 use nb2::Mbuf;
 use nb2::Result;
 
 const BATCH_SIZE: usize = 100;
 
-fn alloc_once(_mbuf: Mbuf) -> Result<Mbuf> {
-    Mbuf::new()
-}
-
-fn alloc() -> () {
-    for _i in 0..BATCH_SIZE {
-        let _ = Mbuf::new();
-    }
+fn alloc() -> Result<Vec<Mbuf>> {
+    (0..BATCH_SIZE)
+        .map(|_| Mbuf::new())
+        .collect::<Result<Vec<Mbuf>>>()
 }
 
 fn alloc_bulk() -> Result<Vec<Mbuf>> {
     Mbuf::alloc_bulk(BATCH_SIZE)
-}
-
-#[nb2::bench(mempool_capacity = 511)]
-fn alloc_once_batch(c: &mut Criterion) {
-    c.bench_function("mbuf::alloc", |b| {
-        let s = v4_udp();
-        b.iter_proptest_batched(s, alloc_once, BATCH_SIZE)
-    });
 }
 
 #[nb2::bench(mempool_capacity = 511)]
@@ -44,8 +30,7 @@ fn bench_config() -> Criterion {
 criterion_group! {
     name = benches;
     config=bench_config();
-    targets=alloc_once_batch,
-            alloc_batch,
+    targets=alloc_batch,
 }
 
 criterion_main!(benches);

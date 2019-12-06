@@ -13,7 +13,7 @@ pub trait BencherExt {
         R: FnMut(S::Value) -> O,
         S: Strategy;
 
-    fn iter_proptest_polled<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
+    fn iter_proptest_combinators<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where
         R: FnMut(Poll<Receiver<Mbuf>>) -> O,
         S: Strategy<Value = Mbuf>,
@@ -52,9 +52,9 @@ impl BencherExt for Bencher<'_> {
 
     /// Similar to criterion's `iter_batched`, but uses a proptest strategy,
     /// that returns an mbuf, as the setup to randomly generate a batch
-    /// inputs that can be polled for benchmarking pipeline-combinations and
-    /// operators.
-    fn iter_proptest_polled<R, S: Strategy<Value = Mbuf>, O: Batch>(
+    /// inputs that can be polled for benchmarking pipeline-combinations of
+    /// combinators.
+    fn iter_proptest_combinators<R, S: Strategy<Value = Mbuf>, O: Batch>(
         &mut self,
         strategy: S,
         mut routine: R,
