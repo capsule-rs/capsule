@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::ip::v6::{Ipv6, SegmentRouting};
 use nb2::packets::{Ethernet, Packet, Udp};
@@ -163,11 +163,8 @@ fn multi_push_udp(mbuf: Mbuf) -> Udp<Ipv4> {
 #[nb2::bench(mempool_capacity = 511)]
 fn multi_push(c: &mut Criterion) {
     c.bench_function("packets::multi_push_udp", |b| {
-        b.iter_batched(
-            || Mbuf::new().unwrap(),
-            multi_push_udp,
-            BatchSize::NumIterations(BATCH_SIZE as u64),
-        )
+        let s = any::<Mbuf>();
+        b.iter_proptest_batched(s, multi_push_udp, BATCH_SIZE)
     });
 }
 

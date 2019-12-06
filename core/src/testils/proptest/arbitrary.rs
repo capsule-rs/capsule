@@ -4,18 +4,13 @@
 use crate::dpdk::Mbuf;
 use crate::net::MacAddr;
 use proptest::arbitrary::{any, Arbitrary, StrategyFor};
-use proptest::collection::vec;
-use proptest::strategy::{BoxedStrategy, MapInto, Strategy};
-use proptest::{num, prop_compose};
-
-const MIN_MBUF: u32 = 20;
-const MAX_MBUF: u32 = 100;
+use proptest::prop_compose;
+use proptest::strategy::{BoxedStrategy, LazyJust, MapInto, Strategy};
 
 prop_compose! {
-    fn new_mbuf_strategy(min: u32, max: u32)
-        (num_bytes in min.. max)
-        (bytes in (vec(num::u8::ANY, num_bytes as usize)))-> Mbuf {
-            Mbuf::from_bytes(&bytes).unwrap()
+    fn new_mbuf_strategy()
+        (mbuf in LazyJust::new(|| Mbuf::new().unwrap()))-> Mbuf {
+            mbuf
     }
 }
 
@@ -33,6 +28,6 @@ impl Arbitrary for Mbuf {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        new_mbuf_strategy(MIN_MBUF, MAX_MBUF).boxed()
+        new_mbuf_strategy().boxed()
     }
 }
