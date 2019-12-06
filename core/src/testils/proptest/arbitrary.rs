@@ -19,6 +19,7 @@
 //! Implementations of `proptest.arbitrary.Arbitrary` trait for
 //! various types.
 
+use crate::dpdk::Mbuf;
 use crate::net::MacAddr;
 use proptest::arbitrary::{any, Arbitrary, StrategyFor};
 use proptest::strategy::{MapInto, Strategy};
@@ -29,5 +30,14 @@ impl Arbitrary for MacAddr {
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         any::<[u8; 6]>().prop_map_into()
+    }
+}
+
+impl Arbitrary for Mbuf {
+    type Parameters = ();
+    type Strategy = fn() -> Self;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        || Mbuf::new().unwrap()
     }
 }

@@ -1,8 +1,9 @@
 CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 COVERAGE_PACKAGES = nb2
 COVERAGE_EXCLUDES = macros/*
+CRITERION_PLOTS_DIR = bench/target/criterion
 
-.PHONY: bench build build-rel clean coverage fmt lint test watch watch-bench watch-test
+.PHONY: bench build build-rel clean clean-plots coverage fmt lint find-plots test watch watch-bench watch-test
 
 bench:
 	@cargo bench
@@ -16,6 +17,9 @@ build-rel:
 clean:
 	@cargo clean
 
+clean-plots:
+	rm -rf $(CRITERION_PLOTS_DIR)
+
 coverage:
 	@cargo tarpaulin -l -p $(COVERAGE_PACKAGES) --exclude-files $(COVERAGE_EXCLUDES) --out Xml
 
@@ -24,6 +28,9 @@ fmt:
 
 lint:
 	@cargo clippy $(CLIPPY_ARGS)
+
+find-plots:
+	@ls $(CRITERION_PLOTS_DIR)/report/index.html
 
 test:
 	@cargo test
