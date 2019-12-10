@@ -97,7 +97,10 @@ impl Runtime {
                 .cores(&conf.cores)?
                 .mempools(&mut mempools)
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
-                .finish(conf.kni.unwrap_or_default())?;
+                .finish(
+                    conf.promiscuous.unwrap_or_default(),
+                    conf.kni.unwrap_or_default(),
+                )?;
 
             debug!(?port);
             ports.push(port);

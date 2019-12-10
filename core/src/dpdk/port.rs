@@ -256,7 +256,6 @@ impl Port {
     pub fn start(&mut self) -> Result<()> {
         unsafe {
             ffi::rte_eth_dev_start(self.id.0).to_result()?;
-            ffi::rte_eth_promiscuous_enable(self.id.0);
         }
 
         info!("started port {}.", self.name());
@@ -428,7 +427,7 @@ impl<'a> PortBuilder<'a> {
 
     /// Creates the `Port`.
     #[allow(clippy::cognitive_complexity)]
-    pub fn finish(&mut self, with_kni: bool) -> Result<Port> {
+    pub fn finish(&mut self, promiscuous: bool, with_kni: bool) -> Result<Port> {
         let len = self.cores.len() as u16;
         let conf = ffi::rte_eth_conf::default();
 
@@ -524,6 +523,15 @@ impl<'a> PortBuilder<'a> {
 
             queues.insert(core_id, q);
             debug!("initialized port queue for {:?}.", core_id);
+        }
+
+        // sets the port's promiscuous mode.
+        unsafe {
+            if promiscuous {
+                ffi::rte_eth_promiscuous_enable(self.port_id.0);
+            } else {
+                ffi::rte_eth_promiscuous_disable(self.port_id.0);
+            }
         }
 
         info!("initialized port {}.", self.name);
