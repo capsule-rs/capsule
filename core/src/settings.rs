@@ -289,7 +289,10 @@ pub struct PortSettings {
     /// The transmit queue capacity. The default is `128`.
     pub txd: usize,
 
-    /// Whether kernel NIC interface is enabled on this port. with KNI, this
+    /// Whether promiscuous mode is enabled for this port.
+    pub promiscuous: Option<bool>,
+
+    /// Whether kernel NIC interface is enabled for this port. with KNI, this
     /// port can exchange packets with the kernel networking stack. The
     /// default is `false`.
     pub kni: Option<bool>,
@@ -304,6 +307,7 @@ impl Default for PortSettings {
             cores: vec![CoreId::new(0)],
             rxd: DEFAULT_PORT_RXD,
             txd: DEFAULT_PORT_TXD,
+            promiscuous: None,
             kni: None,
         }
     }
