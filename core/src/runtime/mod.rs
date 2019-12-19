@@ -99,6 +99,7 @@ impl Runtime {
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
                 .finish(
                     conf.promiscuous.unwrap_or_default(),
+                    conf.multicast.unwrap_or_default(),
                     conf.kni.unwrap_or_default(),
                 )?;
 
