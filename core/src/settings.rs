@@ -292,6 +292,9 @@ pub struct PortSettings {
     /// Whether promiscuous mode is enabled for this port.
     pub promiscuous: Option<bool>,
 
+    /// Whether multicast packet reception is enabled for this port.
+    pub multicast: Option<bool>,
+
     /// Whether kernel NIC interface is enabled for this port. with KNI, this
     /// port can exchange packets with the kernel networking stack. The
     /// default is `false`.
@@ -308,6 +311,7 @@ impl Default for PortSettings {
             rxd: DEFAULT_PORT_RXD,
             txd: DEFAULT_PORT_TXD,
             promiscuous: None,
+            multicast: Some(true),
             kni: None,
         }
     }
@@ -324,6 +328,8 @@ impl fmt::Debug for PortSettings {
         d.field("cores", &self.cores)
             .field("rxd", &self.rxd)
             .field("txd", &self.txd)
+            .field("promiscuous", &self.promiscuous.unwrap_or_default())
+            .field("multicast", &self.multicast.unwrap_or_default())
             .field("kni", &self.kni.unwrap_or_default())
             .finish()
     }
