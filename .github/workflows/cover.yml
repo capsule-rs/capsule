@@ -1,0 +1,30 @@
+name: Coverage
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+
+  coverage:
+    runs-on: ubuntu-18.04
+    container:
+      image: williamofockham/sandbox:nightly-2019-10-28
+      options: --privileged
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Setup sandbox
+      run: ln -s /root/.rustup /github/home/.rustup
+
+    - name: Run coverage
+      run: make coverage
+
+    - uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}

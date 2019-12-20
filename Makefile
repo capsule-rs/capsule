@@ -1,6 +1,6 @@
 CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 COVERAGE_PACKAGES = nb2
-COVERAGE_EXCLUDES = macros/*
+COVERAGE_EXCLUDES = macros/* ffi/*
 CRITERION_PLOTS_DIR = bench/target/criterion
 
 .PHONY: bench build build-rel clean clean-plots coverage fmt lint find-plots test watch watch-bench watch-test
