@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+
+  build:
+    runs-on: ubuntu-18.04
+    container:
+      image: williamofockham/sandbox:nightly-2019-10-28
+      options: --privileged
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Setup sandbox
+      run: ln -s /root/.rustup /github/home/.rustup
+
+    - name: Run tests
+      run: make test
+
+    - name: Run lint
+      run: make lint
+
+    - uses: homoluctus/slatify@v2.0.1
+      if: always()
+      with:
+        type: ${{ job.status }}
+        job_name: '*CI Build*'
+        icon_emoji: ':og2:'
+        username: 'billyo'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+        commit: true
+        token: ${{ secrets.GITHUB_TOKEN }}
