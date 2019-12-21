@@ -32,7 +32,7 @@ jobs:
       if: always()
       with:
         type: ${{ job.status }}
-        job_name: '*CI Build*'
+        job_name: '*${{ github.workflow }} Build*'
         icon_emoji: ':og2:'
         username: 'billyo'
         url: ${{ secrets.SLACK_WEBHOOK }}

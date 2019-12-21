@@ -28,3 +28,16 @@ jobs:
     - uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        yml: ./codecov.yml
+
+    - uses: homoluctus/slatify@v2.0.1
+      if: always()
+      with:
+        type: ${{ job.status }}
+        job_name: '*${{ github.workflow }} Build*'
+        icon_emoji: ':og2:'
+        username: 'billyo'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+        commit: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
