@@ -1,4 +1,12 @@
 coverage:
 
   status:
+    project:
+      default:
+        threshold: 5%
     patch: false
+    changes: false
+
+  precision: 2
+  range: 50...85
+  round: down
