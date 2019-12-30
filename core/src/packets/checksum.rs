@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::ip::{IpAddrMismatchError, ProtocolNumber};
+use crate::packets::ip::{IpPacketError, ProtocolNumber};
 use crate::Result;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::slice;
@@ -197,7 +197,7 @@ pub fn compute_with_ipaddr(
         (IpAddr::V6(old), IpAddr::V6(new)) => {
             Ok(compute_inc(old_checksum, &old.segments(), &new.segments()))
         }
-        _ => Err(IpAddrMismatchError.into()),
+        _ => Err(IpPacketError::IpAddrMismatch.into()),
     }
 }
 

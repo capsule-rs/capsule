@@ -23,9 +23,9 @@ mod too_big;
 
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
-pub use self::ndp::*;
 pub use self::too_big::*;
 
+use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
@@ -231,6 +231,7 @@ pub mod Icmpv6Types {
     use super::Icmpv6Type;
 
     pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
+    pub const TimeExceeded: Icmpv6Type = Icmpv6Type(3);
     pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
     pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
 
@@ -249,6 +250,7 @@ impl fmt::Display for Icmpv6Type {
             "{}",
             match *self {
                 Icmpv6Types::PacketTooBig => "Packet Too Big".to_string(),
+                Icmpv6Types::TimeExceeded => "Time Exceeded".to_string(),
                 Icmpv6Types::EchoRequest => "Echo Request".to_string(),
                 Icmpv6Types::EchoReply => "Echo Reply".to_string(),
                 Icmpv6Types::RouterSolicitation => "Router Solicitation".to_string(),

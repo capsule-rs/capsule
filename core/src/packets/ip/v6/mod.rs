@@ -23,7 +23,7 @@ pub use self::fragment::*;
 pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
-use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
+use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
 use std::fmt;
@@ -331,7 +331,7 @@ impl IpPacket for Ipv6 {
                 self.set_src(addr);
                 Ok(())
             }
-            _ => Err(IpAddrMismatchError.into()),
+            _ => Err(IpPacketError::IpAddrMismatch.into()),
         }
     }
 
@@ -347,7 +347,7 @@ impl IpPacket for Ipv6 {
                 self.set_dst(addr);
                 Ok(())
             }
-            _ => Err(IpAddrMismatchError.into()),
+            _ => Err(IpPacketError::IpAddrMismatch.into()),
         }
     }
 
@@ -359,6 +359,18 @@ impl IpPacket for Ipv6 {
             packet_len,
             protocol,
         }
+    }
+
+    #[inline]
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
+        ensure!(
+            mtu >= IPV6_MIN_MTU,
+            IpPacketError::MtuTooSmall(mtu, IPV6_MIN_MTU)
+        );
+
+        // accounts for the ethernet frame length.
+        let to_len = mtu + self.offset();
+        self.mbuf_mut().truncate(to_len)
     }
 }
 
@@ -511,5 +523,22 @@ mod tests {
 
         // make sure ether type is fixed
         assert_eq!(EtherTypes::Ipv6, ipv6.envelope().ether_type());
+    }
+
+    #[capsule::test]
+    fn truncate_ipv6_packet() {
+        // prime the buffer with 1800 bytes of data
+        let mut packet = Mbuf::new().unwrap();
+        let _ = packet.extend(0, 1800);
+
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let mut ipv6 = ethernet.push::<Ipv6>().unwrap();
+
+        // can't truncate to less than minimum MTU.
+        assert!(ipv6.truncate(1200).is_err());
+
+        assert!(ipv6.len() > 1500);
+        let _ = ipv6.truncate(1500);
+        assert_eq!(1500, ipv6.len());
     }
 }

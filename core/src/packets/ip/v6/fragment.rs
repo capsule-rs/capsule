@@ -253,6 +253,11 @@ impl<E: Ipv6Packet> IpPacket for Fragment<E> {
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader {
         self.envelope().pseudo_header(packet_len, protocol)
     }
+
+    #[inline]
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
+        self.envelope_mut().truncate(mtu)
+    }
 }
 
 impl<E: Ipv6Packet> Ipv6Packet for Fragment<E> {

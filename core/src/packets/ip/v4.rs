@@ -17,12 +17,21 @@
 */
 
 use crate::packets::checksum::PseudoHeader;
-use crate::packets::ip::{IpAddrMismatchError, IpPacket, ProtocolNumber};
+use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
+
+/// The minimum IPv4 MTU defined in [IETF RFC 791].
+///
+/// Every internet module must be able to forward a datagram of 68 octets
+/// without further fragmentation.  This is because an internet header may
+/// be up to 60 octets, and the minimum fragment is 8 octets.
+///
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791
+pub const IPV4_MIN_MTU: usize = 68;
 
 // Masks.
 const DSCP: u8 = 0b1111_1100;
@@ -469,7 +478,7 @@ impl IpPacket for Ipv4 {
                 self.set_src(addr);
                 Ok(())
             }
-            _ => Err(IpAddrMismatchError.into()),
+            _ => Err(IpPacketError::IpAddrMismatch.into()),
         }
     }
 
@@ -485,7 +494,7 @@ impl IpPacket for Ipv4 {
                 self.set_dst(addr);
                 Ok(())
             }
-            _ => Err(IpAddrMismatchError.into()),
+            _ => Err(IpPacketError::IpAddrMismatch.into()),
         }
     }
 
@@ -497,6 +506,18 @@ impl IpPacket for Ipv4 {
             packet_len,
             protocol,
         }
+    }
+
+    #[inline]
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
+        ensure!(
+            mtu >= IPV4_MIN_MTU,
+            IpPacketError::MtuTooSmall(mtu, IPV4_MIN_MTU)
+        );
+
+        // accounts for the ethernet frame length.
+        let to_len = mtu + self.offset();
+        self.mbuf_mut().truncate(to_len)
     }
 }
 
@@ -619,5 +640,22 @@ mod tests {
 
         // make sure ether type is fixed
         assert_eq!(EtherTypes::Ipv4, ipv4.envelope().ether_type());
+    }
+
+    #[capsule::test]
+    fn truncate_ipv4_packet() {
+        // prime the buffer with 2000 bytes of data
+        let mut packet = Mbuf::new().unwrap();
+        let _ = packet.extend(0, 2000);
+
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let mut ipv4 = ethernet.push::<Ipv4>().unwrap();
+
+        // can't truncate to less than minimum MTU.
+        assert!(ipv4.truncate(60).is_err());
+
+        assert!(ipv4.len() > 1000);
+        let _ = ipv4.truncate(1000);
+        assert_eq!(1000, ipv4.len());
     }
 }
