@@ -10,7 +10,7 @@ on:
 
 jobs:
 
-  build:
+  test:
     runs-on: ubuntu-18.04
     container:
       image: williamofockham/sandbox:nightly-2019-10-28
@@ -25,14 +25,52 @@ jobs:
     - name: Run tests
       run: make test
 
+  lint:
+    runs-on: ubuntu-18.04
+    container:
+      image: williamofockham/sandbox:nightly-2019-10-28
+      options: --privileged
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Setup sandbox
+      run: ln -s /root/.rustup /github/home/.rustup
+
     - name: Run lint
       run: make lint
 
-    - uses: homoluctus/slatify@v2.0.1
+  coverage:
+    runs-on: ubuntu-18.04
+    container:
+      image: williamofockham/sandbox:nightly-2019-10-28
+      options: --privileged
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Setup sandbox
+      run: ln -s /root/.rustup /github/home/.rustup
+
+    - name: Run coverage
+      run: make coverage
+
+    - uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        yml: ./codecov.yml
+
+  slack:
+    needs: [test, lint, coverage]
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Send Slack Message
+      uses: homoluctus/slatify@v2.0.1
       if: always()
       with:
         type: ${{ job.status }}
-        job_name: '*CI Build*'
+        job_name: '*${{ github.workflow }} Build*'
         icon_emoji: ':og2:'
         username: 'billyo'
         url: ${{ secrets.SLACK_WEBHOOK }}
