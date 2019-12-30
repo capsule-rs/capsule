@@ -5,7 +5,7 @@ pub use self::fragment::*;
 pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
-use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber};
+use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
 use std::fmt;
@@ -74,8 +74,6 @@ const FLOW: u32 = 0xfffff;
 /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
 /// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
 /// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
-
-/// IPv6 packet.
 #[derive(Clone)]
 pub struct Ipv6 {
     envelope: CondRc<Ethernet>,
@@ -395,7 +393,7 @@ impl Default for Ipv6Header {
             version_to_flow_label: u32::to_be(6 << 28),
             payload_length: 0,
             next_header: 0,
-            hop_limit: 0,
+            hop_limit: DEFAULT_IP_TTL,
             src: Ipv6Addr::UNSPECIFIED,
             dst: Ipv6Addr::UNSPECIFIED,
         }
