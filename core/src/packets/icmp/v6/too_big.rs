@@ -1,7 +1,6 @@
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::{EthernetHeader, Packet};
-use crate::SizeOf;
+use crate::packets::Packet;
 use std::fmt;
 
 /// Packet Too Big Message defined in [IETF RFC 4443].
@@ -48,7 +47,7 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
     }
 }
 
-impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, PacketTooBig> {
+impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, PacketTooBig> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv6")
             .field("type", &format!("{}", self.msg_type()))
@@ -65,11 +64,9 @@ impl<E: Ipv6Packet> fmt::Display for Icmpv6<E, PacketTooBig> {
 impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
     #[inline]
     fn cascade(&mut self) {
-        // assuming inside an ethernet frame
-        let max_len = self.mtu() as usize + EthernetHeader::size_of();
-        // only err if nothing to trim, ignore the result
-        let _ = self.mbuf_mut().truncate(max_len);
-
+        let mtu = self.mtu() as usize;
+        // ignores the error if there's nothing to truncate.
+        let _ = self.envelope_mut().truncate(mtu);
         self.compute_checksum();
         self.envelope_mut().cascade();
     }
@@ -78,6 +75,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SizeOf;
 
     #[test]
     fn size_of_packet_too_big() {

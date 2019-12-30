@@ -97,6 +97,9 @@ pub trait IpPacket: Packet {
 
     /// Returns the pseudo-header for layer 4 checksum computation.
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader;
+
+    /// Truncates the IP packet to MTU. The data exceeds MTU is lost.
+    fn truncate(&mut self, mtu: usize) -> Result<()>;
 }
 
 /// 5-tuple IP connection identifier.
@@ -225,10 +228,17 @@ impl fmt::Debug for Flow {
     }
 }
 
-/// Error indicating mixing IPv4 and IPv6 addresses in a flow.
+/// IpPacket errors.
 #[derive(Debug, Fail)]
-#[fail(display = "Cannot mix IPv4 and IPv6 addresses")]
-pub struct IpAddrMismatchError;
+pub enum IpPacketError {
+    /// Error indicating mixing IPv4 and IPv6 addresses in a flow.
+    #[fail(display = "Cannot mix IPv4 and IPv6 addresses")]
+    IpAddrMismatch,
+
+    /// Error indicating the MTU is less than the minimum MTU size.
+    #[fail(display = "{} is less than the minimum MTU of {}.", _0, _1)]
+    MtuTooSmall(usize, usize),
+}
 
 #[cfg(test)]
 mod tests {

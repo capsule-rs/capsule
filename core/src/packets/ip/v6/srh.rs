@@ -401,6 +401,11 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
             protocol,
         }
     }
+
+    #[inline]
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
+        self.envelope_mut().truncate(mtu)
+    }
 }
 
 impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
