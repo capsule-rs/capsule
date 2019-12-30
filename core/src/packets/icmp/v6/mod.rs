@@ -1,10 +1,12 @@
 mod echo_reply;
 mod echo_request;
 pub mod ndp;
+mod time_exceeded;
 mod too_big;
 
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
+pub use self::time_exceeded::*;
 pub use self::too_big::*;
 
 use self::ndp::*;
