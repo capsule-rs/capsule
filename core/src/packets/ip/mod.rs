@@ -26,6 +26,11 @@ use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
+/// [IANA] recommended default TTL for IP.
+///
+/// [IANA]: https://www.iana.org/assignments/ip-parameters/ip-parameters.xml#ip-parameters-2
+pub const DEFAULT_IP_TTL: u8 = 64;
+
 /// [IANA] assigned internet protocol number.
 ///
 /// [IANA]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml

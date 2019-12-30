@@ -17,7 +17,7 @@
 */
 
 use crate::packets::checksum::PseudoHeader;
-use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber};
+use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
 use std::fmt;
@@ -548,7 +548,7 @@ impl Default for Ipv4Header {
             total_length: 0,
             identification: 0,
             flags_to_frag_offset: 0,
-            ttl: 0,
+            ttl: DEFAULT_IP_TTL,
             protocol: 0,
             checksum: 0,
             src: Ipv4Addr::UNSPECIFIED,
