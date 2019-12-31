@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-    - name: Send Slack Message
+    - name: slack-it
       uses: homoluctus/slatify@v2.0.1
       if: always()
       with:
