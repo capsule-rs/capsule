@@ -25,6 +25,8 @@ pub struct Send<B: Batch, Tx: PacketTx> {
     batch: B,
     tx: Tx,
     #[cfg(feature = "metrics")]
+    runs: Counter,
+    #[cfg(feature = "metrics")]
     processed: Counter,
     #[cfg(feature = "metrics")]
     dropped: Counter,
@@ -42,6 +44,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
     #[cfg(feature = "metrics")]
     #[inline]
     pub fn new(name: String, batch: B, tx: Tx) -> Self {
+        let runs = new_counter("runs", &name);
         let processed = new_counter("processed", &name);
         let dropped = new_counter("dropped", &name);
         let errors = new_counter("errors", &name);
@@ -49,6 +52,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
             name,
             batch,
             tx,
+            runs,
             processed,
             dropped,
             errors,
@@ -76,6 +80,7 @@ impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
 
         #[cfg(feature = "metrics")]
         {
+            self.runs.record(1);
             self.processed.record(transmit_q.len() as u64 + emitted);
             self.dropped.record(drop_q.len() as u64);
             self.errors.record(aborted);

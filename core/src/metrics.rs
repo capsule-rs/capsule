@@ -44,6 +44,7 @@
 //!
 //! # Pipeline Metrics
 //!
+//! * `pipeline.runs`, total number of times the pipeline executes.
 //! * `pipeline.processed`, total number of successfully processed packets.
 //! * `pipeline.dropped`, total number of packets intentionally dropped.
 //! * `pipeline.errors`, total number of packet dropped due to processing
