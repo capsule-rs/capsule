@@ -183,12 +183,11 @@ pub trait Batch {
     /// already dropped, emitted or aborted.
     ///
     /// Unlike `for_each`, `inspect` does not affect the packet disposition.
-    /// All errors are ignored and packets are passed to the next combinator
-    /// in the processing pipeline as is. Useful as a debugging tool.
+    /// Useful as a debugging tool.
     #[inline]
     fn inspect<F>(self, f: F) -> Inspect<Self, F>
     where
-        F: FnMut(&Disposition<Self::Item>) -> Result<()>,
+        F: FnMut(&Disposition<Self::Item>),
         Self: Sized,
     {
         Inspect::new(self, f)
@@ -316,7 +315,6 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
-    use failure::format_err;
     use std::sync::mpsc::{self, TryRecvError};
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
@@ -407,7 +405,6 @@ mod tests {
 
         let mut batch = new_batch(&[&UDP_PACKET]).inspect(|_| {
             side_effect = true;
-            Err(format_err!("should be ignored"))
         });
 
         assert!(batch.next().unwrap().is_act());
