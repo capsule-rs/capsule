@@ -25,6 +25,18 @@ jobs:
     - name: Run tests
       run: make test
 
+    - name: slack-it
+      uses: homoluctus/slatify@v2.0.1
+      if: failure() || cancelled()
+      with:
+        type: ${{ job.status }}
+        job_name: '*${{ github.workflow }} Build* @ test'
+        icon_emoji: ':og:'
+        username: 'billyo'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+        commit: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
   lint:
     runs-on: ubuntu-18.04
     container:
@@ -39,6 +51,18 @@ jobs:
 
     - name: Run lint
       run: make lint
+
+    - name: slack-it
+      uses: homoluctus/slatify@v2.0.1
+      if: failure() || cancelled()
+      with:
+        type: ${{ job.status }}
+        job_name: '*${{ github.workflow }} Build* @ lint'
+        icon_emoji: ':og:'
+        username: 'billyo'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+        commit: true
+        token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
     runs-on: ubuntu-18.04
@@ -59,6 +83,18 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         yml: ./codecov.yml
+
+    - name: slack-it
+      uses: homoluctus/slatify@v2.0.1
+      if: failure() || cancelled()
+      with:
+        type: ${{ job.status }}
+        job_name: '*${{ github.workflow }} Build* @ coverage'
+        icon_emoji: ':og:'
+        username: 'billyo'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+        commit: true
+        token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
     needs: [test, lint, coverage]
