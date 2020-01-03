@@ -17,12 +17,11 @@
 */
 
 use super::{Batch, Disposition};
-use crate::Result;
 
 /// A batch that calls a closure on packets in the underlying batch.
 pub struct Inspect<B: Batch, F>
 where
-    F: FnMut(&Disposition<B::Item>) -> Result<()>,
+    F: FnMut(&Disposition<B::Item>),
 {
     batch: B,
     f: F,
@@ -30,7 +29,7 @@ where
 
 impl<B: Batch, F> Inspect<B, F>
 where
-    F: FnMut(&Disposition<B::Item>) -> Result<()>,
+    F: FnMut(&Disposition<B::Item>),
 {
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
@@ -40,7 +39,7 @@ where
 
 impl<B: Batch, F> Batch for Inspect<B, F>
 where
-    F: FnMut(&Disposition<B::Item>) -> Result<()>,
+    F: FnMut(&Disposition<B::Item>),
 {
     type Item = B::Item;
 
@@ -52,7 +51,7 @@ where
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
         self.batch.next().map(|disp| {
-            let _ = (self.f)(&disp);
+            (self.f)(&disp);
             disp
         })
     }
