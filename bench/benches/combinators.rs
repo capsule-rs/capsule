@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use nb2::batch::Either;
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::{Ethernet, Packet};
-use nb2::testils::criterion::BencherExt;
+use nb2::testils::criterion::{BencherExt, FlameProfiler};
 use nb2::testils::proptest::*;
 use nb2::{compose, Batch, Mbuf, Result};
 use proptest::prelude::*;
@@ -192,7 +192,9 @@ fn replace_batch(c: &mut Criterion) {
 }
 
 fn bench_config() -> Criterion {
-    Criterion::default().with_plots()
+    Criterion::default()
+        .with_plots()
+        .with_profiler(FlameProfiler)
 }
 
 criterion_group! {

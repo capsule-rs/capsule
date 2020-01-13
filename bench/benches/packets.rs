@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use nb2::packets::ip::v4::Ipv4;
 use nb2::packets::ip::v6::{Ipv6, SegmentRouting};
 use nb2::packets::{Ethernet, Packet, Udp};
-use nb2::testils::criterion::BencherExt;
+use nb2::testils::criterion::{BencherExt, FlameProfiler};
 use nb2::testils::proptest::*;
 use nb2::testils::{PacketExt, Rvg};
 use nb2::{fieldmap, Mbuf, Result};
@@ -247,7 +247,9 @@ fn set_srh_segments_sizes(c: &mut Criterion) {
 }
 
 fn bench_config() -> Criterion {
-    Criterion::default().with_plots()
+    Criterion::default()
+        .with_plots()
+        .with_profiler(FlameProfiler)
 }
 
 criterion_group! {

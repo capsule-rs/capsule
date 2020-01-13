@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use nb2::testils::criterion::FlameProfiler;
 use nb2::Mbuf;
 use nb2::Result;
 
@@ -24,7 +25,9 @@ fn alloc_batch(c: &mut Criterion) {
 }
 
 fn bench_config() -> Criterion {
-    Criterion::default().with_plots()
+    Criterion::default()
+        .with_plots()
+        .with_profiler(FlameProfiler)
 }
 
 criterion_group! {

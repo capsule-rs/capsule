@@ -1,12 +1,38 @@
 use super::Rvg;
 use crate::batch::PacketTx;
 use crate::{Batch, Mbuf, Poll};
+use criterion::profiler::Profiler;
 use criterion::{black_box, Bencher};
+use flame;
 use proptest::strategy::Strategy;
 use std::cmp;
+use std::fs::File;
+use std::path::Path;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
+/// Profiler to use with criterion's profile configuration
+pub struct FlameProfiler;
+
+/// Profiler-extension for benchmarks. It only takes affect when called via:
+///
+/// `cargo bench --bench combinators -- --profile-time 10`
+///
+/// Where `profile-time` is recorded for the amount of time for each individual
+/// bench. When run with this flag, criterion analysis is turned-off, and
+/// profiling becomes the focus.
+impl Profiler for FlameProfiler {
+    fn start_profiling(&mut self, benchmark_id: &str, _benchmark_dir: &Path) {
+        flame::start(benchmark_id.to_string());
+    }
+
+    fn stop_profiling(&mut self, benchmark_id: &str, _benchmark_dir: &Path) {
+        flame::end(benchmark_id.to_string());
+        flame::dump_html(File::create("flamegraph.html").unwrap()).unwrap();
+    }
+}
+
+/// Extend criterion's Bencher with new iters
 pub trait BencherExt {
     fn iter_proptest_batched<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where

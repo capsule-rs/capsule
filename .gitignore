@@ -2,8 +2,13 @@
 # will have compiled files and executables
 **/target
 **/Cargo.lock
-**/*.pcap
+
+# bindings
 ffi/bindings.rs
 
 # coverage
 *.xml
+
+# benches/tests
+flamegraph.*
+**/*.pcap
