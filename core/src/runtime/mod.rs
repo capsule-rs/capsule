@@ -79,7 +79,7 @@ impl Runtime {
                 .cores(&conf.cores)?
                 .mempools(&mut mempools)
                 .rx_tx_queue_capacity(conf.rxd, conf.txd)?
-                .finish(conf.promiscuous, conf.multicast, conf.kni)?;
+                .finish(conf.promiscuous, conf.multicast, conf.kni, conf.rx_burst)?;
 
             debug!(?port);
             ports.push(port);

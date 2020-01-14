@@ -62,17 +62,19 @@ pub struct PortQueue {
     port_id: PortId,
     rxq: RxQueueIndex,
     txq: TxQueueIndex,
+    rx_burst: usize,
     kni: Option<KniTxQueue>,
     #[cfg(feature = "metrics")]
     dropped: Option<Counter>,
 }
 
 impl PortQueue {
-    fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
+    fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex, rx_burst: usize) -> Self {
         PortQueue {
             port_id: port,
             rxq,
             txq,
+            rx_burst,
             kni: None,
             #[cfg(feature = "metrics")]
             dropped: None,
@@ -80,23 +82,22 @@ impl PortQueue {
     }
 
     /// Receives a burst of packets from the receive queue, up to a maximum
-    /// of 32 packets.
+    /// determined by config's rx_burst_size packets (default = 32).
     pub(crate) fn receive(&self) -> Vec<Mbuf> {
-        const RX_BURST_MAX: usize = 32;
-        let mut ptrs = Vec::with_capacity(RX_BURST_MAX);
+        let mut ptrs = Vec::with_capacity(self.rx_burst);
 
         let len = unsafe {
             ffi::_rte_eth_rx_burst(
                 self.port_id.0,
                 self.rxq.0,
                 ptrs.as_mut_ptr(),
-                RX_BURST_MAX as u16,
+                self.rx_burst as u16,
             )
         };
 
         let mbufs = unsafe {
             // does a no-copy conversion to avoid extra allocation.
-            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
+            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, self.rx_burst)
         };
 
         mem::forget(ptrs);
@@ -409,7 +410,13 @@ impl<'a> PortBuilder<'a> {
 
     /// Creates the `Port`.
     #[allow(clippy::cognitive_complexity)]
-    pub fn finish(&mut self, promiscuous: bool, multicast: bool, with_kni: bool) -> Result<Port> {
+    pub fn finish(
+        &mut self,
+        promiscuous: bool,
+        multicast: bool,
+        with_kni: bool,
+        rx_burst: usize,
+    ) -> Result<Port> {
         let len = self.cores.len() as u16;
         let conf = ffi::rte_eth_conf::default();
 
@@ -484,7 +491,7 @@ impl<'a> PortBuilder<'a> {
                 .to_result()?;
             }
 
-            let mut q = PortQueue::new(self.port_id, rxq, txq);
+            let mut q = PortQueue::new(self.port_id, rxq, txq, rx_burst);
 
             if let Some(kni) = &kni {
                 q.set_kni(kni.txq());

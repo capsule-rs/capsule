@@ -320,6 +320,10 @@ pub struct PortConfig {
     #[serde(default = "default_port_txd")]
     pub txd: usize,
 
+    /// Read burst size
+    #[serde(default = "default_rx_burst")]
+    pub rx_burst: usize,
+
     /// Whether promiscuous mode is enabled for this port. Defaults to `false`.
     #[serde(default)]
     pub promiscuous: bool,
@@ -344,6 +348,10 @@ fn default_port_txd() -> usize {
     128
 }
 
+fn default_rx_burst() -> usize {
+    32
+}
+
 fn default_multicast_mode() -> bool {
     true
 }
@@ -359,6 +367,7 @@ impl fmt::Debug for PortConfig {
         d.field("cores", &self.cores)
             .field("rxd", &self.rxd)
             .field("txd", &self.txd)
+            .field("rx_burst", &self.rx_burst)
             .field("promiscuous", &self.promiscuous)
             .field("multicast", &self.multicast)
             .field("kni", &self.kni)
