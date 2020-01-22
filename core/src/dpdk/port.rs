@@ -464,6 +464,14 @@ impl<'a> PortBuilder<'a> {
         let len = self.cores.len() as u16;
         let mut conf = ffi::rte_eth_conf::default();
 
+        // turns on receive side scaling if port has multiple cores.
+        if len > 1 {
+            conf.rxmode.mq_mode = ffi::rte_eth_rx_mq_mode::ETH_MQ_RX_RSS;
+            conf.rx_adv_conf.rss_conf.rss_hf =
+                (ffi::ETH_RSS_IP | ffi::ETH_RSS_TCP | ffi::ETH_RSS_UDP | ffi::ETH_RSS_SCTP) as u64
+                    & self.dev_info.flow_type_rss_offloads;
+        }
+
         // turns on optimization for fast release of mbufs.
         if self.dev_info.tx_offload_capa & ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64 > 0 {
             conf.txmode.offloads |= ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64;
