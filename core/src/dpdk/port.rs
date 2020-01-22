@@ -411,7 +411,13 @@ impl<'a> PortBuilder<'a> {
     #[allow(clippy::cognitive_complexity)]
     pub fn finish(&mut self, promiscuous: bool, multicast: bool, with_kni: bool) -> Result<Port> {
         let len = self.cores.len() as u16;
-        let conf = ffi::rte_eth_conf::default();
+        let mut conf = ffi::rte_eth_conf::default();
+
+        // turns on optimization for fast release of mbufs.
+        if self.dev_info.tx_offload_capa & ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64 > 0 {
+            conf.txmode.offloads |= ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64;
+            debug!("turned on optimization for fast release of mbufs.");
+        }
 
         // must configure the device first before everything else.
         unsafe {
