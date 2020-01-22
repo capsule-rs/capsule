@@ -64,17 +64,33 @@ pub struct PortQueue {
     txq: TxQueueIndex,
     kni: Option<KniTxQueue>,
     #[cfg(feature = "metrics")]
+    received: Option<Counter>,
+    #[cfg(feature = "metrics")]
+    trasmitted: Option<Counter>,
+    #[cfg(feature = "metrics")]
     dropped: Option<Counter>,
 }
 
 impl PortQueue {
+    #[cfg(not(feature = "metrics"))]
     fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
         PortQueue {
             port_id: port,
             rxq,
             txq,
             kni: None,
-            #[cfg(feature = "metrics")]
+        }
+    }
+
+    #[cfg(feature = "metrics")]
+    fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
+        PortQueue {
+            port_id: port,
+            rxq,
+            txq,
+            kni: None,
+            received: None,
+            trasmitted: None,
             dropped: None,
         }
     }
@@ -93,6 +109,9 @@ impl PortQueue {
                 RX_BURST_MAX as u16,
             )
         };
+
+        #[cfg(feature = "metrics")]
+        self.received.as_ref().unwrap().record(len as u64);
 
         let mbufs = unsafe {
             // does a no-copy conversion to avoid extra allocation.
@@ -118,6 +137,9 @@ impl PortQueue {
             };
 
             if sent > 0 {
+                #[cfg(feature = "metrics")]
+                self.trasmitted.as_ref().unwrap().record(sent as u64);
+
                 if to_send - sent > 0 {
                     // still have packets not sent. tx queue is full but still making
                     // progress. we will keep trying until all packets are sent. drains
@@ -154,11 +176,40 @@ impl PortQueue {
         self.kni = Some(kni);
     }
 
-    /// Sets the TX drop counter. All other metrics are already tracked by
-    /// DPDK internally except for packets that are dropped because the TX
-    /// queue is full.
+    /// Sets the per queue counters. Some device drivers don't track TX
+    /// and RX packets per queue. Instead we will track them here for all
+    /// devices. Additionally we also track the TX packet drops when the
+    /// TX queue is full.
     #[cfg(feature = "metrics")]
-    fn set_counter(&mut self, counter: Counter) {
+    fn set_counters(&mut self, port: &str, core_id: CoreId) {
+        let counter = SINK.scoped("port").counter_with_labels(
+            "packets",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "rx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
+        self.received = Some(counter);
+
+        let counter = SINK.scoped("port").counter_with_labels(
+            "packets",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "tx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
+        self.trasmitted = Some(counter);
+
+        let counter = SINK.scoped("port").counter_with_labels(
+            "dropped",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "tx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
         self.dropped = Some(counter);
     }
 
@@ -497,17 +548,7 @@ impl<'a> PortBuilder<'a> {
             }
 
             #[cfg(feature = "metrics")]
-            {
-                // counter to track dropped TX packets.
-                let counter = SINK.scoped("port").counter_with_labels(
-                    "dropped",
-                    labels!(
-                        "port" => self.name.clone(),
-                        "dir" => "tx",
-                    ),
-                );
-                q.set_counter(counter);
-            }
+            q.set_counters(&self.name, core_id);
 
             queues.insert(core_id, q);
             debug!("initialized port queue for {:?}.", core_id);
