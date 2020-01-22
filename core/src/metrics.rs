@@ -14,11 +14,9 @@
 //! failures.
 //!
 //! Each metric is labeled with the port name and a direction, which can be
-//! either RX or TX. Optionally, `port.packets` and `port.octets` can be
-//! labeled with the core id when they are tracked per core. The per core
-//! metrics are available if the number of assigned cores to the port is less
-//! than or equal to `RTE_ETHDEV_QUEUE_STAT_CNTRS`. Otherwise, only the
-//! overall metrics are tracked.
+//! either RX or TX. `port.packets` and `port.dropped` are tracked per core
+//! and labeled with the core id. The others are tracked by only the overall
+//! metrics.
 //!
 //!
 //! # KNI Metrics
@@ -50,8 +48,9 @@
 //! * `pipeline.errors`, total number of packet dropped due to processing
 //! errors.
 //!
-//! Each metric is labeled with the pipeline name. If the pipeline doesn't
-//! have a name, it will be labeled as "default".
+//! Each metric is tracked per core and labeled with the core id and the
+//! pipeline name. If the pipeline doesn't have a name, it will be labeled
+//! as "default".
 
 // re-export some metrics types to make feature gated imports easier.
 pub(crate) use metrics_core::{labels, Key};

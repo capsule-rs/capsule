@@ -66,7 +66,7 @@ pub struct PortQueue {
     #[cfg(feature = "metrics")]
     received: Option<Counter>,
     #[cfg(feature = "metrics")]
-    trasmitted: Option<Counter>,
+    transmitted: Option<Counter>,
     #[cfg(feature = "metrics")]
     dropped: Option<Counter>,
 }
@@ -90,7 +90,7 @@ impl PortQueue {
             txq,
             kni: None,
             received: None,
-            trasmitted: None,
+            transmitted: None,
             dropped: None,
         }
     }
@@ -138,7 +138,7 @@ impl PortQueue {
 
             if sent > 0 {
                 #[cfg(feature = "metrics")]
-                self.trasmitted.as_ref().unwrap().record(sent as u64);
+                self.transmitted.as_ref().unwrap().record(sent as u64);
 
                 if to_send - sent > 0 {
                     // still have packets not sent. tx queue is full but still making
@@ -200,7 +200,7 @@ impl PortQueue {
                 "core" => core_id.0.to_string(),
             ),
         );
-        self.trasmitted = Some(counter);
+        self.transmitted = Some(counter);
 
         let counter = SINK.scoped("port").counter_with_labels(
             "dropped",
