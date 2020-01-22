@@ -1,4 +1,5 @@
 use super::{Batch, Disposition, PacketTx, Pipeline};
+use crate::dpdk::CoreId;
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
 use crate::packets::Packet;
@@ -15,6 +16,7 @@ fn new_counter(name: &'static str, pipeline: &str) -> Counter {
         name,
         labels!(
             "pipeline" => pipeline.to_owned(),
+            "core" => CoreId::current().raw().to_string(),
         ),
     )
 }
