@@ -115,7 +115,7 @@ impl CoreId {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub fn socket_id(&self) -> SocketId {
-        unsafe { SocketId(ffi::_rte_lcore_to_socket_id(self.0) as raw::c_int) }
+        unsafe { SocketId(ffi::numa_node_of_cpu(self.0 as raw::c_int)) }
     }
 
     /// Returns the raw value needed for FFI calls.

@@ -19,11 +19,6 @@
 int _rte_errno(void);
 
 /**
- * Get the ID of the physical socket of the specified lcore.
- */
-unsigned _rte_lcore_to_socket_id(unsigned lcore_id);
-
-/**
  * Allocate a new mbuf from a mempool.
  */
 struct rte_mbuf *_rte_pktmbuf_alloc(struct rte_mempool *mp);
