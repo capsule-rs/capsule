@@ -23,7 +23,6 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("src/rte.h")
-        .header("src/shim.h")
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|eth|ether)_.*")
