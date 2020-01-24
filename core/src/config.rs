@@ -199,7 +199,7 @@ impl RuntimeConfig {
         eal_args.push("--master-lcore".to_owned());
         eal_args.push(self.master_core.raw().to_string());
 
-        // limits the EAL to only the master core. actual threads are 
+        // limits the EAL to only the master core. actual threads are
         // managed by the runtime not the EAL.
         eal_args.push("-l".to_owned());
         eal_args.push(self.master_core.raw().to_string());
