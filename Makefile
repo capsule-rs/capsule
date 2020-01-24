@@ -21,7 +21,7 @@ clean-plots:
 	rm -rf $(CRITERION_PLOTS_DIR)
 
 coverage:
-	@cargo tarpaulin -l -p $(COVERAGE_PACKAGES) --exclude-files $(COVERAGE_EXCLUDES) --out Xml
+	@cargo tarpaulin -l -p $(COVERAGE_PACKAGES) --exclude-files $(COVERAGE_EXCLUDES) --out Xml --all-features
 
 fmt:
 	@cargo fmt
@@ -33,7 +33,7 @@ find-plots:
 	@ls $(CRITERION_PLOTS_DIR)/report/index.html
 
 test:
-	@cargo test
+	@cargo test --all-features
 
 watch:
 ifdef WATCH
@@ -58,7 +58,7 @@ endif
 
 watch-test:
 ifdef WATCH
-	@cargo watch --poll -x test -w $(WATCH)
+	@cargo watch --poll -s "cargo test --all-features" -w $(WATCH)
 else
-	@cargo watch --poll -x test --all
+	@cargo watch --poll -s "cargo test --all-features" --all
 endif

@@ -3,6 +3,8 @@ use crate::ffi::{self, AsStr, ToCString, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
+#[cfg(feature = "pcap-dump")]
+use crate::pcap::{self, Pcap};
 use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
@@ -97,7 +99,6 @@ impl PortQueue {
             dropped: None,
         }
     }
-
     /// Receives a burst of packets from the receive queue, up to a maximum
     /// of 32 packets.
     pub(crate) fn receive(&self) -> Vec<Mbuf> {
@@ -120,6 +121,16 @@ impl PortQueue {
             // does a no-copy conversion to avoid extra allocation.
             Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
         };
+
+        //
+        #[cfg(feature = "pcap-dump")]
+        {
+            if let Ok(pcap) =
+                Pcap::append(format!("{:?}-{:?}-rx.pcap", self.port_id, CoreId::current()).as_str())
+            {
+                pcap.write_packets(&mbufs);
+            }
+        }
 
         mem::forget(ptrs);
         mbufs
@@ -149,9 +160,29 @@ impl PortQueue {
                     // the ones already sent first and try again on the rest.
                     let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
 
+                    //
+                    #[cfg(feature = "pcap-dump")]
+                    {
+                        if let Ok(pcap) = Pcap::append(
+                            format!("{:?}-{:?}-tx.pcap", self.port_id, CoreId::current()).as_str(),
+                        ) {
+                            pcap.write_packets(&drained);
+                        }
+                    }
+
                     // ownership given to `rte_eth_tx_burst`, don't free them.
                     mem::forget(drained);
                 } else {
+                    //
+                    #[cfg(feature = "pcap-dump")]
+                    {
+                        if let Ok(pcap) = Pcap::append(
+                            format!("{:?}-{:?}-tx.pcap", self.port_id, CoreId::current()).as_str(),
+                        ) {
+                            pcap.write_packets(&packets);
+                        }
+                    }
+
                     // everything sent and ownership given to `rte_eth_tx_burst`, don't
                     // free them.
                     mem::forget(packets);
@@ -549,6 +580,9 @@ impl<'a> PortBuilder<'a> {
                 )
                 .to_result()?;
             }
+
+            #[cfg(feature = "pcap-dump")]
+            pcap::create_for_queues(self.port_id, core_id)?;
 
             let mut q = PortQueue::new(self.port_id, rxq, txq);
 
