@@ -44,11 +44,9 @@ fn main() {
         .header("src/shim.h")
         .generate_comments(true)
         .generate_inline_functions(true)
-        .whitelist_type(r"(rte|cmdline|ether|eth|arp|vlan|vxlan)_.*")
-        .whitelist_function(r"(_rte|rte|cmdline|lcore|ether|eth|arp|is)_.*")
-        .whitelist_var(
-            r"(RTE|CMDLINE|ETHER|ARP|VXLAN|BONDING|LCORE|MEMPOOL|ARP|PKT|EXT_ATTACHED|IND_ATTACHED|lcore|rte|cmdline|per_lcore)_.*",
-        )
+        .whitelist_type(r"(rte|eth|ether)_.*")
+        .whitelist_function(r"(_rte|rte|eth|ether|lcore)_.*")
+        .whitelist_var(r"(RTE|DEV|ETH|ETHER|LCORE|MEMPOOL|PKT|rte|lcore|per_lcore)_.*")
         .derive_copy(true)
         .derive_debug(true)
         .derive_default(true)

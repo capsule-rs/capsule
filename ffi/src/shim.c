@@ -26,10 +26,6 @@ int _rte_errno(void) {
     return rte_errno;
 }
 
-unsigned _rte_lcore_id(void) {
-    return rte_lcore_id();
-}
-
 unsigned _rte_lcore_to_socket_id(unsigned lcore_id) {
     return rte_lcore_to_socket_id(lcore_id);
 }
