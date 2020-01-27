@@ -17,6 +17,7 @@ use crate::net::MacAddr;
 use crate::{debug, Result};
 use failure::Fail;
 use libc;
+use std::cell::Cell;
 use std::fmt;
 use std::mem;
 use std::os::raw;
@@ -94,6 +95,9 @@ impl fmt::Debug for SocketId {
 pub struct CoreId(raw::c_uint);
 
 impl CoreId {
+    /// Any lcore to indicate that no thread affinity is set.
+    pub const ANY: Self = CoreId(ffi::LCORE_ID_ANY);
+
     /// Creates a new CoreId from the numeric ID assigned to the core
     /// by the system.
     #[inline]
@@ -104,7 +108,7 @@ impl CoreId {
     /// Returns the ID of the current core.
     #[inline]
     pub fn current() -> CoreId {
-        unsafe { CoreId(ffi::_rte_lcore_id()) }
+        CURRENT_CORE_ID.with(|tls| tls.get())
     }
 
     /// Returns the ID of the socket the core is on.
@@ -131,10 +135,11 @@ impl CoreId {
             let mut set: libc::cpu_set_t = mem::zeroed();
             libc::CPU_SET(self.0 as usize, &mut set);
             let mut set: ffi::rte_cpuset_t = mem::transmute(set);
-            ffi::rte_thread_set_affinity(&mut set)
-                .to_result()
-                .map(|_| ())
+            ffi::rte_thread_set_affinity(&mut set).to_result()?;
         }
+
+        CURRENT_CORE_ID.with(|tls| tls.set(*self));
+        Ok(())
     }
 }
 
@@ -142,6 +147,10 @@ impl fmt::Debug for CoreId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "core{}", self.0)
     }
+}
+
+thread_local! {
+    static CURRENT_CORE_ID: Cell<CoreId> = Cell::new(CoreId::ANY);
 }
 
 /// Initializes the Environment Abstraction Layer (EAL).

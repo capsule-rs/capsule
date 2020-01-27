@@ -11,6 +11,9 @@ use std::mem;
 use std::os::raw;
 use std::ptr;
 
+const DEFAULT_RSS_HF: u64 =
+    (ffi::ETH_RSS_IP | ffi::ETH_RSS_TCP | ffi::ETH_RSS_UDP | ffi::ETH_RSS_SCTP) as u64;
+
 /// An opaque identifier for an ethernet device port.
 #[derive(Copy, Clone)]
 pub struct PortId(u16);
@@ -64,17 +67,33 @@ pub struct PortQueue {
     txq: TxQueueIndex,
     kni: Option<KniTxQueue>,
     #[cfg(feature = "metrics")]
+    received: Option<Counter>,
+    #[cfg(feature = "metrics")]
+    transmitted: Option<Counter>,
+    #[cfg(feature = "metrics")]
     dropped: Option<Counter>,
 }
 
 impl PortQueue {
+    #[cfg(not(feature = "metrics"))]
     fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
         PortQueue {
             port_id: port,
             rxq,
             txq,
             kni: None,
-            #[cfg(feature = "metrics")]
+        }
+    }
+
+    #[cfg(feature = "metrics")]
+    fn new(port: PortId, rxq: RxQueueIndex, txq: TxQueueIndex) -> Self {
+        PortQueue {
+            port_id: port,
+            rxq,
+            txq,
+            kni: None,
+            received: None,
+            transmitted: None,
             dropped: None,
         }
     }
@@ -93,6 +112,9 @@ impl PortQueue {
                 RX_BURST_MAX as u16,
             )
         };
+
+        #[cfg(feature = "metrics")]
+        self.received.as_ref().unwrap().record(len as u64);
 
         let mbufs = unsafe {
             // does a no-copy conversion to avoid extra allocation.
@@ -118,6 +140,9 @@ impl PortQueue {
             };
 
             if sent > 0 {
+                #[cfg(feature = "metrics")]
+                self.transmitted.as_ref().unwrap().record(sent as u64);
+
                 if to_send - sent > 0 {
                     // still have packets not sent. tx queue is full but still making
                     // progress. we will keep trying until all packets are sent. drains
@@ -154,11 +179,40 @@ impl PortQueue {
         self.kni = Some(kni);
     }
 
-    /// Sets the TX drop counter. All other metrics are already tracked by
-    /// DPDK internally except for packets that are dropped because the TX
-    /// queue is full.
+    /// Sets the per queue counters. Some device drivers don't track TX
+    /// and RX packets per queue. Instead we will track them here for all
+    /// devices. Additionally we also track the TX packet drops when the
+    /// TX queue is full.
     #[cfg(feature = "metrics")]
-    fn set_counter(&mut self, counter: Counter) {
+    fn set_counters(&mut self, port: &str, core_id: CoreId) {
+        let counter = SINK.scoped("port").counter_with_labels(
+            "packets",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "rx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
+        self.received = Some(counter);
+
+        let counter = SINK.scoped("port").counter_with_labels(
+            "packets",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "tx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
+        self.transmitted = Some(counter);
+
+        let counter = SINK.scoped("port").counter_with_labels(
+            "dropped",
+            labels!(
+                "port" => port.to_owned(),
+                "dir" => "tx",
+                "core" => core_id.0.to_string(),
+            ),
+        );
         self.dropped = Some(counter);
     }
 
@@ -411,7 +465,20 @@ impl<'a> PortBuilder<'a> {
     #[allow(clippy::cognitive_complexity)]
     pub fn finish(&mut self, promiscuous: bool, multicast: bool, with_kni: bool) -> Result<Port> {
         let len = self.cores.len() as u16;
-        let conf = ffi::rte_eth_conf::default();
+        let mut conf = ffi::rte_eth_conf::default();
+
+        // turns on receive side scaling if port has multiple cores.
+        if len > 1 {
+            conf.rxmode.mq_mode = ffi::rte_eth_rx_mq_mode::ETH_MQ_RX_RSS;
+            conf.rx_adv_conf.rss_conf.rss_hf =
+                DEFAULT_RSS_HF & self.dev_info.flow_type_rss_offloads;
+        }
+
+        // turns on optimization for fast release of mbufs.
+        if self.dev_info.tx_offload_capa & ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64 > 0 {
+            conf.txmode.offloads |= ffi::DEV_TX_OFFLOAD_MBUF_FAST_FREE as u64;
+            debug!("turned on optimization for fast release of mbufs.");
+        }
 
         // must configure the device first before everything else.
         unsafe {
@@ -491,17 +558,7 @@ impl<'a> PortBuilder<'a> {
             }
 
             #[cfg(feature = "metrics")]
-            {
-                // counter to track dropped TX packets.
-                let counter = SINK.scoped("port").counter_with_labels(
-                    "dropped",
-                    labels!(
-                        "port" => self.name.clone(),
-                        "dir" => "tx",
-                    ),
-                );
-                q.set_counter(counter);
-            }
+            q.set_counters(&self.name, core_id);
 
             queues.insert(core_id, q);
             debug!("initialized port queue for {:?}.", core_id);

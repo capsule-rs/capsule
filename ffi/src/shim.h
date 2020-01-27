@@ -8,11 +8,6 @@
 int _rte_errno(void);
 
 /**
- * Return the Application thread ID of the execution unit.
- */
-unsigned _rte_lcore_id(void);
-
-/**
  * Get the ID of the physical socket of the specified lcore.
  */
 unsigned _rte_lcore_to_socket_id(unsigned lcore_id);
