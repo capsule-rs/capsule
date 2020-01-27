@@ -157,6 +157,7 @@ unsafe impl std::marker::Send for SendablePtr {}
 
 /// Builder for core map.
 pub struct CoreMapBuilder<'a> {
+    app_name: String,
     cores: HashSet<CoreId>,
     master_core: CoreId,
     mempools: MempoolMap<'a>,
@@ -165,10 +166,16 @@ pub struct CoreMapBuilder<'a> {
 impl<'a> CoreMapBuilder<'a> {
     pub fn new() -> Self {
         CoreMapBuilder {
+            app_name: String::new(),
             cores: Default::default(),
             master_core: CoreId::new(0),
             mempools: Default::default(),
         }
+    }
+
+    pub fn app_name(&mut self, app_name: &str) -> &mut Self {
+        self.app_name = app_name.to_owned();
+        self
     }
 
     pub fn cores(&mut self, cores: &[CoreId]) -> &mut Self {
@@ -222,40 +229,42 @@ impl<'a> CoreMapBuilder<'a> {
 
             // spawns a new background thread and initializes a core executor on
             // that thread.
-            let join = thread::spawn(move || {
-                debug!("spawned background thread {:?}.", thread::current().id());
+            let join = thread::Builder::new()
+                .name(format!("{}-{:?}", self.app_name, core_id))
+                .spawn(move || {
+                    debug!("spawned background thread {:?}.", thread::current().id());
 
-                match init_background_core(core_id, ptr.0) {
-                    Ok((mut thread, park, shutdown, executor)) => {
-                        info!("initialized thread on {:?}.", core_id);
+                    match init_background_core(core_id, ptr.0) {
+                        Ok((mut thread, park, shutdown, executor)) => {
+                            info!("initialized thread on {:?}.", core_id);
 
-                        // keeps a timer handle for later use.
-                        let timer_handle = executor.timer.clone();
+                            // keeps a timer handle for later use.
+                            let timer_handle = executor.timer.clone();
 
-                        // sends the executor back to the master core. it's safe to unwrap
-                        // the result because the receiving end is guaranteed to be in scope.
-                        sender.send(Ok(executor)).unwrap();
+                            // sends the executor back to the master core. it's safe to unwrap
+                            // the result because the receiving end is guaranteed to be in scope.
+                            sender.send(Ok(executor)).unwrap();
 
-                        info!("parking {:?}.", core_id);
+                            info!("parking {:?}.", core_id);
 
-                        // sleeps the thread for now since there's nothing to be done yet.
-                        // once new tasks are spawned, the master core can unpark this and
-                        // let the execution continue.
-                        park.park();
+                            // sleeps the thread for now since there's nothing to be done yet.
+                            // once new tasks are spawned, the master core can unpark this and
+                            // let the execution continue.
+                            park.park();
 
-                        info!("unparked {:?}.", core_id);
+                            info!("unparked {:?}.", core_id);
 
-                        // once the thread wakes up, we will run all the spawned tasks and
-                        // wait until a shutdown is triggered from the master core.
-                        let _timer = timer::set_default(&timer_handle);
-                        let _ = thread.block_on(shutdown.into_task());
+                            // once the thread wakes up, we will run all the spawned tasks and
+                            // wait until a shutdown is triggered from the master core.
+                            let _timer = timer::set_default(&timer_handle);
+                            let _ = thread.block_on(shutdown.into_task());
 
-                        info!("unblocked {:?}.", core_id);
+                            info!("unblocked {:?}.", core_id);
+                        }
+                        // propogates the error back to the master core.
+                        Err(err) => sender.send(Err(err)).unwrap(),
                     }
-                    // propogates the error back to the master core.
-                    Err(err) => sender.send(Err(err)).unwrap(),
-                }
-            });
+                })?;
 
             // blocks and waits for the background thread to finish initialize.
             // when done, we add the executor to the map.

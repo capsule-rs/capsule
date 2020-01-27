@@ -199,15 +199,10 @@ impl RuntimeConfig {
         eal_args.push("--master-lcore".to_owned());
         eal_args.push(self.master_core.raw().to_string());
 
-        // adds the assigned cores
-        let cores = self
-            .all_cores()
-            .into_iter()
-            .map(|id| id.raw().to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        // limits the EAL to only the master core. actual threads are
+        // managed by the runtime not the EAL.
         eal_args.push("-l".to_owned());
-        eal_args.push(cores);
+        eal_args.push(self.master_core.raw().to_string());
 
         // adds additional DPDK args
         if let Some(args) = &self.dpdk_args {
@@ -463,7 +458,7 @@ mod tests {
                 "--master-lcore",
                 "0",
                 "-l",
-                "0, 1, 2, 3, 4",
+                "0",
                 "-v",
                 "--log-level",
                 "eal:8"

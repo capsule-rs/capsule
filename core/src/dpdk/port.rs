@@ -501,7 +501,6 @@ impl<'a> PortBuilder<'a> {
             let kni = KniBuilder::new(mempool)
                 .name(&self.name)
                 .port_id(self.port_id)
-                .core_id(self.cores[0])
                 .mac_addr(super::eth_macaddr_get(self.port_id.raw()))
                 .finish()?;
             Some(kni)
