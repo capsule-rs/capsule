@@ -16,19 +16,27 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#include <rte_mbuf.h>
-#include <rte_mempool.h>
+/// known issues:
+// 1. https://github.com/rust-lang/rust/issues/54341
+
+// all the necessary DPDK functions, types and constants are defined
+// in the following header files.
+#include <rte_eal.h>
+#include <rte_errno.h>
+#include <rte_ethdev.h>
+#include <rte_kni.h>
+
+// libnuma functions and types
+#include <numa.h>
+
+// bindgen can't generate bindings for static functions defined in C
+// header files. these shims are necessary to expose them to FFI.
 
 /**
  * Error number value, stored per-thread, which can be queried after
  * calls to certain functions to determine why those functions failed.
  */
 int _rte_errno(void);
-
-/**
- * Get the ID of the physical socket of the specified lcore.
- */
-unsigned _rte_lcore_to_socket_id(unsigned lcore_id);
 
 /**
  * Allocate a new mbuf from a mempool.

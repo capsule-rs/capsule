@@ -110,17 +110,17 @@ impl fmt::Debug for SocketId {
 
 /// An opaque identifier for a physical CPU core.
 #[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct CoreId(raw::c_uint);
+pub struct CoreId(usize);
 
 impl CoreId {
     /// Any lcore to indicate that no thread affinity is set.
-    pub const ANY: Self = CoreId(ffi::LCORE_ID_ANY);
+    pub const ANY: Self = CoreId(std::usize::MAX);
 
     /// Creates a new CoreId from the numeric ID assigned to the core
     /// by the system.
     #[inline]
     pub(crate) fn new(i: usize) -> CoreId {
-        CoreId(i as raw::c_uint)
+        CoreId(i)
     }
 
     /// Returns the ID of the current core.
@@ -133,13 +133,13 @@ impl CoreId {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     pub fn socket_id(&self) -> SocketId {
-        unsafe { SocketId(ffi::_rte_lcore_to_socket_id(self.0) as raw::c_int) }
+        unsafe { SocketId(ffi::numa_node_of_cpu(self.0 as raw::c_int)) }
     }
 
-    /// Returns the raw value needed for FFI calls.
+    /// Returns the raw value.
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
-    pub(crate) fn raw(&self) -> raw::c_uint {
+    pub(crate) fn raw(&self) -> usize {
         self.0
     }
 
@@ -151,7 +151,7 @@ impl CoreId {
             // the two types that represent `cpu_set` have identical layout,
             // hence it is safe to transmute between them.
             let mut set: libc::cpu_set_t = mem::zeroed();
-            libc::CPU_SET(self.0 as usize, &mut set);
+            libc::CPU_SET(self.0, &mut set);
             let mut set: ffi::rte_cpuset_t = mem::transmute(set);
             ffi::rte_thread_set_affinity(&mut set).to_result()?;
         }

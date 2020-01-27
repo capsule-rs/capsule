@@ -79,6 +79,7 @@ impl Runtime {
 
         info!("intializing cores...");
         let core_map = CoreMapBuilder::new()
+            .app_name(&config.app_name)
             .cores(&cores)
             .master_core(config.master_core)
             .mempools(&mut mempools)

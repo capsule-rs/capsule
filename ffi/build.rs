@@ -40,13 +40,12 @@ fn main() {
         .compile("rte_shim");
 
     let bindings = bindgen::Builder::default()
-        .header("src/rte.h")
-        .header("src/shim.h")
+        .header("src/bindings.h")
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|eth|ether)_.*")
-        .whitelist_function(r"(_rte|rte|eth|ether|lcore)_.*")
-        .whitelist_var(r"(RTE|DEV|ETH|ETHER|LCORE|MEMPOOL|PKT|rte|lcore|per_lcore)_.*")
+        .whitelist_function(r"(_rte|rte|eth|ether|numa)_.*")
+        .whitelist_var(r"(RTE|DEV|ETH|ETHER|MEMPOOL|PKT|rte)_.*")
         .derive_copy(true)
         .derive_debug(true)
         .derive_default(true)

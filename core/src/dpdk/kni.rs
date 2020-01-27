@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{CoreId, Mbuf, PortId};
+use super::{Mbuf, PortId};
 use crate::ffi::{self, AsStr, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
@@ -359,11 +359,6 @@ impl<'a> KniBuilder<'a> {
                 cmp::min(name.len(), self.conf.name.len()),
             );
         }
-        self
-    }
-
-    pub fn core_id(&mut self, core_id: CoreId) -> &mut Self {
-        self.conf.core_id = core_id.raw();
         self
     }
 
