@@ -7,7 +7,6 @@
 #include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_kni.h>
-#include <rte_lcore.h>
 
 // libnuma functions and types
 #include <numa.h>
