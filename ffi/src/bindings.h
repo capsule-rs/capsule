@@ -9,6 +9,9 @@
 #include <rte_kni.h>
 #include <rte_lcore.h>
 
+// libnuma functions and types
+#include <numa.h>
+
 // bindgen can't generate bindings for static functions defined in C
 // header files. these shims are necessary to expose them to FFI.
 

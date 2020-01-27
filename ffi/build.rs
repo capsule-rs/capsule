@@ -26,7 +26,7 @@ fn main() {
         .generate_comments(true)
         .generate_inline_functions(true)
         .whitelist_type(r"(rte|eth|ether)_.*")
-        .whitelist_function(r"(_rte|rte|eth|ether)_.*")
+        .whitelist_function(r"(_rte|rte|eth|ether|numa)_.*")
         .whitelist_var(r"(RTE|DEV|ETH|ETHER|MEMPOOL|PKT|rte)_.*")
         .derive_copy(true)
         .derive_debug(true)
