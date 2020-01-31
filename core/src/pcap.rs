@@ -1,9 +1,8 @@
 use crate::dpdk::{CoreId, PortId};
 use crate::ffi::{self, ToCString, ToResult};
 use crate::packets::Packet;
-use crate::{debug, Result};
+use crate::{debug, error, Result};
 use libc;
-use std::fmt;
 use std::os::raw;
 use std::ptr::NonNull;
 
@@ -62,19 +61,12 @@ impl Pcap {
     }
 
     /// Write packets to PCAP file handler
-    pub fn write_packets<T: Packet + fmt::Debug>(&self, packets: &[T]) {
-        packets.iter().for_each(|p| {
-            if let Err(err) = self.write(p) {
-                debug!(
-                    "Error - {} - writing {:?} to PCAP file {}",
-                    err, p, self.path
-                )
-            }
-        })
+    pub fn write<T: Packet>(&self, packets: &[T]) -> Result<()> {
+        packets.iter().try_for_each(|p| self.dump_packet(p))?;
+        self.flush()
     }
 
-    /// Write (single) packet to PCAP file handler
-    pub fn write<T: Packet>(&self, packet: &T) -> Result<()> {
+    fn dump_packet<T: Packet>(&self, packet: &T) -> Result<()> {
         let mut pcap_hdr = ffi::pcap_pkthdr::default();
         pcap_hdr.len = packet.mbuf().data_len() as u32;
         pcap_hdr.caplen = pcap_hdr.len;
@@ -91,7 +83,13 @@ impl Pcap {
                 &pcap_hdr,
                 packet.mbuf().data_address(0),
             );
+        }
 
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<()> {
+        unsafe {
             ffi::pcap_dump_flush(self.dumper.as_ptr())
                 .to_result()
                 .map(|_| ())
@@ -112,8 +110,35 @@ impl Drop for Pcap {
 pub(crate) fn create_for_queues(port: PortId, core: CoreId) -> Result<()> {
     Pcap::create(format!("{:?}-{:?}-rx.pcap", port, core).as_str())?;
     Pcap::create(format!("{:?}-{:?}-tx.pcap", port, core).as_str())?;
-
     Ok(())
+}
+
+/// Append and write slice of packets to an already-created file, logging errors
+/// that may occur.
+pub(crate) fn append_and_write<T: Packet>(
+    port: PortId,
+    core: CoreId,
+    tx_or_rx: &str,
+    packets: &[T],
+) {
+    let path = String::from(format!("{:?}-{:?}-{}.pcap", port, core, tx_or_rx).as_str());
+    let _ = Pcap::append(path.as_str())
+        .map_err(|err| {
+            error!(
+                message = "can't append to pcap file",
+                pcap = path.as_str(),
+                ?err
+            )
+        })
+        .map(|pcap| {
+            pcap.write(&packets).map_err(|err| {
+                error!(
+                    message = "can't write packets to pcap file",
+                    pcap = path.as_str(),
+                    ?err
+                )
+            })
+        });
 }
 
 #[cfg(test)]
@@ -155,7 +180,7 @@ mod tests {
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
 
-        let res = writer.write(&udp);
+        let res = writer.write(&[udp]);
 
         assert!(res.is_ok());
         let len = read_pcap_plen("foo.pcap");
@@ -172,7 +197,8 @@ mod tests {
         let data_len2 = udp2.data_len();
 
         let packets = vec![udp, udp2];
-        writer.write_packets(&packets);
+        let res = writer.write(&packets);
+        assert!(res.is_ok());
         let len = read_pcap_plen("foo1.pcap");
         assert_eq!((data_len1 + data_len2) as u32, len);
         cleanup("foo1.pcap");
@@ -190,7 +216,7 @@ mod tests {
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
 
         let writer = Pcap::append("foo2.pcap").unwrap();
-        let res = writer.write(&udp);
+        let res = writer.write(&[udp]);
 
         assert!(res.is_ok());
         let len = read_pcap_plen("foo2.pcap");

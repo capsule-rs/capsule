@@ -4,7 +4,7 @@ use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
 #[cfg(feature = "pcap-dump")]
-use crate::pcap::{self, Pcap};
+use crate::pcap;
 use crate::{debug, ensure, info, warn, Result};
 use failure::Fail;
 use std::collections::HashMap;
@@ -122,15 +122,8 @@ impl PortQueue {
             Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
         };
 
-        //
         #[cfg(feature = "pcap-dump")]
-        {
-            if let Ok(pcap) =
-                Pcap::append(format!("{:?}-{:?}-rx.pcap", self.port_id, CoreId::current()).as_str())
-            {
-                pcap.write_packets(&mbufs);
-            }
-        }
+        pcap::append_and_write(self.port_id, CoreId::current(), "rx", &mbufs);
 
         mem::forget(ptrs);
         mbufs
@@ -160,28 +153,14 @@ impl PortQueue {
                     // the ones already sent first and try again on the rest.
                     let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
 
-                    //
                     #[cfg(feature = "pcap-dump")]
-                    {
-                        if let Ok(pcap) = Pcap::append(
-                            format!("{:?}-{:?}-tx.pcap", self.port_id, CoreId::current()).as_str(),
-                        ) {
-                            pcap.write_packets(&drained);
-                        }
-                    }
+                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &drained);
 
                     // ownership given to `rte_eth_tx_burst`, don't free them.
                     mem::forget(drained);
                 } else {
-                    //
                     #[cfg(feature = "pcap-dump")]
-                    {
-                        if let Ok(pcap) = Pcap::append(
-                            format!("{:?}-{:?}-tx.pcap", self.port_id, CoreId::current()).as_str(),
-                        ) {
-                            pcap.write_packets(&packets);
-                        }
-                    }
+                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &packets);
 
                     // everything sent and ownership given to `rte_eth_tx_burst`, don't
                     // free them.
