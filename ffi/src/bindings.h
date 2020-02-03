@@ -29,6 +29,9 @@
 // libnuma functions and types
 #include <numa.h>
 
+// pcap functions and types
+#include <pcap.h>
+
 // bindgen can't generate bindings for static functions defined in C
 // header files. these shims are necessary to expose them to FFI.
 

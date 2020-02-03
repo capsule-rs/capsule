@@ -31,6 +31,8 @@ mod macros;
 pub mod metrics;
 pub mod net;
 pub mod packets;
+#[cfg(feature = "pcap-dump")]
+pub mod pcap;
 mod runtime;
 #[cfg(any(test, feature = "testils"))]
 pub mod testils;

@@ -114,7 +114,7 @@ impl Mbuf {
 
     /// Returns the raw pointer from the offset
     #[inline]
-    unsafe fn data_address(&self, offset: usize) -> *mut u8 {
+    pub(crate) unsafe fn data_address(&self, offset: usize) -> *mut u8 {
         let raw = self.raw();
         (raw.buf_addr as *mut u8).offset(raw.data_off as isize + offset as isize)
     }
