@@ -496,6 +496,80 @@ mod tests {
     }
 
     #[capsule::test]
+    fn group_by_or() {
+        let mut batch = new_batch(&[&TCP_PACKET, &UDP_PACKET, &ICMPV4_PACKET])
+            .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
+            .group_by(
+                |p| p.protocol(),
+                |groups| {
+                    compose!( groups {
+                        ProtocolNumbers::Tcp, ProtocolNumbers::Udp => |group| {
+                            group.map(|mut p| {
+                                p.set_ttl(1);
+                                Ok(p)
+                            })
+                        }
+                        _ => |group| {
+                            group.filter(|_| {
+                                false
+                            })
+                        }
+                    })
+                },
+            );
+
+        // first one is the tcp arm
+        let disp = batch.next().unwrap();
+        assert!(disp.is_act());
+        if let Disposition::Act(pkt) = disp {
+            assert_eq!(1, pkt.ttl());
+        }
+
+        // next one is the udp arm
+        let disp = batch.next().unwrap();
+        assert!(disp.is_act());
+        if let Disposition::Act(pkt) = disp {
+            assert_eq!(1, pkt.ttl());
+        }
+
+        // last one is the catch all arm
+        assert!(batch.next().unwrap().is_drop());
+    }
+
+    #[capsule::test]
+    fn group_by_or_no_catchall() {
+        let mut batch = new_batch(&[&TCP_PACKET, &UDP_PACKET])
+            .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
+            .group_by(
+                |p| p.protocol(),
+                |groups| {
+                    compose!( groups {
+                        ProtocolNumbers::Tcp, ProtocolNumbers::Udp => |group| {
+                            group.map(|mut p| {
+                                p.set_ttl(1);
+                                Ok(p)
+                            })
+                        }
+                    })
+                },
+            );
+
+        // first one is the tcp arm
+        let disp = batch.next().unwrap();
+        assert!(disp.is_act());
+        if let Disposition::Act(pkt) = disp {
+            assert_eq!(1, pkt.ttl());
+        }
+
+        // next one is the udp arm
+        let disp = batch.next().unwrap();
+        assert!(disp.is_act());
+        if let Disposition::Act(pkt) = disp {
+            assert_eq!(1, pkt.ttl());
+        }
+    }
+
+    #[capsule::test]
     fn replace_batch() {
         let mut batch = new_batch(&[&UDP_PACKET]).replace(|_| Mbuf::from_bytes(&TCP_PACKET));
 

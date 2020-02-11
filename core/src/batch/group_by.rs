@@ -159,13 +159,19 @@ macro_rules! __compose {
 /// Composes the batch builders for the `group_by` combinator
 #[macro_export]
 macro_rules! compose {
-    ($map:ident { $($key:expr => |$arg:tt| $body:block)* }) => {{
+    ($map:ident { $($key:expr => |$arg:tt| $body:block)+ }) => {{
         $crate::__compose!($map, $($key => |$arg| $body),*);
         $map.insert(None, Box::new(|group| Box::new(group)));
     }};
-    ($map:ident { $($key:expr => |$arg:tt| $body:block)* _ => |$_arg:tt| $_body:block }) => {{
+    ($map:ident { $($key:expr => |$arg:tt| $body:block)+ _ => |$_arg:tt| $_body:block }) => {{
         $crate::__compose!($map, $($key => |$arg| $body),*);
         $map.insert(None, Box::new(|$_arg| Box::new($_body)));
+    }};
+    ($map:ident { $($key:expr),+ => |$arg:tt| $body:block }) => {{
+        $crate::compose!($map { $($key => |$arg| $body)+ });
+    }};
+    ($map:ident { $($key:expr),+ => |$arg:tt| $body:block _ => |$_arg:tt| $_body:block }) => {{
+        $crate::compose!($map { $($key => |$arg| $body)+ _ => |$_arg| $_body });
     }};
     ($map:ident { _ => |$_arg:tt| $_body:block }) => {{
         $map.insert(None, Box::new(|$_arg| Box::new($_body)));
