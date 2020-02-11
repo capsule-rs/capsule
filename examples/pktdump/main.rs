@@ -60,7 +60,7 @@ fn install(q: PortQueue) -> impl Pipeline {
                 compose!( groups {
                     EtherTypes::Ipv4 => |group| {
                         group.for_each(dump_v4)
-                    }
+                    },
                     EtherTypes::Ipv6 => |group| {
                         group.for_each(dump_v6)
                     }

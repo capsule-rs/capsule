@@ -140,10 +140,10 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
                 compose!( groups {
                     EtherTypes::Ipv4 => |group| {
                         group.filter_map(nat_4to6)
-                    }
+                    },
                     EtherTypes::Ipv6 => |group| {
                         group.filter_map(nat_6to4)
-                    }
+                    },
                     _ => |group| {
                         group.filter(|_| false)
                     }
