@@ -6,14 +6,16 @@ license = "Apache-2.0"
 keywords = []
 publish = false
 edition = "2018"
-build = "build.rs"
 description = "Benchmarks for Capsule"
+repository = "https://github.com/williamofockham/capsule/bench"
+readme = "../README.md"
 categories = []
 
 [dev-dependencies]
 capsule = { path = "../core", features = ["testils"] }
 criterion = "0.3"
 proptest = "0.9"
+nb2 = { path = "../core", features = ["testils"] }
 
 [[bench]]
 name = "packets"

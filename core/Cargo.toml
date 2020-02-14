@@ -5,7 +5,6 @@ authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
 keywords = []
 edition = "2018"
-build = "build.rs"
 description = "A network function framework written in Rust and using DPDK"
 categories = []
 

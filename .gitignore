@@ -6,3 +6,6 @@
 
 # coverage
 *.xml
+
+# other
+*log*
