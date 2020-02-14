@@ -6,7 +6,6 @@ license = "TBD"
 keywords = []
 edition = "2018"
 build = "build.rs"
-links = "dpdk"
 description = "FFI dpdk shims for nb2"
 repository = "https://github.com/williamofockham/nb2/ffi"
 readme = "../README.md"
@@ -20,5 +19,4 @@ doctest = false
 # must be pinned to 0.51.1 revision exactly
 bindgen = "0.51.1"
 cc = "1.0"
-
-[dependencies]
+libc = "0.2"

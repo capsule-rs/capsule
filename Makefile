@@ -23,14 +23,14 @@ clean-plots:
 coverage:
 	@cargo tarpaulin -l -p $(COVERAGE_PACKAGES) --exclude-files $(COVERAGE_EXCLUDES) --out Xml --all-features
 
+find-plots:
+	@ls $(CRITERION_PLOTS_DIR)/report/index.html
+
 fmt:
 	@cargo fmt
 
 lint:
 	@cargo clippy $(CLIPPY_ARGS)
-
-find-plots:
-	@ls $(CRITERION_PLOTS_DIR)/report/index.html
 
 test:
 	@cargo test --all-features

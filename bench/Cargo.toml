@@ -6,7 +6,6 @@ license = "TBD"
 keywords = []
 publish = false
 edition = "2018"
-build = "build.rs"
 description = "benchmarks for nb2"
 repository = "https://github.com/williamofockham/nb2/bench"
 readme = "../README.md"
@@ -14,8 +13,10 @@ categories = []
 
 [dev-dependencies]
 criterion = "0.3"
-nb2 = { path = "../core", features = ["testils"] }
 proptest = "0.9"
+
+[dependencies]
+nb2 = { path = "../core", features = ["testils"] }
 
 [[bench]]
 name = "packets"

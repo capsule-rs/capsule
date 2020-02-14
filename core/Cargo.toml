@@ -5,7 +5,6 @@ authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = []
 edition = "2018"
-build = "build.rs"
 description = "A network function framework written in Rust and using DPDK"
 repository = "https://github.com/williamofockham/nb2/core"
 readme = "../README.md"

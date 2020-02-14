@@ -5,7 +5,6 @@ authors = ["William of Ockham <occam_engineering@comcast.com>"]
 license = "TBD"
 keywords = []
 edition = "2018"
-build = "build.rs"
 description = "Packet dump example"
 repository = "https://github.com/williamofockham/nb2/tree/master/examples/pktdump"
 readme = "README.md"

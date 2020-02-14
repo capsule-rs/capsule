@@ -7,3 +7,6 @@ ffi/bindings.rs
 
 # coverage
 *.xml
+
+# other
+*log*
