@@ -44,6 +44,8 @@ proptest = { version = "0.9", default-features = false, features = ["default-cod
 
 [features]
 default = ["metrics"]
+build-kni = ["nb2-ffi/build-kni"]
+build-pcap = ["nb2-ffi/build-pcap"]
 metrics = ["metrics-core", "metrics-runtime"]
 pcap-dump = []
 testils = ["proptest", "criterion"]

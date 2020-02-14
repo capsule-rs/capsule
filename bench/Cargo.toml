@@ -14,8 +14,10 @@ categories = []
 
 [dev-dependencies]
 criterion = "0.3"
-nb2 = { path = "../core", features = ["testils"] }
 proptest = "0.9"
+
+[dependencies]
+nb2 = { path = "../core", features = ["testils"] }
 
 [[bench]]
 name = "packets"

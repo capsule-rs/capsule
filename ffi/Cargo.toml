@@ -20,5 +20,8 @@ doctest = false
 # must be pinned to 0.51.1 revision exactly
 bindgen = "0.51.1"
 cc = "1.0"
+libc = "0.2"
 
-[dependencies]
+[features]
+build-kni = []
+build-pcap = []
