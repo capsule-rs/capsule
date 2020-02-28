@@ -3,7 +3,7 @@ use cc;
 use std::env;
 use std::path::{Path, PathBuf};
 
-static RTE_CORE_LIBS: &'static [&'static str] = &[
+const RTE_CORE_LIBS: &[&str] = &[
     "rte_acl",
     "rte_bbdev",
     "rte_bitratestats",
@@ -63,7 +63,7 @@ static RTE_CORE_LIBS: &'static [&'static str] = &[
     "rte_vhost",
 ];
 
-static RTE_PMD_LIBS: &'static [&'static str] = &[
+static RTE_PMD_LIBS: &[&str] = &[
     "rte_pmd_af_packet",
     "rte_pmd_ark",
     "rte_pmd_atlantic",
@@ -118,7 +118,7 @@ static RTE_PMD_LIBS: &'static [&'static str] = &[
     "rte_pmd_virtio_crypto",
 ];
 
-static RTE_DEPS_LIBS: &'static [&'static str] = &["numa", "pcap"];
+const RTE_DEPS_LIBS: &[&str] = &["numa", "pcap"];
 
 fn bind(path: &Path) {
     cc::Build::new()

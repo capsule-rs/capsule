@@ -1,6 +1,3 @@
-[![CI -Github Actions](https://github.com/williamofockham/nb2/workflows/CI/badge.svg)](https://github.com/williamofockham/nb2/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/williamofockham/nb2/branch/master/graph/badge.svg)](https://codecov.io/gh/williamofockham/nb2)
-
 # nb2
 
 A framework for network function development. Written in Rust, inspired by [NetBricks](http://netbricks.io/) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/).
