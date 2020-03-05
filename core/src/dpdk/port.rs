@@ -175,14 +175,14 @@ impl PortQueue {
                     pcap::append_and_write(self.port_id, CoreId::current(), "tx", &drained);
 
                     // ownership given to `rte_eth_tx_burst`, don't free them.
-                    mem::forget(drained);
+                    Mbuf::forget_bulk(drained);
                 } else {
                     #[cfg(feature = "pcap-dump")]
                     pcap::append_and_write(self.port_id, CoreId::current(), "tx", &packets);
 
                     // everything sent and ownership given to `rte_eth_tx_burst`, don't
                     // free them.
-                    mem::forget(packets);
+                    Mbuf::forget_bulk(packets);
                     break;
                 }
             } else {

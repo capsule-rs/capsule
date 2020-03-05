@@ -294,7 +294,7 @@ impl Mbuf {
     #[inline]
     pub(crate) fn into_ptr(self) -> *mut ffi::rte_mbuf {
         let ptr = self.raw.as_ptr();
-        std::mem::forget(self);
+        mem::forget(self);
         ptr
     }
 
@@ -340,6 +340,17 @@ impl Mbuf {
             let len = to_free.len();
             ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
             to_free.set_len(0);
+        }
+    }
+
+    /// Forgets the message buffers in bulk.
+    ///
+    /// Used when the ownership of the underlying message buffers is passed
+    /// to DPDK. DPDK is responsible for eventually freeing them and return
+    /// them back to the mempool.
+    pub(crate) fn forget_bulk(mut mbufs: Vec<Mbuf>) {
+        while let Some(mbuf) = mbufs.pop() {
+            mem::forget(mbuf);
         }
     }
 }
