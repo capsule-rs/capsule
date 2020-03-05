@@ -125,7 +125,7 @@ impl NdpOption for LinkLayerAddress {
 }
 
 /// Link-layer address option fields.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 struct LinkLayerAddressFields {
     option_type: u8,

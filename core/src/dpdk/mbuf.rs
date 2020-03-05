@@ -9,18 +9,53 @@ use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
 
-/// Blanketly implemented for all types so we can conveniently find the
-/// byte size when this trait is imported. Size of the structs are used
-/// for bound checks when reading and writing packets.
+/// A trait for returning the size of a type in bytes.
+///
+/// Size of the structs are used for bound checks when reading and writing
+/// packets.
+///
+/// For convenience, use the `SizeOf` derive macro.
+///
+/// # Example
+///
+/// ```
+/// #[derive(SizeOf)]
+/// pub struct Ipv4Header {
+///     ...
+/// }
+/// ```
 pub trait SizeOf {
     /// Returns the size of a type in bytes.
     fn size_of() -> usize;
 }
 
-impl<T> SizeOf for T {
-    #[inline]
-    default fn size_of() -> usize {
-        std::mem::size_of::<T>()
+impl SizeOf for () {
+    fn size_of() -> usize {
+        std::mem::size_of::<()>()
+    }
+}
+
+impl SizeOf for u8 {
+    fn size_of() -> usize {
+        std::mem::size_of::<u8>()
+    }
+}
+
+impl SizeOf for [u8; 2] {
+    fn size_of() -> usize {
+        std::mem::size_of::<[u8; 2]>()
+    }
+}
+
+impl SizeOf for [u8; 16] {
+    fn size_of() -> usize {
+        std::mem::size_of::<[u8; 16]>()
+    }
+}
+
+impl SizeOf for ::std::net::Ipv6Addr {
+    fn size_of() -> usize {
+        std::mem::size_of::<std::net::Ipv6Addr>()
     }
 }
 

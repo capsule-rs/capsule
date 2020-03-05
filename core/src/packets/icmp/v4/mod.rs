@@ -4,8 +4,8 @@ mod echo_request;
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
 
-use crate::packets::ip::IpPacket;
-use crate::packets::ip::ProtocolNumbers;
+use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::{IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
 use std::fmt;
@@ -47,20 +47,20 @@ use std::ptr::NonNull;
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 
 #[derive(Clone)]
-pub struct Icmpv4<E: IpPacket, P: Icmpv4Payload> {
-    envelope: CondRc<E>,
+pub struct Icmpv4<P: Icmpv4Payload> {
+    envelope: CondRc<Ipv4>,
     header: NonNull<Icmpv4Header>,
     payload: NonNull<P>,
     offset: usize,
 }
 
-impl<E: IpPacket> Icmpv4<E, ()> {
-    pub fn downcast<P: Icmpv4Payload>(self) -> Result<Icmpv4<E, P>> {
-        Icmpv4::<E, P>::do_parse(self.envelope.into_owned())
+impl Icmpv4<()> {
+    pub fn downcast<P: Icmpv4Payload>(self) -> Result<Icmpv4<P>> {
+        Icmpv4::<P>::do_parse(self.envelope.into_owned())
     }
 }
 
-impl<E: IpPacket> fmt::Debug for Icmpv4<E, ()> {
+impl fmt::Debug for Icmpv4<()> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv4")
             .field("type", &format!("{}", self.msg_type()))
@@ -73,7 +73,7 @@ impl<E: IpPacket> fmt::Debug for Icmpv4<E, ()> {
     }
 }
 
-impl<E: IpPacket, P: Icmpv4Payload> Icmpv4Packet<E, P> for Icmpv4<E, P> {
+impl<P: Icmpv4Payload> Icmpv4Packet<P> for Icmpv4<P> {
     fn payload(&self) -> &P {
         unsafe { self.payload.as_ref() }
     }
@@ -83,9 +83,9 @@ impl<E: IpPacket, P: Icmpv4Payload> Icmpv4Packet<E, P> for Icmpv4<E, P> {
     }
 }
 
-impl<E: IpPacket, P: Icmpv4Payload> Packet for Icmpv4<E, P> {
+impl<P: Icmpv4Payload> Packet for Icmpv4<P> {
     type Header = Icmpv4Header;
-    type Envelope = E;
+    type Envelope = Ipv4;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -206,7 +206,7 @@ impl fmt::Display for Icmpv4Type {
 }
 
 /// Icmpv4 packet header.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv4Header {
     msg_type: u8,
@@ -240,9 +240,7 @@ impl Icmpv4Payload for () {
 }
 
 /// Common behaviors shared by ICMPv4 packets.
-pub trait Icmpv4Packet<E: IpPacket, P: Icmpv4Payload>:
-    Packet<Header = Icmpv4Header, Envelope = E>
-{
+pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope = Ipv4> {
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
 
@@ -289,26 +287,22 @@ pub trait Icmpv4Packet<E: IpPacket, P: Icmpv4Payload>:
 }
 
 /// An ICMPv4 message with parsed payload.
-pub enum Icmpv4Message<E: IpPacket> {
-    EchoRequest(Icmpv4<E, EchoRequest>),
-    EchoReply(Icmpv4<E, EchoReply>),
+pub enum Icmpv4Message {
+    EchoRequest(Icmpv4<EchoRequest>),
+    EchoReply(Icmpv4<EchoReply>),
     /// an ICMPv4 message with undefined payload
-    Undefined(Icmpv4<E, ()>),
+    Undefined(Icmpv4<()>),
 }
 
 /// ICMPv4 helper functions for IPv6 packets.
 pub trait Icmpv4Parse {
-    type Envelope: IpPacket;
-
-    fn parse_icmpv4(self) -> Result<Icmpv4Message<Self::Envelope>>;
+    fn parse_icmpv4(self) -> Result<Icmpv4Message>;
 }
 
-impl<T: IpPacket> Icmpv4Parse for T {
-    type Envelope = T;
-
-    fn parse_icmpv4(self) -> Result<Icmpv4Message<Self::Envelope>> {
+impl Icmpv4Parse for Ipv4 {
+    fn parse_icmpv4(self) -> Result<Icmpv4Message> {
         if self.next_proto() == ProtocolNumbers::Icmpv4 {
-            let icmpv4 = self.parse::<Icmpv4<Self::Envelope, ()>>()?;
+            let icmpv4 = self.parse::<Icmpv4<()>>()?;
             match icmpv4.msg_type() {
                 Icmpv4Types::EchoRequest => {
                     let packet = icmpv4.downcast::<EchoRequest>()?;
@@ -368,7 +362,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let icmpv4 = ipv4.parse::<Icmpv4<Ipv4, ()>>().unwrap();
+        let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
 
         assert_eq!(Icmpv4Type::new(0x8), icmpv4.msg_type());
         assert_eq!(0, icmpv4.code());
@@ -381,7 +375,7 @@ mod tests {
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
-        assert!(ipv4.parse::<Icmpv4<Ipv4, ()>>().is_err());
+        assert!(ipv4.parse::<Icmpv4<()>>().is_err());
     }
 
     #[nb2::test]
@@ -389,7 +383,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let icmpv4 = ipv4.parse::<Icmpv4<Ipv4, ()>>().unwrap();
+        let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
         let request = icmpv4.downcast::<EchoRequest>().unwrap();
 
         // check one accessor that belongs to `EchoRequest`
@@ -401,7 +395,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut icmpv4 = ipv4.parse::<Icmpv4<Ipv4, ()>>().unwrap();
+        let mut icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
 
         let expected = icmpv4.checksum();
         // no payload change but force a checksum recompute anyway

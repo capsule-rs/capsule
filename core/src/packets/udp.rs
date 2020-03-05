@@ -280,7 +280,7 @@ impl<E: IpPacket> Packet for Udp<E> {
 }
 
 /// UDP header.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
 pub struct UdpHeader {
     src_port: u16,

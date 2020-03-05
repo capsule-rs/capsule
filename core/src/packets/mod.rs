@@ -77,12 +77,6 @@ pub trait Packet: Clone {
         self.mbuf().data_len() - self.offset()
     }
 
-    /// Returns if the length of the packet is empty or not.
-    // #[inline]
-    // fn is_empty(&self) -> bool {
-    //     self.len() == 0
-    // }
-
     /// Returns the buffer offset where the packet payload begins.
     #[inline]
     fn payload_offset(&self) -> usize {
