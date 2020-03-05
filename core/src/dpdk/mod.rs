@@ -158,21 +158,14 @@ pub fn eal_init(args: Vec<String>) -> Result<()> {
     debug!(arguments=?args);
 
     let len = args.len() as raw::c_int;
-    let mut args = args
-        .into_iter()
-        .map(|s| s.to_cstring().into_raw())
+    let args = args.into_iter().map(|s| s.to_cstring()).collect::<Vec<_>>();
+    let mut ptrs = args
+        .iter()
+        .map(|s| s.as_ptr() as *mut raw::c_char)
         .collect::<Vec<_>>();
 
-    let res = unsafe { ffi::rte_eal_init(len, args.as_mut_ptr()) };
+    let res = unsafe { ffi::rte_eal_init(len, ptrs.as_mut_ptr()) };
     debug!("EAL parsed {} arguments.", res);
-
-    // EAL does not take ownership of the raw pointers. we should reclaim them
-    // to free properly. but if we do, they are actually double-freed somehow
-    // and cause heap corruption. don't quite understand this.
-
-    // args.into_iter().for_each(|p| unsafe {
-    //     let _ = CString::from_raw(p);
-    // });
 
     res.to_result().map(|_| ())
 }
