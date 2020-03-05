@@ -180,11 +180,11 @@ impl KniTx {
                     let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
 
                     // ownership given to `rte_kni_tx_burst`, don't free them.
-                    mem::forget(drained);
+                    Mbuf::forget_bulk(drained);
                 } else {
                     // everything sent and ownership given to `rte_kni_tx_burst`, don't
                     // free them.
-                    mem::forget(packets);
+                    Mbuf::forget_bulk(packets);
                     break;
                 }
             } else {
