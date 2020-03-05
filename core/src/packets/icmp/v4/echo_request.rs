@@ -1,6 +1,11 @@
-use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
-use crate::packets::Packet;
-use crate::{Result, SizeOf};
+use crate::packets::icmp::v4::{
+    Icmpv4, Icmpv4Header, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types,
+};
+use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::{IpPacket, ProtocolNumbers};
+use crate::packets::{CondRc, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
+use nb2_macros::Icmpv4Packet;
 use std::fmt;
 
 /// Echo Request Message defined in [IETF RFC 792].
@@ -27,7 +32,7 @@ use std::fmt;
 /// Data            Zero or more octets of arbitrary data.
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv4Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoRequest {
     identifier: u16,
@@ -98,6 +103,15 @@ impl Icmpv4<EchoRequest> {
         self.mbuf_mut().resize(offset, len)?;
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
+    }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv4Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
     }
 }
 

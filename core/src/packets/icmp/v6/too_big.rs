@@ -1,7 +1,11 @@
-use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use crate::packets::icmp::v6::{
+    Icmpv6, Icmpv6Header, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types,
+};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::Packet;
-use crate::SizeOf;
+use crate::packets::ip::ProtocolNumbers;
+use crate::packets::{CondRc, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
+use nb2_macros::Icmpv6Packet;
 use std::fmt;
 
 /// Packet Too Big Message defined in [IETF RFC 4443].
@@ -22,7 +26,7 @@ use std::fmt;
 /// MTU            The Maximum Transmission Unit of the next-hop link.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.2
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct PacketTooBig {
     mtu: u32,
@@ -46,6 +50,18 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
     pub fn set_mtu(&mut self, mtu: u32) {
         self.payload_mut().mtu = u32::to_be(mtu);
     }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        let mtu = self.mtu() as usize;
+        // ignores the error if there's nothing to truncate.
+        let _ = self.envelope_mut().truncate(mtu);
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, PacketTooBig> {
@@ -59,17 +75,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, PacketTooBig> {
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())
             .finish()
-    }
-}
-
-impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
-    #[inline]
-    fn cascade(&mut self) {
-        let mtu = self.mtu() as usize;
-        // ignores the error if there's nothing to truncate.
-        let _ = self.envelope_mut().truncate(mtu);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

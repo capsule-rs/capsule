@@ -1,6 +1,6 @@
 #![recursion_limit = "128"]
 
-extern crate proc_macro;
+mod derive_packet;
 
 use darling::FromMeta;
 use proc_macro::TokenStream;
@@ -25,7 +25,21 @@ pub fn derive_size_of(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-// Handle arguments and defaults to test/bench macros.
+// Custom-derive macro implementation for `Icmpv4Packet`
+#[proc_macro_derive(Icmpv4Packet)]
+pub fn derive_icmpv6_packet(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    derive_packet::gen_icmpv4(input)
+}
+
+// Custom-derive macro implementation for `Icmpv6Packet`
+#[proc_macro_derive(Icmpv6Packet)]
+pub fn derive_icmpv4_packet(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    derive_packet::gen_icmpv6(input)
+}
+
+// Arguments and defaults to our test/bench macros
 #[derive(Debug, FromMeta)]
 #[darling(default)]
 struct AttrArgs {

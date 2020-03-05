@@ -1,7 +1,11 @@
-use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use crate::packets::icmp::v6::{
+    Icmpv6, Icmpv6Header, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types,
+};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::Packet;
-use crate::{Result, SizeOf};
+use crate::packets::ip::ProtocolNumbers;
+use crate::packets::{CondRc, Packet, ParseError};
+use crate::{ensure, Result, SizeOf};
+use nb2_macros::Icmpv6Packet;
 use std::fmt;
 
 /// Echo Reply Message defined in [IETF RFC 4443].
@@ -27,7 +31,7 @@ use std::fmt;
 /// Data            The data from the invoking Echo Request message.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.2
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, SizeOf, Icmpv6Packet)]
 #[repr(C, packed)]
 pub struct EchoReply {
     identifier: u16,
@@ -98,6 +102,15 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoReply> {
         self.mbuf_mut().resize(offset, len)?;
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
+    }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
     }
 }
 
