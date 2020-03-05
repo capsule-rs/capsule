@@ -1,5 +1,3 @@
-#![feature(specialization)]
-
 // alias for the test macro
 #[cfg(test)]
 extern crate self as nb2;

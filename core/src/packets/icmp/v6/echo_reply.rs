@@ -99,6 +99,15 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoReply> {
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
     }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, EchoReply> {

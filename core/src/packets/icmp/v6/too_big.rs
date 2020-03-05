@@ -46,6 +46,18 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
     pub fn set_mtu(&mut self, mtu: u32) {
         self.payload_mut().mtu = u32::to_be(mtu);
     }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        let mtu = self.mtu() as usize;
+        // ignores the error if there's nothing to truncate.
+        let _ = self.envelope_mut().truncate(mtu);
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, PacketTooBig> {
@@ -59,17 +71,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, PacketTooBig> {
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())
             .finish()
-    }
-}
-
-impl<E: Ipv6Packet> Packet for Icmpv6<E, PacketTooBig> {
-    #[inline]
-    fn cascade(&mut self) {
-        let mtu = self.mtu() as usize;
-        // ignores the error if there's nothing to truncate.
-        let _ = self.envelope_mut().truncate(mtu);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

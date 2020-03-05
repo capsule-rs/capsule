@@ -32,7 +32,20 @@ impl Icmpv6Payload for TimeExceeded {
     }
 }
 
-impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {}
+impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        // keeps as much of the invoking packet without exceeding the
+        // minimum MTU, and ignores the error if there's nothing to
+        // truncate.
+        let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
+}
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, TimeExceeded> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -44,18 +57,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, TimeExceeded> {
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())
             .finish()
-    }
-}
-
-impl<E: Ipv6Packet> Packet for Icmpv6<E, TimeExceeded> {
-    #[inline]
-    fn cascade(&mut self) {
-        // keeps as much of the invoking packet without exceeding the
-        // minimum MTU, and ignores the error if there's nothing to
-        // truncate.
-        let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

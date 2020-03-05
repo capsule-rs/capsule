@@ -99,6 +99,15 @@ impl Icmpv4<EchoRequest> {
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
     }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv4Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl fmt::Debug for Icmpv4<EchoRequest> {

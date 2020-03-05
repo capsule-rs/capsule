@@ -1,6 +1,7 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::Packet;
 use crate::SizeOf;
 use std::fmt;
 
@@ -196,6 +197,15 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     #[inline]
     pub fn set_retrans_timer(&mut self, retrans_timer: u32) {
         self.payload_mut().retrans_timer = u32::to_be(retrans_timer);
+    }
+
+    /// See: Packet trait `cascade`
+    ///
+    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
+    #[inline]
+    pub fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
     }
 }
 
