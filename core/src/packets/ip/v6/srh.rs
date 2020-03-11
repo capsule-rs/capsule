@@ -598,7 +598,7 @@ mod tests {
     }
 
     #[nb2::test]
-    fn check_checksum() {
+    fn compute_checksum() {
         let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
