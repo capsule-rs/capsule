@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::checksum::PseudoHeader;
+use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
 use crate::{ensure, Result, SizeOf};
@@ -311,10 +311,23 @@ impl Ipv4 {
     }
 
     /// Sets the checksum.
-    #[allow(dead_code)]
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
         self.header_mut().checksum = u16::to_be(checksum);
+    }
+
+    #[inline]
+    fn compute_checksum(&mut self) {
+        self.set_checksum(0);
+
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.header_len()) {
+            let data = unsafe { data.as_ref() };
+            let checksum = checksum::compute(0, data);
+            self.set_checksum(checksum);
+        } else {
+            // we are reading the entire header, should never run out
+            unreachable!()
+        }
     }
 
     /// Returns the source address.
@@ -443,9 +456,8 @@ impl Packet for Ipv4 {
 
     #[inline]
     fn cascade(&mut self) {
-        // TODO: fix header checksum
-        let len = self.len() as u16;
-        self.set_total_length(len);
+        self.set_total_length(self.len() as u16);
+        self.compute_checksum();
         self.envelope_mut().cascade();
     }
 
@@ -657,5 +669,17 @@ mod tests {
         assert!(ipv4.len() > 1000);
         let _ = ipv4.truncate(1000);
         assert_eq!(1000, ipv4.len());
+    }
+
+    #[capsule::test]
+    fn compute_checksum() {
+        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let mut ipv4 = ethernet.parse::<Ipv4>().unwrap();
+
+        let expected = ipv4.checksum();
+        // no payload change but force a checksum recompute anyway
+        ipv4.cascade();
+        assert_eq!(expected, ipv4.checksum());
     }
 }
