@@ -118,7 +118,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 Ok(self.envelope.into_owned())
             }
 
-            //
+            // Expected to be implemented within struct impl.
             #[inline]
             fn cascade(&mut self) {
                 self.cascade()
@@ -244,7 +244,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 Ok(self.envelope.into_owned())
             }
 
-            //
+            // Expected to be implemented within struct impl.
             #[inline]
             fn cascade(&mut self) {
                 self.cascade()
@@ -260,6 +260,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
     expanded.into()
 }
 
+#[allow(clippy::needless_lifetimes)]
 fn extract_assocs<'a>(fields: &'a syn::Fields) -> Assocs<'a> {
     fields.iter().fold(Assocs::default(), |mut acc, field| {
         if is_header(field) {
@@ -282,7 +283,7 @@ fn is_envelope(field: &syn::Field) -> bool {
     field.ident.is_some() && field.ident.as_ref().unwrap() == "envelope"
 }
 
-fn extract<'a>(ty: &syn::Type) -> Option<&syn::Type> {
+fn extract(ty: &syn::Type) -> Option<&syn::Type> {
     if let syn::Type::Path(syn::TypePath {
         path: syn::Path { segments: segs, .. },
         ..
