@@ -24,7 +24,7 @@ use capsule::{Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Result<Icmpv4<Ipv4, EchoReply>> {
+fn reply_echo(packet: &Mbuf) -> Result<Icmpv4<EchoReply>> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -38,8 +38,8 @@ fn reply_echo(packet: &Mbuf) -> Result<Icmpv4<Ipv4, EchoReply>> {
     reply.set_dst(ipv4.src());
     reply.set_ttl(255);
 
-    let request = ipv4.peek::<Icmpv4<Ipv4, EchoRequest>>()?;
-    let mut reply = reply.push::<Icmpv4<Ipv4, EchoReply>>()?;
+    let request = ipv4.peek::<Icmpv4<EchoRequest>>()?;
+    let mut reply = reply.push::<Icmpv4<EchoReply>>()?;
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;

@@ -19,6 +19,7 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::SizeOf;
 use std::fmt;
 
 /// Router Solicitation Message defined in [IETF RFC 4861].
@@ -67,7 +68,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
 }
 
 /// The ICMPv6 payload for router solicitation message.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
     reserved: u32,

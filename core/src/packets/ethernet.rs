@@ -353,7 +353,7 @@ impl fmt::Display for EtherType {
 }
 
 /// VLAN tag.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct VlanTag {
     tpid: u16,

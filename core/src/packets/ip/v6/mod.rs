@@ -394,7 +394,7 @@ pub trait Ipv6Packet: IpPacket {
 }
 
 /// IPv6 header.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 pub struct Ipv6Header {
     version_to_flow_label: u32,

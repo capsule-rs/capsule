@@ -45,7 +45,7 @@ use std::fmt;
 /// Data            The data from the invoking Echo Request message.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.2
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoReply {
     identifier: u16,

@@ -127,7 +127,7 @@ impl NdpOption for Mtu {
 }
 
 /// MTU option fields.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 struct MtuFields {
     option_type: u8,

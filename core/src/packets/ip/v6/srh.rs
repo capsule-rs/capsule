@@ -91,7 +91,7 @@ use std::ptr::NonNull;
 /// segment of the SR Policy and so on.
 ///
 /// Type Length Value (TLV) are described in Section 2.1.
-///   
+///
 /// [IETF Draft]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
 /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-4.4
 #[derive(Clone)]
@@ -447,7 +447,7 @@ pub struct BadSegmentsError;
 ///
 /// The segment routing header contains only the fixed portion of the
 /// header. `segment_list` and `tlv` are parsed separately.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct SegmentRoutingHeader {
     next_header: u8,

@@ -23,9 +23,27 @@ extern crate proc_macro;
 use darling::FromMeta;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, AttributeArgs, ItemFn};
+use syn::{self, parse_macro_input};
 
-// Handle arguments to our macros or default otherwise
+// Custom derive macro for SizeOf trait.
+#[proc_macro_derive(SizeOf)]
+pub fn derive_size_of(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    let name = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    let expanded = quote! {
+        impl #impl_generics SizeOf for #name #ty_generics #where_clause {
+            fn size_of() -> usize {
+                std::mem::size_of::<Self>()
+            }
+        }
+    };
+
+    expanded.into()
+}
+
+// Handle arguments and defaults to test/bench macros.
 #[derive(Debug, FromMeta)]
 #[darling(default)]
 struct AttrArgs {
@@ -63,14 +81,14 @@ impl Default for AttrArgs {
 /// ```
 #[proc_macro_attribute]
 pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemFn);
+    let input = parse_macro_input!(input as syn::ItemFn);
 
     let ret = &input.sig.output;
     let name = &input.sig.ident;
     let inputs = &input.sig.inputs;
     let body = &input.block;
 
-    let attr_args = parse_macro_input!(args as AttributeArgs);
+    let attr_args = parse_macro_input!(args as syn::AttributeArgs);
 
     let AttrArgs {
         mempool_capacity,
@@ -113,14 +131,14 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn bench(args: TokenStream, input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemFn);
+    let input = parse_macro_input!(input as syn::ItemFn);
 
     let ret = &input.sig.output;
     let name = &input.sig.ident;
     let inputs = &input.sig.inputs;
     let body = &input.block;
 
-    let attr_args = parse_macro_input!(args as AttributeArgs);
+    let attr_args = parse_macro_input!(args as syn::AttributeArgs);
 
     let AttrArgs {
         mempool_capacity,

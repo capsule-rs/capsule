@@ -273,7 +273,7 @@ impl NdpOption for PrefixInformation {
 }
 
 /// Prefix option fields.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 struct PrefixInformationFields {
     option_type: u8,

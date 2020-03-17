@@ -569,7 +569,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
 ///
 /// The header only include the fixed portion of the TCP header. Variable
 /// sized options are parsed separately.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct TcpHeader {
     src_port: u16,

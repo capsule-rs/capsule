@@ -273,7 +273,7 @@ impl<E: Ipv6Packet> Ipv6Packet for Fragment<E> {
 }
 
 /// IPv6 fragment extension header.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct FragmentHeader {
     next_header: u8,

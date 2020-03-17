@@ -537,7 +537,7 @@ impl IpPacket for Ipv4 {
 ///
 /// The header only include the fixed portion of the IPv4 header.
 /// Options are parsed separately.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct Ipv4Header {
     version_ihl: u8,

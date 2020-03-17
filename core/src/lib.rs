@@ -40,6 +40,7 @@ pub mod testils;
 pub use self::batch::{Batch, Pipeline, Poll};
 pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
+pub use capsule_macros::SizeOf;
 #[cfg(any(test, feature = "testils"))]
 pub use capsule_macros::{bench, test};
 

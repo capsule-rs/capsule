@@ -17,7 +17,6 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
-use crate::packets::ip::IpPacket;
 use crate::packets::Packet;
 use crate::{Result, SizeOf};
 use std::fmt;
@@ -45,7 +44,7 @@ use std::fmt;
 /// Data            The data from the invoking Echo Request message.
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoReply {
     identifier: u16,
@@ -58,7 +57,7 @@ impl Icmpv4Payload for EchoReply {
     }
 }
 
-impl<E: IpPacket> Icmpv4<E, EchoReply> {
+impl Icmpv4<EchoReply> {
     /// Returns the identifier.
     #[inline]
     pub fn identifier(&self) -> u16 {
@@ -119,7 +118,7 @@ impl<E: IpPacket> Icmpv4<E, EchoReply> {
     }
 }
 
-impl<E: IpPacket> fmt::Debug for Icmpv4<E, EchoReply> {
+impl fmt::Debug for Icmpv4<EchoReply> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv4")
             .field("type", &format!("{}", self.msg_type()))

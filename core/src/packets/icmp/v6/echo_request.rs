@@ -46,7 +46,7 @@ use std::fmt;
 /// Data            Zero or more octets of arbitrary data.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.1
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoRequest {
     identifier: u16,
