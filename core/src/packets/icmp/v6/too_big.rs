@@ -1,6 +1,7 @@
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
+use crate::SizeOf;
 use std::fmt;
 
 /// Packet Too Big Message defined in [IETF RFC 4443].
@@ -21,7 +22,7 @@ use std::fmt;
 /// MTU            The Maximum Transmission Unit of the next-hop link.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.2
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct PacketTooBig {
     mtu: u32,

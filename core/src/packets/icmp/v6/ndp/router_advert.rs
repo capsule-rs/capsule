@@ -1,6 +1,7 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::SizeOf;
 use std::fmt;
 
 const M_FLAG: u8 = 0b1000_0000;
@@ -215,7 +216,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
 }
 
 /// The ICMPv6 payload for router advertisement message.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterAdvertisement {
     current_hop_limit: u8,

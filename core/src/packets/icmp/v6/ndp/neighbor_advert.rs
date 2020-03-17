@@ -1,6 +1,7 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::SizeOf;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -158,7 +159,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborAdvertisement> {
 }
 
 /// The ICMPv6 payload for neighbor advertisement message.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 pub struct NeighborAdvertisement {
     flags: u8,
