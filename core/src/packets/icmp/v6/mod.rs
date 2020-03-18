@@ -260,7 +260,7 @@ impl Icmpv6Payload for () {
     }
 }
 
-/// A trait for Common behaviors shared by ICMPv6 packets.
+/// A trait for common behaviors shared by ICMPv6 packets.
 ///
 /// For convenience, use the `Icmpv6Packet` derive macro on Icmpv6 Payloads,
 /// which also derives the implementation for the `Packet` trait.
@@ -272,6 +272,10 @@ impl Icmpv6Payload for () {
 ///     ...
 /// }
 /// ```
+///
+/// # Remarks
+/// When using the associated derive macro, the payload struct implementation
+/// must provide an private implementation of the `cascade` function.
 pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     Packet<Header = Icmpv6Header, Envelope = E>
 {

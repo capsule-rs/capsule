@@ -233,7 +233,7 @@ impl Icmpv4Payload for () {
     }
 }
 
-/// A trait for Common behaviors shared by ICMPv4 packets.
+/// A trait for common behaviors shared by ICMPv4 packets.
 ///
 /// For convenience, use the `Icmpv4Packet` derive macro on Icmpv4 Payloads,
 /// which also derives the implementation for the `Packet` trait.
@@ -245,6 +245,10 @@ impl Icmpv4Payload for () {
 ///     ...
 /// }
 /// ```
+///
+/// # Remarks
+/// When using the associated derive macro, the payload struct implementation
+/// must provide an private implementation of the `cascade` function.
 pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope = Ipv4> {
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
