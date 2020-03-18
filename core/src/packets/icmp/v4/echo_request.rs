@@ -1,10 +1,6 @@
-use crate::packets::icmp::v4::{
-    Icmpv4, Icmpv4Header, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types,
-};
-use crate::packets::ip::v4::Ipv4;
-use crate::packets::ip::{IpPacket, ProtocolNumbers};
-use crate::packets::{CondRc, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
+use crate::packets::Packet;
+use crate::{Result, SizeOf};
 use nb2_macros::Icmpv4Packet;
 use std::fmt;
 
@@ -105,11 +101,8 @@ impl Icmpv4<EchoRequest> {
         Ok(())
     }
 
-    /// See: Packet trait `cascade`
-    ///
-    /// Implemented here as is required by `Icmpv4Packet` derive-macro.
     #[inline]
-    pub fn cascade(&mut self) {
+    fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
     }

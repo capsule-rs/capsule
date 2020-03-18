@@ -16,9 +16,9 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             }
         }
 
-        impl<E: Ipv6Packet> crate::packets::Packet for Icmpv6<E, #name> {
+        impl<E: Ipv6Packet> crate::packets::Packet for crate::packets::icmp::v6::Icmpv6<E, #name> {
             type Envelope = E;
-            type Header = Icmpv6Header;
+            type Header = crate::packets::icmp::v6::Icmpv6Header;
 
             #[inline]
             fn envelope(&self) -> &Self::Envelope {
@@ -50,6 +50,10 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             #[doc(hidden)]
             #[inline]
             fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+                use crate::ensure;
+                use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::{CondRc, ParseError};
+
                 ensure!(
                     envelope.next_proto() == ProtocolNumbers::Icmpv6,
                     ParseError::new("not an ICMPv6 packet.")
@@ -71,6 +75,9 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             #[doc(hidden)]
             #[inline]
             fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+                use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::CondRc;
+
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
 
@@ -101,7 +108,6 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 Ok(self.envelope.into_owned())
             }
 
-            // Expected to be implemented within struct impl.
             #[inline]
             fn cascade(&mut self) {
                 self.cascade()
@@ -121,8 +127,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
     let name = input.ident;
 
     let expanded = quote! {
-        impl crate::packets::icmp::v4::Icmpv4Packet<#name> for Icmpv4<#name> {
-
+        impl crate::packets::icmp::v4::Icmpv4Packet<#name> for crate::packets::icmp::v4::Icmpv4<#name> {
             fn payload(&self) -> &#name {
                 unsafe { self.payload.as_ref() }
             }
@@ -133,8 +138,8 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
         }
 
         impl crate::packets::Packet for Icmpv4<#name> {
-            type Header = Icmpv4Header;
-            type Envelope = Ipv4;
+            type Header = crate::packets::icmp::v4::Icmpv4Header;
+            type Envelope = crate::packets::ip::v4::Ipv4;
 
             #[inline]
             fn envelope(&self) -> &Self::Envelope {
@@ -166,6 +171,10 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             #[doc(hidden)]
             #[inline]
             fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+                use crate::ensure;
+                use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::{CondRc, ParseError};
+
                 ensure!(
                     envelope.next_proto() == ProtocolNumbers::Icmpv4,
                     ParseError::new("not an ICMPv4 packet.")
@@ -187,6 +196,9 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             #[doc(hidden)]
             #[inline]
             fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+                use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::CondRc;
+
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
 

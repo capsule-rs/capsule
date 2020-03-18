@@ -1,11 +1,8 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
-use crate::packets::icmp::v6::{
-    Icmpv6, Icmpv6Header, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types,
-};
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{CondRc, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::packets::Packet;
+use crate::{Result, SizeOf};
 use nb2_macros::Icmpv6Packet;
 use std::fmt;
 
@@ -42,11 +39,8 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
         u32::from_be(self.payload().reserved)
     }
 
-    /// See: Packet trait `cascade`
-    ///
-    /// Implemented here as is required by `Icmpv6Packet` derive-macro.
     #[inline]
-    pub fn cascade(&mut self) {
+    fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
     }
