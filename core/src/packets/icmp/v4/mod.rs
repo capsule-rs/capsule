@@ -54,12 +54,6 @@ pub struct Icmpv4<P: Icmpv4Payload> {
     offset: usize,
 }
 
-impl Icmpv4<()> {
-    pub fn downcast<P: Icmpv4Payload>(self) -> Result<Icmpv4<P>> {
-        Icmpv4::<P>::do_parse(self.envelope.into_owned())
-    }
-}
-
 impl fmt::Debug for Icmpv4<()> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv4")
@@ -73,17 +67,17 @@ impl fmt::Debug for Icmpv4<()> {
     }
 }
 
-impl<P: Icmpv4Payload> Icmpv4Packet<P> for Icmpv4<P> {
-    fn payload(&self) -> &P {
+impl Icmpv4Packet<()> for Icmpv4<()> {
+    fn payload(&self) -> &() {
         unsafe { self.payload.as_ref() }
     }
 
-    fn payload_mut(&mut self) -> &mut P {
+    fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
     }
 }
 
-impl<P: Icmpv4Payload> Packet for Icmpv4<P> {
+impl Packet for Icmpv4<()> {
     type Header = Icmpv4Header;
     type Envelope = Ipv4;
 
@@ -141,9 +135,9 @@ impl<P: Icmpv4Payload> Packet for Icmpv4<P> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of() + P::size_of())?;
+        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &P::default())?;
+        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
 
         let mut packet = Icmpv4 {
             envelope: CondRc::new(envelope),
@@ -152,7 +146,7 @@ impl<P: Icmpv4Payload> Packet for Icmpv4<P> {
             offset,
         };
 
-        packet.header_mut().msg_type = P::msg_type().0;
+        packet.header_mut().msg_type = <()>::msg_type().0;
         packet
             .envelope_mut()
             .set_next_proto(ProtocolNumbers::Icmpv4);
@@ -169,7 +163,7 @@ impl<P: Icmpv4Payload> Packet for Icmpv4<P> {
     }
 
     #[inline]
-    default fn cascade(&mut self) {
+    fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
     }
@@ -239,7 +233,22 @@ impl Icmpv4Payload for () {
     }
 }
 
-/// Common behaviors shared by ICMPv4 packets.
+/// A trait for common behaviors shared by ICMPv4 packets.
+///
+/// For convenience, use the `Icmpv4Packet` derive macro on Icmpv4 Payloads,
+/// which also derives the implementation for the `Packet` trait.
+///
+/// # Example
+/// ```
+/// #[derive(Icmpv4Packet)]
+/// pub struct EchoReply {
+///     ...
+/// }
+/// ```
+///
+/// # Remarks
+/// When using the associated derive macro, the payload struct implementation
+/// must provide an private implementation of the `cascade` function.
 pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope = Ipv4> {
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
@@ -305,11 +314,11 @@ impl Icmpv4Parse for Ipv4 {
             let icmpv4 = self.parse::<Icmpv4<()>>()?;
             match icmpv4.msg_type() {
                 Icmpv4Types::EchoRequest => {
-                    let packet = icmpv4.downcast::<EchoRequest>()?;
+                    let packet = icmpv4.deparse().parse::<Icmpv4<EchoRequest>>()?;
                     Ok(Icmpv4Message::EchoRequest(packet))
                 }
                 Icmpv4Types::EchoReply => {
-                    let packet = icmpv4.downcast::<EchoReply>()?;
+                    let packet = icmpv4.deparse().parse::<Icmpv4<EchoReply>>()?;
                     Ok(Icmpv4Message::EchoReply(packet))
                 }
                 _ => Ok(Icmpv4Message::Undefined(icmpv4)),
@@ -346,7 +355,6 @@ pub const ICMPV4_PACKET: [u8; 74] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::icmp::v4::EchoRequest;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::UDP_PACKET;
@@ -376,18 +384,6 @@ mod tests {
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
         assert!(ipv4.parse::<Icmpv4<()>>().is_err());
-    }
-
-    #[nb2::test]
-    fn downcast_icmpv4() {
-        let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
-        let request = icmpv4.downcast::<EchoRequest>().unwrap();
-
-        // check one accessor that belongs to `EchoRequest`
-        assert_eq!(8448, request.seq_no());
     }
 
     #[nb2::test]

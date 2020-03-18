@@ -1,7 +1,9 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::SizeOf;
+use crate::packets::Packet;
+use crate::{Result, SizeOf};
+use nb2_macros::Icmpv6Packet;
 use std::fmt;
 
 /// Router Solicitation Message defined in [IETF RFC 4861].
@@ -36,6 +38,12 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     pub fn reserved(&self) -> u32 {
         u32::from_be(self.payload().reserved)
     }
+
+    #[inline]
+    fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
@@ -50,7 +58,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
 }
 
 /// The ICMPv6 payload for router solicitation message.
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
     reserved: u32,

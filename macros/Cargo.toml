@@ -17,5 +17,5 @@ doctest = false
 
 [dependencies]
 darling ="0.10"
-quote = "1"
+quote = "1.0"
 syn = { version = "1.0", features = ["full"] }

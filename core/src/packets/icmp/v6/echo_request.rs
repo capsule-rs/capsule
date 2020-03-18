@@ -2,6 +2,7 @@ use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, 
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
 use crate::{Result, SizeOf};
+use nb2_macros::Icmpv6Packet;
 use std::fmt;
 
 /// Echo Request Message defined in [IETF RFC 4443].
@@ -28,7 +29,7 @@ use std::fmt;
 /// Data            Zero or more octets of arbitrary data.
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.1
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoRequest {
     identifier: u16,
@@ -99,6 +100,12 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoRequest> {
         self.mbuf_mut().resize(offset, len)?;
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
+    }
+
+    #[inline]
+    fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
     }
 }
 

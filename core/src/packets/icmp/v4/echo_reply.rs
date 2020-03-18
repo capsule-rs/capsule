@@ -1,6 +1,7 @@
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
 use crate::packets::Packet;
 use crate::{Result, SizeOf};
+use nb2_macros::Icmpv4Packet;
 use std::fmt;
 
 /// Echo Reply Message defined in [IETF RFC 792].
@@ -26,7 +27,7 @@ use std::fmt;
 /// Data            The data from the invoking Echo Request message.
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv4Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoReply {
     identifier: u16,
@@ -97,6 +98,12 @@ impl Icmpv4<EchoReply> {
         self.mbuf_mut().resize(offset, len)?;
         self.mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
+    }
+
+    #[inline]
+    fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
     }
 }
 
