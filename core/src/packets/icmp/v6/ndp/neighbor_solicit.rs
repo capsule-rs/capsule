@@ -19,7 +19,8 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::SizeOf;
+use crate::packets::Packet;
+use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -74,6 +75,12 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborSolicitation> {
     pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
         self.payload_mut().target_addr = target_addr
     }
+
+    #[inline]
+    fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborSolicitation> {
@@ -89,7 +96,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborSolicitation> {
 }
 
 /// The ICMPv6 payload for neighbor solicitation message.
-#[derive(Clone, Copy, Debug, SizeOf)]
+#[derive(Clone, Copy, Debug, Icmpv6Packet, SizeOf)]
 #[repr(C)]
 pub struct NeighborSolicitation {
     reserved: u32,

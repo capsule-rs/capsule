@@ -19,7 +19,8 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::SizeOf;
+use crate::packets::Packet;
+use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 
 const M_FLAG: u8 = 0b1000_0000;
@@ -215,6 +216,12 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     pub fn set_retrans_timer(&mut self, retrans_timer: u32) {
         self.payload_mut().retrans_timer = u32::to_be(retrans_timer);
     }
+
+    #[inline]
+    fn cascade(&mut self) {
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
@@ -234,7 +241,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
 }
 
 /// The ICMPv6 payload for router advertisement message.
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterAdvertisement {
     current_hop_limit: u8,

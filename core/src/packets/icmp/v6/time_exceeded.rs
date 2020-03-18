@@ -19,7 +19,7 @@
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
 use crate::packets::Packet;
-use crate::SizeOf;
+use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 
 /// Time Exceeded Message defined in [IETF RFC 4443].
@@ -38,7 +38,7 @@ use std::fmt;
 /// ```
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.3
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct TimeExceeded {
     _unused: u32,
@@ -50,7 +50,17 @@ impl Icmpv6Payload for TimeExceeded {
     }
 }
 
-impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {}
+impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {
+    #[inline]
+    fn cascade(&mut self) {
+        // keeps as much of the invoking packet without exceeding the
+        // minimum MTU, and ignores the error if there's nothing to
+        // truncate.
+        let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
+        self.compute_checksum();
+        self.envelope_mut().cascade();
+    }
+}
 
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, TimeExceeded> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -62,18 +72,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, TimeExceeded> {
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())
             .finish()
-    }
-}
-
-impl<E: Ipv6Packet> Packet for Icmpv6<E, TimeExceeded> {
-    #[inline]
-    fn cascade(&mut self) {
-        // keeps as much of the invoking packet without exceeding the
-        // minimum MTU, and ignores the error if there's nothing to
-        // truncate.
-        let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

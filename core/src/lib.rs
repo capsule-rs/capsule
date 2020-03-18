@@ -16,8 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#![feature(specialization)]
-
 // alias for the test macro
 #[cfg(test)]
 extern crate self as capsule;
@@ -40,9 +38,9 @@ pub mod testils;
 pub use self::batch::{Batch, Pipeline, Poll};
 pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
-pub use capsule_macros::SizeOf;
 #[cfg(any(test, feature = "testils"))]
 pub use capsule_macros::{bench, test};
+pub use capsule_macros::{Icmpv4Packet, Icmpv6Packet, SizeOf};
 
 /// A type alias of `std:result::Result` for convenience.
 pub type Result<T> = std::result::Result<T, failure::Error>;

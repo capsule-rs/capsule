@@ -79,22 +79,6 @@ pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     offset: usize,
 }
 
-impl<E: Ipv6Packet> Icmpv6<E, ()> {
-    /// Downcasts from unit payload to a typed payload.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
-    /// if icmpv6.msg_type() == Icmpv6Types::RouterAdvertisement {
-    ///     let advert = icmpv6.downcast::<RouterAdvertisement>().unwrap();
-    /// }
-    /// ```
-    pub fn downcast<P: Icmpv6Payload>(self) -> Result<Icmpv6<E, P>> {
-        Icmpv6::<E, P>::do_parse(self.envelope.into_owned())
-    }
-}
-
 impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv6")
@@ -108,17 +92,17 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
     }
 }
 
-impl<E: Ipv6Packet, P: Icmpv6Payload> Icmpv6Packet<E, P> for Icmpv6<E, P> {
-    fn payload(&self) -> &P {
+impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
+    fn payload(&self) -> &() {
         unsafe { self.payload.as_ref() }
     }
 
-    fn payload_mut(&mut self) -> &mut P {
+    fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
     }
 }
 
-impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
+impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
     type Header = Icmpv6Header;
     type Envelope = E;
 
@@ -169,16 +153,15 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
             offset,
         })
     }
-
     #[doc(hidden)]
     #[inline]
     fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of() + P::size_of())?;
+        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &P::default())?;
+        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
 
         let mut packet = Icmpv6 {
             envelope: CondRc::new(envelope),
@@ -187,7 +170,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
             offset,
         };
 
-        packet.header_mut().msg_type = P::msg_type().0;
+        packet.header_mut().msg_type = <()>::msg_type().0;
         packet
             .envelope_mut()
             .set_next_header(ProtocolNumbers::Icmpv6);
@@ -204,7 +187,7 @@ impl<E: Ipv6Packet, P: Icmpv6Payload> Packet for Icmpv6<E, P> {
     }
 
     #[inline]
-    default fn cascade(&mut self) {
+    fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
     }
@@ -295,7 +278,22 @@ impl Icmpv6Payload for () {
     }
 }
 
-/// Common behaviors shared by ICMPv6 packets.
+/// A trait for common behaviors shared by ICMPv6 packets.
+///
+/// For convenience, use the `Icmpv6Packet` derive macro on Icmpv6 Payloads,
+/// which also derives the implementation for the `Packet` trait.
+///
+/// # Example
+/// ```
+/// #[derive(Icmpv6Packet)]
+/// pub struct EchoReply {
+///     ...
+/// }
+/// ```
+///
+/// # Remarks
+/// When using the associated derive macro, the payload struct implementation
+/// must provide an private implementation of the `cascade` function.
 pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     Packet<Header = Icmpv6Header, Envelope = E>
 {
@@ -391,27 +389,39 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
             let icmpv6 = self.parse::<Icmpv6<Self::Envelope, ()>>()?;
             match icmpv6.msg_type() {
                 Icmpv6Types::EchoRequest => {
-                    let packet = icmpv6.downcast::<EchoRequest>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, EchoRequest>>()?;
                     Ok(Icmpv6Message::EchoRequest(packet))
                 }
                 Icmpv6Types::EchoReply => {
-                    let packet = icmpv6.downcast::<EchoReply>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, EchoReply>>()?;
                     Ok(Icmpv6Message::EchoReply(packet))
                 }
                 Icmpv6Types::NeighborAdvertisement => {
-                    let packet = icmpv6.downcast::<NeighborAdvertisement>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, NeighborAdvertisement>>()?;
                     Ok(Icmpv6Message::NeighborAdvertisement(packet))
                 }
                 Icmpv6Types::NeighborSolicitation => {
-                    let packet = icmpv6.downcast::<NeighborSolicitation>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, NeighborSolicitation>>()?;
                     Ok(Icmpv6Message::NeighborSolicitation(packet))
                 }
                 Icmpv6Types::RouterAdvertisement => {
-                    let packet = icmpv6.downcast::<RouterAdvertisement>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, RouterAdvertisement>>()?;
                     Ok(Icmpv6Message::RouterAdvertisement(packet))
                 }
                 Icmpv6Types::RouterSolicitation => {
-                    let packet = icmpv6.downcast::<RouterSolicitation>()?;
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, RouterSolicitation>>()?;
                     Ok(Icmpv6Message::RouterSolicitation(packet))
                 }
                 _ => Ok(Icmpv6Message::Undefined(icmpv6)),
@@ -479,18 +489,6 @@ mod tests {
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
         assert!(ipv6.parse::<Icmpv6<Ipv6, ()>>().is_err());
-    }
-
-    #[capsule::test]
-    fn downcast_icmpv6() {
-        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
-        let advert = icmpv6.downcast::<RouterAdvertisement>().unwrap();
-
-        // check one accessor that belongs to `RouterAdvertisement`
-        assert_eq!(64, advert.current_hop_limit());
     }
 
     #[capsule::test]

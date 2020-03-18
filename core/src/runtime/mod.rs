@@ -457,7 +457,7 @@ impl Runtime {
             // selection is randomly choosing the first core we find. if the port
             // has more than one core assigned, this will be different from the
             // core that's running the rx pipeline.
-            let core_id = *port.queues().keys().nth(0).unwrap();
+            let core_id = *port.queues().keys().next().unwrap();
 
             // if the port is kni enabled, then we will take ownership of the
             // tx handle.
