@@ -263,7 +263,7 @@ impl Icmpv6Payload for () {
 /// A trait for Common behaviors shared by ICMPv6 packets.
 ///
 /// For convenience, use the `Icmpv6Packet` derive macro on Icmpv6 Payloads,
-/// which also hydrates the implementation for the `Packet` trait.
+/// which also derives the implementation for the `Packet` trait.
 ///
 /// # Example
 /// ```
