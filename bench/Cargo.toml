@@ -7,7 +7,6 @@ keywords = []
 publish = false
 edition = "2018"
 description = "Benchmarks for Capsule"
-readme = "../README.md"
 categories = []
 
 [dev-dependencies]

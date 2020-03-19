@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "core",
     "bench",
+    "core",
     "examples/kni",
     "examples/nat64",
     "examples/ping4d",

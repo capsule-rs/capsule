@@ -172,14 +172,8 @@ fn main() {
 
     RTE_CORE_LIBS
         .iter()
-        .for_each(|lib| println!("cargo:rustc-link-lib=dylib={}", lib));
-
-    RTE_PMD_LIBS
-        .iter()
-        .for_each(|lib| println!("cargo:rustc-link-lib=dylib={}", lib));
-
-    RTE_DEPS_LIBS
-        .iter()
+        .chain(RTE_PMD_LIBS)
+        .chain(RTE_DEPS_LIBS)
         .for_each(|lib| println!("cargo:rustc-link-lib=dylib={}", lib));
 
     // re-run build.rs upon changes
