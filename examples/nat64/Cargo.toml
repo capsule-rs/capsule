@@ -6,7 +6,6 @@ license = "Apache-2.0"
 keywords = []
 publish = false
 edition = "2018"
-build = "build.rs"
 description = "IPv6 to IPv4 NAT gateway example"
 readme = "README.md"
 categories = []

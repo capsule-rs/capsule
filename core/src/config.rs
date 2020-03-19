@@ -387,7 +387,7 @@ impl fmt::Debug for PortConfig {
 /// home$ ./myapp -f config.toml
 /// ```
 pub fn load_config() -> Result<RuntimeConfig> {
-    let matches = clap_app!(nb2 =>
+    let matches = clap_app!(capsule =>
         (version: crate_version!())
         (@arg file: -f --file +required +takes_value "configuration file")
     )

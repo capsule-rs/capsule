@@ -8,6 +8,7 @@ edition = "2018"
 build = "build.rs"
 links = "dpdk"
 description = "Capsule FFI bindings for native libraries"
+readme = "../README.md"
 categories = []
 
 [lib]
@@ -18,5 +19,4 @@ doctest = false
 # must be pinned to 0.51.1 revision exactly
 bindgen = "0.51.1"
 cc = "1.0"
-
-[dependencies]
+libc = "0.2"

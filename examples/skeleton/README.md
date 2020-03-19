@@ -1,6 +1,6 @@
 # Base skeleton example
 
-The base skeleton example is the simplest nb2 application that can be written.
+The base skeleton example is the simplest Capsule application that can be written.
 
 ## Running the application
 

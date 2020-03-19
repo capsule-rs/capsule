@@ -6,7 +6,6 @@ license = "Apache-2.0"
 keywords = []
 publish = false
 edition = "2018"
-build = "build.rs"
 description = "Ping4 daemon example"
 readme = "README.md"
 categories = []

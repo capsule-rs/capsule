@@ -22,7 +22,7 @@ On the main core `0`, a scheduled task prints out the port metrics once every se
 
 ```
 ---
-nb2:
+capsule:
   port:
     "dropped{port=\"eth1\",dir=\"tx\"}": 87545
     "errors{port=\"eth1\",dir=\"tx\"}": 0
