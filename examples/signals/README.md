@@ -1,6 +1,6 @@
 # Linux signal handling example
 
-An example demonstrating how to handle linux signals in a nb2 application.
+An example demonstrating how to handle linux signals in a Capsule application.
 
 ## Running the application
 

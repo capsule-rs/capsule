@@ -7,7 +7,6 @@ keywords = []
 publish = false
 edition = "2018"
 description = "Benchmarks for Capsule"
-repository = "https://github.com/williamofockham/capsule/bench"
 readme = "../README.md"
 categories = []
 
@@ -15,7 +14,6 @@ categories = []
 capsule = { path = "../core", features = ["testils"] }
 criterion = "0.3"
 proptest = "0.9"
-nb2 = { path = "../core", features = ["testils"] }
 
 [[bench]]
 name = "packets"

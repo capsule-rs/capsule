@@ -8,7 +8,6 @@ edition = "2018"
 build = "build.rs"
 links = "dpdk"
 description = "Capsule FFI bindings for native libraries"
-repository = "https://github.com/williamofockham/capsule/ffi"
 readme = "../README.md"
 categories = []
 

@@ -414,7 +414,7 @@ pub fn v4_tcp() -> impl Strategy<Value = Mbuf> {
 /// # Example
 ///
 /// ```
-/// #[nb2::test]
+/// #[capsule::test]
 /// fn v4_tcp_packet() {
 ///     proptest!(|(packet in v4_tcp_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
@@ -452,7 +452,7 @@ pub fn v4_udp() -> impl Strategy<Value = Mbuf> {
 /// # Example
 ///
 /// ```
-/// #[nb2::test]
+/// #[capsule::test]
 /// fn v4_udp_packet() {
 ///     proptest!(|(packet in v4_udp_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
@@ -490,7 +490,7 @@ pub fn v6_tcp() -> impl Strategy<Value = Mbuf> {
 /// # Example
 ///
 /// ```
-/// #[nb2::test]
+/// #[capsule::test]
 /// fn v6_tcp_packet() {
 ///     proptest!(|(packet in v6_tcp_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
@@ -528,7 +528,7 @@ pub fn v6_udp() -> impl Strategy<Value = Mbuf> {
 /// # Example
 ///
 /// ```
-/// #[nb2::test]
+/// #[capsule::test]
 /// fn v6_udp_packet() {
 ///     proptest!(|(packet in v6_udp_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
@@ -566,7 +566,7 @@ pub fn sr_tcp() -> impl Strategy<Value = Mbuf> {
 /// # Example
 ///
 /// ```
-/// #[nb2::test]
+/// #[capsule::test]
 /// fn sr_tcp_packet() {
 ///     proptest!(|(packet in sr_tcp_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
