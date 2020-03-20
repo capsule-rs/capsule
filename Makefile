@@ -25,7 +25,7 @@ find-plots:
 	@ls $(CRITERION_PLOTS_DIR)/report/index.html
 
 fmt:
-	@cargo fmt
+	@cargo fmt --all
 
 lint:
 	@cargo clippy $(CLIPPY_ARGS)
