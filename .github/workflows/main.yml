@@ -1,0 +1,337 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  audit:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* Build @ audit'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  bench-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-18.04
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: fetch git branches
+        run: |
+          git fetch --no-tags --prune --depth=1 origin +refs/heads/*:refs/remotes/origin/*
+
+      - name: install-critcmp
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --force critcmp
+
+      - name: run-bench-pr-changes
+        working-directory: ./bench
+        run: cargo bench -- --noplot --save-baseline changes
+
+      - name: export-bench-pr-changes
+        working-directory: ./bench
+        run: |
+          mkdir -p bench-runs
+          critcmp --export changes > bench-runs/changes.json
+
+      - name: cache-cargo-build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.toml') }}
+            ${{ runner.os }}-cargo-build-target-
+            ${{ runner.os }}-
+
+      - name: run-bench-master
+        working-directory: ./bench
+        run: |
+          git checkout master
+          cargo bench -- --noplot --save-baseline master
+
+      - name: export-bench-pr-master
+        working-directory: ./bench
+        run: critcmp --export master > bench-runs/master.json
+
+      - name: compare-benches
+        working-directory: ./bench/bench-runs
+        run: critcmp master.json changes.json -t 5
+
+      - name: upload-bench-exports
+        uses: actions/upload-artifact@v1
+        with:
+          name: criterion-cmp
+          path: ./bench/bench-runs
+
+      - name: upload-bench-target
+        uses: actions/upload-artifact@v1
+        with:
+          name: criterion-report
+          path: ./bench/target/criterion
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ bench-pr'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  bench:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-18.04
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: run-bench
+        run: make bench
+
+      - name: upload-bench-target-and-plots
+        uses: actions/upload-artifact@v1
+        with:
+          name: criterion-report
+          path: ./bench/target/criterion
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ bench'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  check:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust-toolchain: [stable, nightly]
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust-toolchain }}
+          override: true
+
+      - name: cargo-check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --all-features
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ check'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  coverage:
+    runs-on: ubuntu-18.04
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.11.1'
+          args: '-l -p capsule --exclude-files macros/* --out Xml --all-features'
+
+      - uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./cobertura.xml
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ coverage'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  format:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: cargo-fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ format'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-18.04
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: cargo-clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          args: --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ lint'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-18.04
+
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: cargo-test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ test'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  slack-pr:
+    if: github.event_name == 'pull_request'
+    needs: [audit, bench-pr, check, coverage, format, lint, test]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: always()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}*'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  slack:
+    if: github.event_name == 'push'
+    needs: [audit, bench, check, coverage, format, lint, test]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: always()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}*'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  discord-pr:
+    if: github.event_name == 'pull_request'
+    needs: [audit, bench-pr, check, coverage, format, lint, test]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: discord-it
+        uses: rjstone/discord-webhook-notify@v1
+        with:
+          severity: info
+          description: '*${{ github.workflow }} PR Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions'
+          webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
+
+  discord:
+    if: github.event_name == 'push'
+    needs: [audit, bench, check, coverage, format, lint, test]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: discord-it
+        uses: rjstone/discord-webhook-notify@v1
+        with:
+          severity: info
+          description: '*${{ github.workflow }} Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions'
+          webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
