@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in capsule
+about: Report a bug in Capsule
 title: ''
 labels: bug
 assignees: ''
@@ -15,7 +15,7 @@ assignees: ''
 
 ## Expected behavior?
 
-### capsule version?
+### Capsule version?
 
 ### OS?
 

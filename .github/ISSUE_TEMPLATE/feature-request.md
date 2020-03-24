@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest a feature for capsule
+about: Suggest a feature for Capsule
 title: ''
 labels: enhancement
 assignees: ''
