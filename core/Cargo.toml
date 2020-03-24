@@ -1,12 +1,18 @@
 [package]
 name = "capsule"
 version = "0.1.0"
-authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
-keywords = []
 edition = "2018"
-description = "A network function framework written in Rust and using DPDK"
-categories = []
+readme = "README.md"
+repository = "https://github.com/capsule/capsule"
+keywords = ["nfv", "network-functions", "packet-processing", "packet-parsing", "dpdk"]
+categories = ["network-programming", "development-tools::ffi"]
+documentation = "https://docs.rs/capsule/0.1.0/capsule/"
+description = """
+A framework for network function development. Written in Rust, inspired by
+NetBricks and built on Intel's Data Plane Development Kit.
+"""
 
 [lib]
 name = "capsule"
@@ -41,6 +47,11 @@ proptest = { version = "0.9", default-features = false, features = ["default-cod
 
 [features]
 default = ["metrics"]
+full = ["metrics", "pcap-dump", "testils"]
 metrics = ["metrics-core", "metrics-runtime"]
 pcap-dump = []
-testils = ["proptest", "criterion"]
+testils = ["criterion", "proptest"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

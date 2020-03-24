@@ -23,7 +23,7 @@ use crate::packets::Packet;
 use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 
-/// Router Solicitation Message defined in [IETF RFC 4861].
+/// Router Solicitation Message defined in [`IETF RFC 4861`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -37,21 +37,38 @@ use std::fmt;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// Reserved        This field is unused.  It MUST be initialized to
-///                 zero by the sender and MUST be ignored by the
-///                 receiver.
+/// - *Reserved*:                   This field is unused. It *MUST* be
+///                                 initialized to zero by the sender and
+///                                 *MUST* be ignored by the receiver.
 ///
 /// Valid Options:
 ///
-/// Source link-layer address
-///                 The link-layer address of the sender, if
-///                 known.  MUST NOT be included if the Source Address
-///                 is the unspecified address.  Otherwise, it SHOULD
-///                 be included on link layers that have addresses.
+/// - *Source link-layer address*:  The link-layer address of the sender, if
+///                                 known. *MUST NOT* be included if the
+///                                 Source Address is the unspecified address.
+///                                 Otherwise, it *SHOULD* be included on link
+///                                 layers that have addresses.
 ///
-/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.1
+/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.1
+#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
+#[repr(C, packed)]
+pub struct RouterSolicitation {
+    reserved: u32,
+}
+
+impl Icmpv6Payload for RouterSolicitation {
+    #[inline]
+    fn msg_type() -> Icmpv6Type {
+        Icmpv6Types::RouterSolicitation
+    }
+}
+
+impl NdpPayload for RouterSolicitation {}
+
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
+    /// Unused field that must be initialized to zero by sender and ignored
+    /// by the receiver.
     pub fn reserved(&self) -> u32 {
         u32::from_be(self.payload().reserved)
     }
@@ -74,23 +91,9 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
     }
 }
 
-/// The ICMPv6 payload for router solicitation message.
-#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
-#[repr(C, packed)]
-pub struct RouterSolicitation {
-    reserved: u32,
-}
-
-impl Icmpv6Payload for RouterSolicitation {
-    #[inline]
-    fn msg_type() -> Icmpv6Type {
-        Icmpv6Types::RouterSolicitation
-    }
-}
-
-impl NdpPayload for RouterSolicitation {}
-
-#[cfg(test)]
+/// ICMPv6 Router Solicitation packet as byte-array.
+#[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const ROUTER_SOLICIT_PACKET: [u8; 70] = [
     // ** ethernet header

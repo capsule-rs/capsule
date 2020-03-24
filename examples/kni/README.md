@@ -35,7 +35,7 @@ $ ip link
     link/ether ba:dc:af:eb:ee:f1 brd ff:ff:ff:ff:ff:ff
 ```
 
-Kernel can assign an IP address to the device and bring the link up, at which point the kernel and the application can forward each other packets.
+The kernel can assign an IP address to the device and bring the link up, at which point the kernel and the application can forward each other packets.
 
 ```
 $ sudo ip addr add dev kni0 10.0.2.16/24

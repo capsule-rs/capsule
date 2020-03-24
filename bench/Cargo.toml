@@ -1,13 +1,13 @@
 [package]
 name = "capsule-bench"
 version = "0.1.0"
-authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
-keywords = []
-publish = false
 edition = "2018"
-description = "Benchmarks for Capsule"
-categories = []
+publish = false
+description = """
+Benchmarks for Capsule.
+"""
 
 [dev-dependencies]
 capsule = { path = "../core", features = ["testils"] }

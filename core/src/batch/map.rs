@@ -24,6 +24,7 @@ use crate::Result;
 ///
 /// On error, the packet is marked as `aborted` and will short-circuit the
 /// remainder of the pipeline.
+#[allow(missing_debug_implementations)]
 pub struct Map<B: Batch, T: Packet, F>
 where
     F: FnMut(B::Item) -> Result<T>,
@@ -36,6 +37,7 @@ impl<B: Batch, T: Packet, F> Map<B, T, F>
 where
     F: FnMut(B::Item) -> Result<T>,
 {
+    /// Creates a new `Map` batch.
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
         Map { batch, f }

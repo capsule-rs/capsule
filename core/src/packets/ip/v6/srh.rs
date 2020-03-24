@@ -26,9 +26,9 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
-/// IPv6 Segment Routing based on [IETF DRAFT].
+/// IPv6 Segment Routing based on [`IETF DRAFT`].
 ///
-/// Routing Headers are defined in [IETF RFC 8200]. The Segment Routing
+/// Routing Headers are defined in [`IETF RFC 8200`]. The Segment Routing
 /// Header has a new Routing Type (suggested value 4) to be assigned by
 /// IANA.
 ///
@@ -52,48 +52,52 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Next Header: 8-bit selector. Identifies the type of header
-/// immediately following the SRH.
+/// - *Next Header*:       8-bit selector. Identifies the type of header
+///                        immediately following the SRH.
 ///
-/// Hdr Ext Len: 8-bit unsigned integer, is the length of the SRH
-/// header in 8-octet units, not including the first 8 octets.
+/// - *Hdr Ext Len*:       8-bit unsigned integer, is the length of the SRH
+///                        header in 8-octet units, not including the first 8
+///                        octets.
 ///
-/// Routing Type: TBD, to be assigned by IANA (suggested value: 4).
+/// - *Routing Type*:      TBD, to be assigned by IANA (suggested value: 4).
 ///
-/// Segments Left: 8-bit unsigned integer Number of route segments
-/// remaining, i.e., number of explicitly listed intermediate nodes
-/// still to be visited before reaching the final destination.
+/// - *Segments Left*:     8-bit unsigned integer Number of route segments
+///                        remaining, i.e., number of explicitly listed
+///                        intermediate nodes still to be visited before
+///                        reaching the final destination.
 ///
-/// Last Entry: contains the index (zero based), in the Segment List,
-/// of the last element of the Segment List.
+/// - *Last Entry*:        Contains the index (zero based), in the Segment List,
+///                        of the last element of the Segment List.
 ///
-/// Flags: 8 bits of flags.  Following flags are defined:
+/// - *Flags*:             8 bits of flags. Following flags are defined:
 ///
-///      0 1 2 3 4 5 6 7
-///     +-+-+-+-+-+-+-+-+
-///     |U U U U U U U U|
-///     +-+-+-+-+-+-+-+-+
+///        0 1 2 3 4 5 6 7
+///       +-+-+-+-+-+-+-+-+
+///       |U U U U U U U U|
+///       +-+-+-+-+-+-+-+-+
 ///
-///    U: Unused and for future use.  MUST be 0 on transmission and
-///     ignored on receipt.
+///   - *U*:               Unused and for future use. *MUST* be 0 on transmission
+///                        and ignored on receipt.
 ///
-/// Tag: tag a packet as part of a class or group of packets, e.g.,
-/// packets sharing the same set of properties. When tag is not used
-/// at source it MUST be set to zero on transmission. When tag is not
-/// used during SRH Processing it SHOULD be ignored. The allocation
-/// and use of tag is outside the scope of this document.
+/// - *Tag*:               Tag a packet as part of a class or group of packets,
+///                        e.g., packets sharing the same set of properties.
+///                        When tag is not used at source it *MUST* be set to
+///                        zero on transmission. When tag is not used during SRH
+///                        Processing it *SHOULD* be ignored. The allocation and
+///                        use of tag is outside the scope of this document.
 ///
-/// Segment List[n]: 128 bit IPv6 addresses representing the nth
-/// segment in the Segment List.  The Segment List is encoded starting
-/// from the last segment of the SR Policy.  I.e., the first element
-/// of the segment list (Segment List [0]) contains the last segment
-/// of the SR Policy, the second element contains the penultimate
-/// segment of the SR Policy and so on.
+/// - *Segment List\[n]*:  128 bit IPv6 addresses representing the nth
+///                        segment in the Segment List.  The Segment List is
+///                        encoded starting from the last segment of the SR
+///                        Policy, i.e., the first element of the segment list
+///                        (Segment List \[0]) contains the last segment of the
+///                        SR Policy, the second element contains the
+///                        penultimate segment of the SR Policy and so on.
 ///
 /// Type Length Value (TLV) are described in Section 2.1.
 ///
-/// [IETF Draft]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
-/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-4.4
+/// [`IETF Draft`]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
+/// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-4.4
 #[derive(Clone)]
 pub struct SegmentRouting<E: Ipv6Packet> {
     envelope: CondRc<E>,
@@ -392,14 +396,14 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
 
     /// Returns the pseudo header.
     ///
-    /// Based on [IETF RFC 8200], if the IPv6 packet contains a Routing
+    /// Based on [`IETF RFC 8200`], if the IPv6 packet contains a Routing
     /// header, the Destination Address used in the pseudo-header is that
     /// of the final destination. At the originating node, that address will
     /// be in the last element of the Routing header; at the recipient(s),
     /// that address will be in the Destination Address field of the IPv6
     /// header.
     ///
-    /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-8.1
+    /// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-8.1
     #[inline]
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader {
         let dst = match self.dst() {
@@ -475,7 +479,9 @@ impl Default for SegmentRoutingHeader {
 
 impl Header for SegmentRoutingHeader {}
 
+/// IPv6 SRH packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const SRH_PACKET: [u8; 170] = [
 // ethernet header

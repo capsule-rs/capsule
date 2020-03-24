@@ -22,7 +22,7 @@ use crate::packets::Packet;
 use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 
-/// Echo Request Message defined in [IETF RFC 4443].
+/// Echo Request Message defined in [`IETF RFC 4443`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -36,16 +36,15 @@ use std::fmt;
 /// +-+-+-+-+-
 /// ```
 ///
-/// Identifier      An identifier to aid in matching Echo Replies
-///                 to this Echo Request.  May be zero.
+/// - *Identifier*:       An identifier to aid in matching Echo Replies
+///                       to this Echo Request.  May be zero.
 ///
-/// Sequence Number
-///                 A sequence number to aid in matching Echo Replies
-///                 to this Echo Request.  May be zero.
+/// - *Sequence Number*:  A sequence number to aid in matching Echo Replies
+///                       to this Echo Request.  May be zero.
 ///
-/// Data            Zero or more octets of arbitrary data.
+/// - *Data*:             Zero or more octets of arbitrary data.
 ///
-/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.1
+/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-4.1
 #[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoRequest {

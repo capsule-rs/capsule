@@ -22,7 +22,7 @@ use crate::packets::Packet;
 use crate::{Icmpv6Packet, Result, SizeOf};
 use std::fmt;
 
-/// Time Exceeded Message defined in [IETF RFC 4443].
+/// Time Exceeded Message defined in [`IETF RFC 4443`].
 ///
 /// ```
 /// 0                   1                   2                   3
@@ -37,7 +37,7 @@ use std::fmt;
 /// |               exceeding the minimum IPv6 MTU [IPv6]           |
 /// ```
 ///
-/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.3
+/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-3.3
 #[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct TimeExceeded {

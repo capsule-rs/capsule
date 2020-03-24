@@ -1,3 +1,26 @@
+[![Crates.io][crates-badge]][crates-url]
+[![Documentation][docs-badge]][docs-url]
+[![Apache-2.0 licensed][apache-badge]][apache-url]
+[![CI-Github Actions][gh-actions-badge]][gh-actions-url]
+[![Codecov][codecov-badge]][codecov-url]
+[![Code of Conduct][code-of-conduct-badge]][code-of-conduct-url]
+[![Discord][discord-badge]][discord-url]
+
+[crates-badge]: https://img.shields.io/crates/v/capsule.svg
+[crates-url]: https://crates.io/crates/capsule
+[docs-badge]: https://docs.rs/capsule/badge.svg?version=0.1.0
+[docs-url]: https://docs.rs/capsule/0.1.0/capsule
+[apache-badge]: https://img.shields.io/github/license/capsule-rs/capsule
+[apache-url]: LICENSE
+[gh-actions-badge]: https://github.com/capsule-rs/capsule/workflows/build/badge.svg
+[gh-actions-url]: https://github.com/capsule-rs/capsule/actions
+[codecov-badge]: https://codecov.io/gh/capsule-rs/capsule/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/capsule-rs/capsule
+[code-of-conduct-badge]: https://img.shields.io/badge/%E2%9D%A4-code%20of%20conduct-ff69b4
+[code-of-conduct-url]: CODE_OF_CONDUCT.md
+[discord-badge]: https://img.shields.io/discord/690406128567320597.svg?logo=discord
+[discord-url]: https://discord.gg/sVN47RU
+
 # Capsule
 
 A framework for network function development. Written in Rust, inspired by [NetBricks](https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/).

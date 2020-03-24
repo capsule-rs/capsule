@@ -3,12 +3,12 @@ name = "nat64"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = []
-publish = false
 edition = "2018"
-description = "IPv6 to IPv4 NAT gateway example"
+publish = false
 readme = "README.md"
-categories = []
+description = """
+IPv6 to IPv4 NAT gateway example.
+"""
 
 [[bin]]
 name = "nat64"

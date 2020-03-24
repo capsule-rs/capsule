@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Internet Control Message Protocol for IPv6.
+
 mod echo_reply;
 mod echo_request;
 pub mod ndp;
@@ -35,7 +37,7 @@ use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Internet Control Message Protocol v6 packet based on [IETF RFC 4443].
+/// Internet Control Message Protocol v6 packet based on [`IETF RFC 4443`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -48,18 +50,18 @@ use std::ptr::NonNull;
 /// |                                                               |
 /// ```
 ///
-/// The type field indicates the type of the message.  Its value
-/// determines the format of the remaining data.
+/// - *Type*:          Indicates the type of the message. Its value determines
+///                    the format of the remaining data.
 ///
-/// The code field depends on the message type.  It is used to create an
-/// additional level of message granularity.
+/// - *Code*:          This field depends on the message type. It is used to
+///                    create an additional level of message granularity.
 ///
-/// The checksum field is used to detect data corruption in the ICMPv6
-/// message and parts of the IPv6 header.
+/// - *Checksum*:      This field is used to detect data corruption in the
+///                    ICMPv6 message and parts of the IPv6 header.
 ///
-/// The message body varies based on the type field. The packet needs to
-/// be first parsed with the unit `()` payload before the type field can
-/// be read.
+/// - *Message Body*:  Varies based on the type field. The packet needs to
+///                    be first parsed with the unit `()` payload before the
+///                    type field can be read.
 ///
 /// # Example
 ///
@@ -70,7 +72,7 @@ use std::ptr::NonNull;
 /// }
 /// ```
 ///
-/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443
+/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443
 #[derive(Clone)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     envelope: CondRc<E>,
@@ -199,11 +201,14 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
 }
 
 /// Type of ICMPv6 message.
+///
+/// A list of supported types is under [`Icmpv6Types`].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Icmpv6Type(pub u8);
 
 impl Icmpv6Type {
+    /// Creates a new ICMPv6 message type.
     pub fn new(value: u8) -> Self {
         Icmpv6Type(value)
     }
@@ -215,16 +220,48 @@ impl Icmpv6Type {
 pub mod Icmpv6Types {
     use super::Icmpv6Type;
 
+    /// Message type for [`Packet Too Big`].
+    ///
+    /// [`Packet Too Big`]: crate::packets::icmp::v6::PacketTooBig
     pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
+
+    /// Message type for [`Time Exceeded`].
+    ///
+    /// [`Time Exceeded`]: crate::packets::icmp::v6::TimeExceeded
     pub const TimeExceeded: Icmpv6Type = Icmpv6Type(3);
+
+    /// Message type for [`Echo Request`].
+    ///
+    /// [`Echo Request`]: crate::packets::icmp::v6::EchoRequest
     pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
+
+    /// Message type for [`Echo Reply`].
+    ///
+    /// [`Echo Reply`]: crate::packets::icmp::v6::EchoReply
     pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
 
     // NDP types
+    /// Message type for [`Router Solicitation`].
+    ///
+    /// [`Router Solicitation`]: crate::packets::icmp::v6::RouterSolicitation
     pub const RouterSolicitation: Icmpv6Type = Icmpv6Type(133);
+
+    /// Message type for [`Router Advertisement`].
+    ///
+    /// [`Router Advertisement`]: crate::packets::icmp::v6::RouterAdvertisement
     pub const RouterAdvertisement: Icmpv6Type = Icmpv6Type(134);
+
+    /// Message type for [`Neighbor Solicitation`].
+    ///
+    /// [`Neighbor Solicitation`]: crate::packets::icmp::v6::NeighborSolicitation
     pub const NeighborSolicitation: Icmpv6Type = Icmpv6Type(135);
+
+    /// Message type for [`Neighbor Advertisement`].
+    ///
+    /// [`Neighbor Advertisement`]: crate::packets::icmp::v6::NeighborAdvertisement
     pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
+
+    /// Message type for `Redirect`.
     pub const Redirect: Icmpv6Type = Icmpv6Type(137);
 }
 
@@ -280,10 +317,11 @@ impl Icmpv6Payload for () {
 
 /// A trait for common behaviors shared by ICMPv6 packets.
 ///
-/// For convenience, use the `Icmpv6Packet` derive macro on Icmpv6 Payloads,
-/// which also derives the implementation for the `Packet` trait.
+/// ## Derivable
 ///
-/// # Example
+/// The `Icmpv6Packet` trait can be used with `#[derive]` on Icmpv6 payloads,
+/// which also derives the implementation for the [`Packet`] trait.
+///
 /// ```
 /// #[derive(Icmpv6Packet)]
 /// pub struct EchoReply {
@@ -291,9 +329,12 @@ impl Icmpv6Payload for () {
 /// }
 /// ```
 ///
-/// # Remarks
+/// ## Remarks
+///
 /// When using the associated derive macro, the payload struct implementation
 /// must provide an private implementation of the `cascade` function.
+///
+/// [`Packet`]: crate::packets::Packet
 pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     Packet<Header = Icmpv6Header, Envelope = E>
 {
@@ -327,6 +368,7 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
         u16::from_be(self.header().checksum)
     }
 
+    /// Computes the checksum.
     #[inline]
     fn compute_checksum(&mut self) {
         self.header_mut().checksum = 0;
@@ -346,25 +388,40 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
     }
 }
 
-/// An ICMPv6 message with parsed payload.
+/// An [`ICMPv6`] message with parsed payload.
+///
+/// A list of supported types is under [`Icmpv6Types`].
+///
+/// [`ICMPv6`]: Icmpv6
+#[derive(Debug)]
 pub enum Icmpv6Message<E: Ipv6Packet> {
+    /// EchoRequest message.
     EchoRequest(Icmpv6<E, EchoRequest>),
+    /// EchoReply message.
     EchoReply(Icmpv6<E, EchoReply>),
+    /// NDP Neighbor Advertisement message.
     NeighborAdvertisement(Icmpv6<E, NeighborAdvertisement>),
+    /// NDP Neighbor Solicitation message.
     NeighborSolicitation(Icmpv6<E, NeighborSolicitation>),
+    /// NDP Router Advertisement message.
     RouterAdvertisement(Icmpv6<E, RouterAdvertisement>),
+    /// NDP Router Solicitation message.
     RouterSolicitation(Icmpv6<E, RouterSolicitation>),
-    /// an ICMPv6 message with undefined payload
+    /// An ICMPv6 message with undefined payload.
     Undefined(Icmpv6<E, ()>),
 }
 
-/// ICMPv6 helper functions for IPv6 packets.
+/// Trait for parsing IPv6 packet payload as an ICMPv6 message.
 pub trait Icmpv6Parse {
+    /// The outer packet type that encapsulates the ICMPv6 packet. It can be
+    /// either [`IPv6`] or an extension header.
+    ///
+    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
     type Envelope: Ipv6Packet;
 
-    /// Automatically detects the ICMP message type and parses the payload
-    /// as that type. If the message type is not supported, then `Undefined`
-    /// is returned.
+    /// Parses the IPv6 packet payload as an ICMPv6 message. Automatically
+    /// detects the ICMP message type and parses the payload as that type. If
+    /// the message type is not supported, then `Undefined` is returned.
     ///
     /// # Example
     ///
@@ -432,10 +489,12 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
     }
 }
 
+/// ICMPv6 packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const ICMPV6_PACKET: [u8; 62] = [
-// ethernet header
+// Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x86, 0xDD,

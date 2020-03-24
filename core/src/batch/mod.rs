@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Combinators that can be applied to batches of packets within a pipeline.
+
 mod emit;
 mod filter;
 mod filter_map;
@@ -48,12 +50,15 @@ use std::hash::Hash;
 
 /// Way to categorize the packets of a batch inside a processing pipeline.
 /// The disposition instructs the combinators how to process a packet.
+#[allow(missing_debug_implementations)]
 pub enum Disposition<T: Packet> {
     /// Indicating the packet should be processed.
     Act(T),
 
     /// Indicating the packet has already been sent, possibly through a
-    /// different `PacketTx`.
+    /// different [`PacketTx`].
+    ///
+    /// [`PacketTx`]: crate::batch::PacketTx
     Emit,
 
     /// Indicating the packet is intentionally dropped from the output.
@@ -125,7 +130,7 @@ pub trait PacketTx {
     fn transmit(&mut self, packets: Vec<Mbuf>);
 }
 
-/// Batch of packets.
+/// Common behaviors to apply on batches of packets.
 pub trait Batch {
     /// The packet type.
     type Item: Packet;
@@ -136,16 +141,27 @@ pub trait Batch {
     /// Returns the disposition of the next packet in the batch.
     ///
     /// A value of `None` indicates that the batch is exhausted. To start
-    /// the next cycle, call `replenish` first.
+    /// the next cycle, call [`replenish`] first.
+    ///
+    /// [`replenish`]: Batch::replenish
     fn next(&mut self) -> Option<Disposition<Self::Item>>;
 
     /// Creates a batch that transmits all packets through the specified
-    /// `PacketTx`.
+    /// [`PacketTx`].
     ///
     /// Use when packets need to be delivered to a destination different
     /// from the pipeline's main outbound queue. The send is immediate and
     /// is not in batch. Packets sent with `emit` will be out of order
     /// relative to other packets in the batch.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let (tx, _) = mpsc::channel();
+    /// let mut batch = batch.emit(tx);
+    /// ```
+    ///
+    /// [`PacketTx`]: crate::batch::PacketTx
     fn emit<Tx: PacketTx>(self, tx: Tx) -> Emit<Self, Tx>
     where
         Self: Sized,
@@ -154,7 +170,17 @@ pub trait Batch {
     }
 
     /// Creates a batch that uses a predicate to determine if a packet
-    /// should be processed or dropped.
+    /// should be processed or dropped. If the predicate evaluates to `false`,
+    /// the packet is marked as dropped.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.filter(|packet| {
+    ///     let v4 = packet.parse::<Ethernet>()?.parse::<Ipv4>()?;
+    ///     v4.ttl() > 0
+    /// });
+    /// ```
     #[inline]
     fn filter<P>(self, predicate: P) -> Filter<Self, P>
     where
@@ -164,7 +190,23 @@ pub trait Batch {
         Filter::new(self, predicate)
     }
 
-    /// Creates a batch that both filters and maps.
+    /// Creates a batch that both [`filters`] and [`maps`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.filter_map(|packet| {
+    ///     let v4 = packet.parse::<Ethernet>()?.parse::<Ipv4>()?;
+    ///     if v4.protocol() == ProtocolNumbers::Udp {
+    ///         Ok(Either::Keep(v4))
+    ///     } else {
+    ///         Ok(Either::Drop(v4.reset()))
+    ///     }
+    /// });
+    /// ```
+    ///
+    /// [`filters`]: Batch::filter
+    /// [`maps`]: Batch::map
     #[inline]
     fn filter_map<T: Packet, F>(self, f: F) -> FilterMap<Self, T, F>
     where
@@ -174,7 +216,15 @@ pub trait Batch {
         FilterMap::new(self, f)
     }
 
-    /// Creates a batch that maps the packets to a new type.
+    /// Creates a batch that maps the packets to another packet type.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.map(|packet| {
+    ///     packet.parse::<Ethernet>()?.parse::<Ipv4>()
+    /// });
+    /// ```
     #[inline]
     fn map<T: Packet, F>(self, f: F) -> Map<Self, T, F>
     where
@@ -188,6 +238,15 @@ pub trait Batch {
     ///
     /// Can be use for side-effect actions without the need to mutate the
     /// packet. However, an error will abort the packet.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.for_each(|packet| {
+    ///     println!("{:?}", packet);
+    ///     Ok(())
+    /// });
+    /// ````
     #[inline]
     fn for_each<F>(self, f: F) -> ForEach<Self, F>
     where
@@ -200,8 +259,22 @@ pub trait Batch {
     /// Calls a closure on each packet of the batch, including ones that are
     /// already dropped, emitted or aborted.
     ///
-    /// Unlike `for_each`, `inspect` does not affect the packet disposition.
+    /// Unlike [`for_each`], `inspect` does not affect the packet disposition.
     /// Useful as a debugging tool.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.inspect(|disp| {
+    ///     if let Disposition::Act(v6) = disp {
+    ///         if v6.hop_limit() > A_HOP_LIMIT {
+    ///             debug!(...);
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    ///
+    /// [`for_each`]: Batch::for_each
     #[inline]
     fn inspect<F>(self, f: F) -> Inspect<Self, F>
     where
@@ -219,9 +292,9 @@ pub trait Batch {
     /// into sub batches based on this value.
     ///
     /// `composer` is a closure that constructs a hash map of batch pipeline
-    /// builders for each individual sub pipeline. The `compose!` macro is an
+    /// builders for each individual sub pipeline. The [`compose!`] macro is an
     /// ergonomic way to write the composer closure. The syntax of the macro
-    /// loosely resembles the `match` expression. Each match arm consists of
+    /// loosely resembles the std `match` expression. Each match arm consists of
     /// a single discriminator value mapped to a builder closure.
     ///
     /// If a packet does not match with an arm, it will be passed through to
@@ -248,6 +321,8 @@ pub trait Batch {
     ///     },
     /// );
     /// ```
+    ///
+    /// [`compose!`]: macro@compose
     #[inline]
     fn group_by<D, S, C>(self, selector: S, composer: C) -> GroupBy<Self, D, S>
     where
@@ -261,8 +336,23 @@ pub trait Batch {
 
     /// A batch that replaces each packet with another packet.
     ///
-    /// Use for pipelines that generate new outbound packets based on the
-    /// inbound packets but does not need to modify the inbound.
+    /// Use for pipelines that generate new outbound packets based on inbound
+    /// packets and drop the inbound.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut batch = batch.replace(|request| {
+    ///     let reply = Mbuf::new()?;
+    ///     let ethernet = request.peek::<Ethernet>()?;
+    ///     let mut reply = reply.push::<Ethernet>()?;
+    ///     reply.set_src(ethernet.dst());
+    ///     reply.set_dst(ethernet.src());
+    ///
+    ///     ...
+    ///
+    ///     Ok(reply)
+    /// });
     fn replace<T: Packet, F>(self, f: F) -> Replace<Self, T, F>
     where
         F: FnMut(&Self::Item) -> Result<T>,
@@ -276,7 +366,15 @@ pub trait Batch {
     /// Send marks the end of the batch pipeline. No more combinators can be
     /// appended after send.
     ///
-    /// To give the pipeline a unique name, use `Batch::send_named` instead.
+    /// To give the pipeline a unique name, use
+    /// [`send_named`] instead.
+    ///
+    /// # Example
+    /// ```
+    /// Poll::new(q.clone()).map(map_fn).send(q);
+    /// ```
+    ///
+    /// [`send_named`]: Batch::send_named
     #[inline]
     fn send<Tx: PacketTx>(self, tx: Tx) -> Send<Self, Tx>
     where
@@ -318,9 +416,23 @@ pub trait Pipeline: futures::Future<Output = ()> {
     fn run_once(&mut self);
 }
 
-/// Splices a `PacketRx` directly to a `PacketTx` without any intermediary
-/// combinators. Useful for pipelines that perform simple forwarding without
-/// any packet processing.
+/// Splices a [`PacketRx`] directly to a [`PacketTx`] without any intermediary
+/// combinators.
+///
+/// Useful for pipelines that perform simple forwarding without any packet
+/// processing.
+///
+/// # Example
+///
+/// ```
+/// Runtime::build(config)?
+///     .add_pipeline_to_port("kni0", |q| {
+///         batch::splice(q.clone(), q.kni().unwrap().clone())
+///     });
+/// ```
+///
+/// [`PacketRx`]: crate::batch::PacketRx
+/// [`PacketTx`]: crate::batch::PacketTx
 pub fn splice<Rx: PacketRx + Unpin, Tx: PacketTx + Unpin>(rx: Rx, tx: Tx) -> impl Pipeline {
     Poll::new(rx).send(tx)
 }

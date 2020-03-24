@@ -18,7 +18,9 @@
 
 use super::{Batch, Disposition};
 
-/// A batch that calls a closure on packets in the underlying batch.
+/// A batch that calls a closure on packets in the underlying batch, including
+/// ones that are already dropped, emitted or aborted.
+#[allow(missing_debug_implementations)]
 pub struct Inspect<B: Batch, F>
 where
     F: FnMut(&Disposition<B::Item>),
@@ -31,6 +33,7 @@ impl<B: Batch, F> Inspect<B, F>
 where
     F: FnMut(&Disposition<B::Item>),
 {
+    /// Creates a new `Inspect` batch.
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
         Inspect { batch, f }

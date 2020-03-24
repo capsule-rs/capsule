@@ -23,7 +23,7 @@ use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Source/Target Link-layer Address option defined in [IETF RFC 4861].
+/// Source/Target Link-layer Address option defined in [`IETF RFC 4861`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -33,22 +33,20 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Type            1 for Source Link-layer Address
-///                 2 for Target Link-layer Address
+/// - *Type*:                1 for Source Link-layer Address.
+///                          2 for Target Link-layer Address.
 ///
-/// Length          The length of the option (including the type and
-///                 length fields) in units of 8 octets.  For example,
-///                 the length for IEEE 802 addresses is 1.
+/// - *Length*:              The length of the option (including the type and
+///                          length fields) in units of 8 octets. For example,
+///                          the length for IEEE 802 addresses is 1.
 ///
-/// Link-Layer Address
-///                 The variable length link-layer address.
+/// - *Link-Layer Address*:  The variable length link-layer address.
+///                          The content and format of this field (including
+///                          byte and bit ordering) is expected to be specified
+///                          in specific documents that describe how IPv6
+///                          operates over different link layers.
 ///
-///                 The content and format of this field (including
-///                 byte and bit ordering) is expected to be specified
-///                 in specific documents that describe how IPv6
-///                 operates over different link layers.
-///
-/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.6.1
+/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.1
 pub struct LinkLayerAddress {
     fields: NonNull<LinkLayerAddressFields>,
     offset: usize,

@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Internet Protocol v4 and v6.
+
 pub mod v4;
 pub mod v6;
 
@@ -26,19 +28,23 @@ use failure::Fail;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
-/// [IANA] recommended default TTL for IP.
+/// [`IANA`] recommended default TTL for IP.
 ///
-/// [IANA]: https://www.iana.org/assignments/ip-parameters/ip-parameters.xml#ip-parameters-2
+/// [`IANA`]: https://www.iana.org/assignments/ip-parameters/ip-parameters.xml#ip-parameters-2
 pub const DEFAULT_IP_TTL: u8 = 64;
 
-/// [IANA] assigned internet protocol number.
+/// [`IANA`] assigned Internet protocol number.
 ///
-/// [IANA]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+/// See [`ProtocolNumbers`] for which are current supported.
+///
+/// [`IANA`]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+/// [`ProtocolNumbers`]: crate::packets::ip::ProtocolNumbers
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct ProtocolNumber(pub u8);
 
 impl ProtocolNumber {
+    /// Creates a new protocol number.
     pub fn new(value: u8) -> Self {
         ProtocolNumber(value)
     }
@@ -50,22 +56,22 @@ impl ProtocolNumber {
 pub mod ProtocolNumbers {
     use super::ProtocolNumber;
 
-    // Transmission Control Protocol.
+    /// Transmission Control Protocol.
     pub const Tcp: ProtocolNumber = ProtocolNumber(0x06);
 
-    // User Datagram Protocol.
+    /// User Datagram Protocol.
     pub const Udp: ProtocolNumber = ProtocolNumber(0x11);
 
-    // Routing Header for IPv6.
+    /// Routing Header for IPv6.
     pub const Ipv6Route: ProtocolNumber = ProtocolNumber(0x2B);
 
-    // Fragment Header for IPv6.
+    /// Fragment Header for IPv6.
     pub const Ipv6Frag: ProtocolNumber = ProtocolNumber(0x2C);
 
-    // Internet Control Message Protocol for IPv6.
+    /// Internet Control Message Protocol for IPv6.
     pub const Icmpv6: ProtocolNumber = ProtocolNumber(0x3A);
 
-    // Internet Control Message Protocol for IPv4.
+    /// Internet Control Message Protocol for IPv4.
     pub const Icmpv4: ProtocolNumber = ProtocolNumber(0x01);
 }
 
@@ -251,7 +257,7 @@ impl fmt::Debug for Flow {
     }
 }
 
-/// IpPacket errors.
+/// IpPacket-related errors.
 #[derive(Debug, Fail)]
 pub enum IpPacketError {
     /// Error indicating mixing IPv4 and IPv6 addresses in a flow.

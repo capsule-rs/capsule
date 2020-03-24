@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Internet Control Message Protocol for IPv4.
+
 mod echo_reply;
 mod echo_request;
 
@@ -29,7 +31,7 @@ use crate::{ensure, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Base Internet Control Message Protocol (for v4 packet) based on [IETF RFC 792].
+/// Internet Control Message Protocol v4 packet based on [`IETF RFC 792`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -40,18 +42,18 @@ use std::ptr::NonNull;
 /// +                         Message Body                          +
 /// |                                                               |
 /// ```
-/// The type field indicates the type of the message.  Its value
-/// determines the format of the remaining data.
+/// - *Type*:          Indicates the type of the message. Its value
+///                    determines the format of the remaining data.
 ///
-/// The code field depends on the message type.  It is used to create an
-/// additional level of message granularity.
+/// - *Code*:          This field depends on the message type. It is used to
+///                    create an additional level of message granularity.
 ///
-/// The checksum field is used to detect data corruption in the ICMPv4
-/// message and parts of the IPv4 header.
+/// - *Checksum*:      This field is used to detect data corruption in the
+///                    ICMPv4 message and parts of the IPv4 header.
 ///
-/// The message body varies based on the type field. The packet needs to
-/// be first parsed with the unit `()` payload before the type field can
-/// be read.
+/// - *Message Body*:  Varies based on the type field. The packet needs to
+///                    be first parsed with the unit `()` payload before the
+///                    type field can be read.
 ///
 /// # Example
 ///
@@ -62,8 +64,7 @@ use std::ptr::NonNull;
 /// }
 /// ```
 ///
-/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
-
+/// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
 #[derive(Clone)]
 pub struct Icmpv4<P: Icmpv4Payload> {
     envelope: CondRc<Ipv4>,
@@ -193,14 +194,33 @@ impl Packet for Icmpv4<()> {
 }
 
 /// Type of ICMPv4 message.
+///
+/// A list of supported types is under [`Icmpv4Types`].
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Icmpv4Type(pub u8);
 
 impl Icmpv4Type {
+    /// Creates a new ICMPv4 message type.
     pub fn new(value: u8) -> Self {
         Icmpv4Type(value)
     }
+}
+
+/// Supported ICMPv4 message types.
+#[allow(non_snake_case)]
+#[allow(non_upper_case_globals)]
+pub mod Icmpv4Types {
+    use super::Icmpv4Type;
+
+    /// Message type for [`Echo Request`].
+    ///
+    /// [`Echo Request`]: EchoRequest
+    pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
+    /// Message type for [`Echo Reply`].
+    ///
+    /// [`Echo Reply`]: EchoReply
+    pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
 }
 
 impl fmt::Display for Icmpv4Type {
@@ -217,7 +237,7 @@ impl fmt::Display for Icmpv4Type {
     }
 }
 
-/// Icmpv4 packet header.
+/// ICMPv4 packet header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv4Header {
@@ -226,18 +246,9 @@ pub struct Icmpv4Header {
     checksum: u16,
 }
 
-/// Supported Icmpv4 message types.
-#[allow(non_snake_case)]
-#[allow(non_upper_case_globals)]
-pub mod Icmpv4Types {
-    use super::Icmpv4Type;
-
-    pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
-    pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
-}
-
 impl Header for Icmpv4Header {}
 
+/// Common behaviors for ICMPv4 payloads.
 pub trait Icmpv4Payload: Clone + Default + SizeOf {
     /// Returns the ICMPv4 message type that corresponds to the payload.
     fn msg_type() -> Icmpv4Type;
@@ -253,10 +264,11 @@ impl Icmpv4Payload for () {
 
 /// A trait for common behaviors shared by ICMPv4 packets.
 ///
-/// For convenience, use the `Icmpv4Packet` derive macro on Icmpv4 Payloads,
-/// which also derives the implementation for the `Packet` trait.
+/// ## Derivable
 ///
-/// # Example
+/// The `Icmpv4Packet` trait can be used with `#[derive]` on Icmpv4 payloads,
+/// which also derives the implementation for the [`Packet`] trait.
+///
 /// ```
 /// #[derive(Icmpv4Packet)]
 /// pub struct EchoReply {
@@ -264,9 +276,12 @@ impl Icmpv4Payload for () {
 /// }
 /// ```
 ///
-/// # Remarks
+/// ## Remarks
+///
 /// When using the associated derive macro, the payload struct implementation
 /// must provide an private implementation of the `cascade` function.
+///
+/// [`Packet`]: crate::packets::Packet
 pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope = Ipv4> {
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
@@ -298,6 +313,7 @@ pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope
         u16::from_be(self.header().checksum)
     }
 
+    /// Computes the checksum.
     #[inline]
     fn compute_checksum(&mut self) {
         self.header_mut().checksum = 0;
@@ -313,16 +329,24 @@ pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope
     }
 }
 
-/// An ICMPv4 message with parsed payload.
+/// An [`ICMPv4`] message with parsed payload.
+///
+/// [`ICMPv4`]: `Icmpv4`
+#[derive(Debug)]
 pub enum Icmpv4Message {
+    /// Echo Request message.
     EchoRequest(Icmpv4<EchoRequest>),
+
+    /// Echo Reply message.
     EchoReply(Icmpv4<EchoReply>),
-    /// an ICMPv4 message with undefined payload
+
+    /// An ICMPv4 message with undefined payload.
     Undefined(Icmpv4<()>),
 }
 
-/// ICMPv4 helper functions for IPv6 packets.
+/// Trait for parsing IPv4 packet payload as an ICMPv4 message.
 pub trait Icmpv4Parse {
+    /// Parses the IPv4 packet payload as an ICMPv4 message.
     fn parse_icmpv4(self) -> Result<Icmpv4Message>;
 }
 
@@ -347,10 +371,12 @@ impl Icmpv4Parse for Ipv4 {
     }
 }
 
+/// ICMPv4 packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const ICMPV4_PACKET: [u8; 74] = [
-// ethernet header
+// Ethernet header
     0x00, 0x50, 0x56, 0xe0, 0x14, 0x49,
     0x00, 0x0c, 0x29, 0x34, 0x0B, 0xde,
     0x08, 0x00,

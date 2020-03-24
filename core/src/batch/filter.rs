@@ -23,6 +23,7 @@ use crate::packets::Packet;
 ///
 /// If the predicate evaluates to `false`, the packet is marked as dropped
 /// and will short-circuit the remainder of the pipeline.
+#[allow(missing_debug_implementations)]
 pub struct Filter<B: Batch, P>
 where
     P: FnMut(&B::Item) -> bool,
@@ -35,6 +36,7 @@ impl<B: Batch, P> Filter<B, P>
 where
     P: FnMut(&B::Item) -> bool,
 {
+    /// Creates a new `Filter` batch.
     #[inline]
     pub fn new(batch: B, predicate: P) -> Self {
         Filter { batch, predicate }

@@ -20,6 +20,7 @@ use super::{Batch, Disposition};
 use crate::Result;
 
 /// A batch that calls a closure on packets in the underlying batch.
+#[allow(missing_debug_implementations)]
 pub struct ForEach<B: Batch, F>
 where
     F: FnMut(&B::Item) -> Result<()>,
@@ -32,6 +33,7 @@ impl<B: Batch, F> ForEach<B, F>
 where
     F: FnMut(&B::Item) -> Result<()>,
 {
+    /// Creates a new `ForEach` batch.
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
         ForEach { batch, f }

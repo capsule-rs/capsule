@@ -23,18 +23,20 @@ mod port;
 #[cfg(feature = "metrics")]
 mod stats;
 
+#[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
 pub use self::kni::*;
+#[allow(unreachable_pub)]
 pub use self::mbuf::*;
-pub use self::mempool::*;
+pub(crate) use self::mempool::*;
+#[allow(unreachable_pub)]
 pub use self::port::*;
 #[cfg(feature = "metrics")]
-pub use self::stats::*;
+pub(crate) use self::stats::*;
 
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
 use crate::{debug, Result};
 use failure::Fail;
-use libc;
 use std::cell::Cell;
 use std::fmt;
 use std::mem;
@@ -45,7 +47,7 @@ use std::os::raw;
 /// When a FFI call fails, the `errno` is translated into `DpdkError`.
 #[derive(Debug, Fail)]
 #[fail(display = "{}", _0)]
-pub struct DpdkError(String);
+pub(crate) struct DpdkError(String);
 
 impl DpdkError {
     /// Returns the `DpdkError` for the most recent failure on the current
@@ -172,7 +174,7 @@ thread_local! {
 }
 
 /// Initializes the Environment Abstraction Layer (EAL).
-pub fn eal_init(args: Vec<String>) -> Result<()> {
+pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
     debug!(arguments=?args);
 
     let len = args.len() as raw::c_int;
@@ -189,7 +191,7 @@ pub fn eal_init(args: Vec<String>) -> Result<()> {
 }
 
 /// Cleans up the Environment Abstraction Layer (EAL).
-pub fn eal_cleanup() -> Result<()> {
+pub(crate) fn eal_cleanup() -> Result<()> {
     unsafe { ffi::rte_eal_cleanup().to_result().map(|_| ()) }
 }
 

@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Common network utilities.
+
 mod cidr;
 mod mac;
 

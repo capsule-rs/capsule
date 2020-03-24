@@ -45,19 +45,18 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Destination MAC     48-bit MAC address of the originator of the
-///                     packet.
+/// - *Destination MAC*: 48-bit MAC address of the originator of the packet.
 ///
-/// Source MAC          48-bit MAC address of the intended recipient of
-///                     the packet.
+/// - *Source MAC*:      48-bit MAC address of the intended recipient of
+///                      the packet.
 ///
-/// Ether Type          16-bit indicator. Identifies which protocol is
-///                     encapsulated in the payload of the frame.
+/// - *Ether Type*:      16-bit indicator. Identifies which protocol is
+///                      encapsulated in the payload of the frame.
 ///
 /// # 802.1Q
 ///
 /// For networks support virtual LANs, the frame may include an extra VLAN
-/// tag after the source MAC as specified in IEEE 802.1Q.
+/// tag after the source MAC as specified in [`IEEE 802.1Q`] (Dot1q).
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -79,26 +78,26 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// TPID                16-bit tag protocol identifier, located at the same
-///                     position as the EtherType field in untagged frames.
+/// - *TPID*:            16-bit tag protocol identifier, located at the same
+///                      position as the EtherType field in untagged frames.
 ///
-/// TCI                 16-bit tag control information containing the following
-///                     sub-fields.
+/// - *TCI*:             16-bit tag control information containing the following
+///                      sub-fields.
 ///
-/// PCP                 3-bit priority code point which refers to the IEEE
-///                     802.1p class of service and maps to the frame priority
-///                     level.
+/// - *PCP*:             3-bit priority code point which refers to the IEEE
+///                      802.1p class of service and maps to the frame priority
+///                      level.
 ///
-/// DEI                 1-bit drop eligible indicator, may be used separately
-///                     or in conjunction with PCP to indicate frames eligible
-///                     to be dropped in the presence of congestion.
+/// - *DEI*:             1-bit drop eligible indicator, may be used separately
+///                      or in conjunction with PCP to indicate frames eligible
+///                      to be dropped in the presence of congestion.
 ///
-/// VID                 12-bit VLAN identifier specifying the VLAN to which the
-///                     frame belongs.
+/// - *VID*:             12-bit VLAN identifier specifying the VLAN to which the
+///                      frame belongs.
 ///
 /// # 802.1ad
 ///
-/// The frame may be double tagged as per IEEE 802.1ad.
+/// The frame may be double tagged as per [`IEEE 802.1ad`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -112,6 +111,9 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// while mixing traffic from clients that are already VLAN tagged. The outer
 /// S-TAG, or service tag, comes first, followed by the inner C-TAG, or customer
 /// tag. In such cases, 802.1ad specifies a TPID of `0x88a8` for S-TAG.
+///
+/// [`IEEE 802.1Q`]: https://en.wikipedia.org/wiki/IEEE_802.1Q
+/// [`IEEE 802.1ad`]: https://en.wikipedia.org/wiki/IEEE_802.1ad
 #[derive(Clone)]
 pub struct Ethernet {
     envelope: CondRc<Mbuf>,
@@ -267,7 +269,7 @@ impl Packet for Ethernet {
             offset,
         };
 
-        // we've only parsed 14 bytes as the ethernet header, in case of
+        // We've only parsed 14 bytes as the Ethernet header, in case of
         // vlan, we need to make sure there's enough data for the whole
         // header including tags, otherwise accessing the union type in the
         // header will cause a panic.
@@ -309,28 +311,29 @@ impl Packet for Ethernet {
     }
 }
 
-/// The protocol identifier of the ethernet frame payload.
+/// The protocol identifier of the Ethernet frame payload.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct EtherType(pub u16);
 
 impl EtherType {
+    /// Creates an Ethernet payload protocol identifier.
     pub fn new(value: u16) -> Self {
         EtherType(value)
     }
 }
 
-/// Supported ethernet payload protocol types.
+/// Supported Ethernet payload protocol types.
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
 pub mod EtherTypes {
     use super::EtherType;
 
-    // Address resolution protocol.
+    /// Address resolution protocol.
     pub const Arp: EtherType = EtherType(0x0806);
-    // Internet Protocol version 4.
+    /// Internet Protocol version 4.
     pub const Ipv4: EtherType = EtherType(0x0800);
-    // Internet Protocol version 6.
+    /// Internet Protocol version 6.
     pub const Ipv6: EtherType = EtherType(0x86DD);
 }
 
@@ -384,6 +387,7 @@ impl VlanTag {
     }
 }
 
+/// Dot1q chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct Chunk802_1q {
@@ -391,6 +395,7 @@ pub struct Chunk802_1q {
     ether_type: u16,
 }
 
+/// QinQ chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
 pub struct Chunk802_1ad {
@@ -399,7 +404,8 @@ pub struct Chunk802_1ad {
     ether_type: u16,
 }
 
-/// The ethernet header chunk follows the source mac addr.
+/// The Ethernet header chunk follows the source MAC.
+#[allow(missing_debug_implementations)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub union Chunk {
@@ -415,6 +421,7 @@ impl Default for Chunk {
 }
 
 /// Ethernet header.
+#[allow(missing_debug_implementations)]
 #[derive(Clone, Copy, Default)]
 #[repr(C, packed)]
 pub struct EthernetHeader {
@@ -426,11 +433,11 @@ pub struct EthernetHeader {
 impl Header for EthernetHeader {}
 
 impl SizeOf for EthernetHeader {
-    /// Size of the ethernet header.
+    /// Size of the Ethernet header.
     ///
-    /// Because the ethernet header is not fixed and modeled with a union, the
+    /// Because the Ethernet header is not fixed and modeled with a union, the
     /// memory layout size is not the correct header size. For a brand new
-    /// ethernet header, we will always report 14 bytes as the fixed portion,
+    /// Ethernet header, we will always report 14 bytes as the fixed portion,
     /// which is the minimum size without any tags. `Ethernet::header_len()`
     /// will report the correct instance size based on the presence or absence
     /// of VLAN tags.
@@ -440,10 +447,12 @@ impl SizeOf for EthernetHeader {
     }
 }
 
+/// VLAN 802.1Q byte array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const VLAN_802_1Q_PACKET: [u8; 64] = [
-// ethernet header
+// Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid
@@ -460,10 +469,12 @@ pub const VLAN_802_1Q_PACKET: [u8; 64] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
+/// VLAN 802.1AD byte array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const VLAN_802_1AD_PACKET: [u8; 68] = [
-// ethernet header
+// Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     // tpid

@@ -16,5 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Internet Control Message Protocol for IPv4 and IPv6.
+
 pub mod v4;
 pub mod v6;

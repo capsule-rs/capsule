@@ -29,7 +29,7 @@ use std::ptr::NonNull;
 const FRAG_OS: u16 = !0b111;
 const FLAG_MORE: u16 = 0b1;
 
-/// IPv6 Fragment Extension packet based on [IETF RFC 8200].
+/// IPv6 Fragment Extension packet based on [`IETF RFC 8200`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -41,25 +41,25 @@ const FLAG_MORE: u16 = 0b1;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Next Header         8-bit selector.  Identifies the initial header
-///                     type of the Fragmentable Part of the original
-///                     packet (defined below).  Uses the same values
-///                     as the IPv4 Protocol field [IANA-PN].
+/// - *Next Header*:      8-bit selector.  Identifies the initial header
+///                       type of the Fragmentable Part of the original
+///                       packet. Uses the same values as the IPv4 Protocol
+///                       field [IANA-PN].
 ///
-/// Reserved            8-bit reserved field.  Initialized to zero for
-///                     transmission; ignored on reception.
+/// - *Reserved*:         8-bit reserved field.  Initialized to zero for
+///                       transmission; ignored on reception.
 ///
-/// Fragment Offset     13-bit unsigned integer.  The offset, in
-///                     8-octet units, of the data following this
-///                     header, relative to the start of the
-///                     Fragmentable Part of the original packet.
+/// - *Fragment Offset*:  13-bit unsigned integer.  The offset, in
+///                       8-octet units, of the data following this
+///                       header, relative to the start of the
+///                       Fragmentable Part of the original packet.
 ///
-/// Res                 2-bit reserved field.  Initialized to zero for
-///                     transmission; ignored on reception.
+/// - *Res*:              2-bit reserved field.  Initialized to zero for
+///                       transmission; ignored on reception.
 ///
-/// M flag              1 = more fragments; 0 = last fragment.
+/// - *M flag*:           1 = more fragments; 0 = last fragment.
 ///
-/// Identification      32 bits.  See description below.
+/// - *Identification*:   32 bits.
 ///
 /// # Remarks
 ///
@@ -67,7 +67,7 @@ const FLAG_MORE: u16 = 0b1;
 /// `push` and `remove` should be used with care. The result is likely not
 /// a valid packet without additional fixes.
 ///
-/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-4.5
+/// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-4.5
 #[derive(Clone)]
 pub struct Fragment<E: Ipv6Packet> {
     envelope: CondRc<E>,
@@ -284,7 +284,9 @@ pub struct FragmentHeader {
 
 impl Header for FragmentHeader {}
 
+/// IPv6 fragment packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const FRAGMENT_PACKET: [u8; 72] = [
 // ethernet header

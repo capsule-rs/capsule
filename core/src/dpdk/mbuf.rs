@@ -32,9 +32,11 @@ use std::slice;
 /// Size of the structs are used for bound checks when reading and writing
 /// packets.
 ///
-/// For convenience, use the `SizeOf` derive macro.
 ///
-/// # Example
+/// ## Derivable
+///
+/// The `SizeOf` trait can be used with `#[derive]` and defaults to
+/// `std::mem::size_of::<Self>()`.
 ///
 /// ```
 /// #[derive(SizeOf)]
@@ -79,7 +81,7 @@ impl SizeOf for ::std::net::Ipv6Addr {
 
 /// Error indicating buffer access failures.
 #[derive(Debug, Fail)]
-pub enum BufferError {
+pub(crate) enum BufferError {
     /// The offset exceeds the buffer length.
     #[fail(display = "Offset {} exceeds the buffer length {}.", _0, _1)]
     BadOffset(usize, usize),

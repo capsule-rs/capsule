@@ -25,6 +25,7 @@ use crate::Result;
 /// The original packet is dropped from the batch with the new packet in its
 /// place. On error, the packet is `aborted` and will short-circuit the
 /// remainder of the pipeline.
+#[allow(missing_debug_implementations)]
 pub struct Replace<B: Batch, T: Packet, F>
 where
     F: FnMut(&B::Item) -> Result<T>,
@@ -38,6 +39,7 @@ impl<B: Batch, T: Packet, F> Replace<B, T, F>
 where
     F: FnMut(&B::Item) -> Result<T>,
 {
+    /// Creates a new `Replace` batch.
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
         Replace {

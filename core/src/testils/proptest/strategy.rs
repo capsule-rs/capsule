@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! proptest strategies
+//! Proptest strategies.
 
 use crate::net::MacAddr;
 use crate::packets::ip::v4::Ipv4;
@@ -36,12 +36,13 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// Enumeration of settable packet fields.
 #[allow(non_camel_case_types)]
+#[allow(missing_docs)]
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub enum field {
-    // ethernet
+    // Ethernet
     eth_src,
     eth_dst,
-    // ipv4
+    // IPv4
     ipv4_src,
     ipv4_dst,
     ipv4_dscp,
@@ -51,18 +52,18 @@ pub enum field {
     ipv4_more_fragments,
     ipv4_fragment_offset,
     ipv4_ttl,
-    // ipv6
+    // IPv6
     ipv6_src,
     ipv6_dst,
     ipv6_dscp,
     ipv6_ecn,
     ipv6_flow_label,
     ipv6_hop_limit,
-    // segment routing
+    // IPv6 Segment Routing
     sr_segments,
     sr_segments_left,
     sr_tag,
-    // tcp
+    // TCP
     tcp_src_port,
     tcp_dst_port,
     tcp_seq_no,
@@ -78,7 +79,7 @@ pub enum field {
     tcp_rst,
     tcp_syn,
     tcp_fin,
-    // udp
+    // UDP
     udp_src_port,
     udp_dst_port,
 }
@@ -100,9 +101,12 @@ pub enum field {
 ///
 /// When converting default value to proptest strategy, if the type of the
 /// value does not match the field type, the conversion will `panic`.
+#[derive(Debug)]
 pub struct StrategyMap(HashMap<field, Box<dyn Any>>);
 
 impl StrategyMap {
+    /// Creates a new strategy mapping from a hashmap of fields to possible
+    /// values.
     pub fn new(inner: HashMap<field, Box<dyn Any>>) -> Self {
         StrategyMap(inner)
     }

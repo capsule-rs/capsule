@@ -1,5 +1,6 @@
 CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 CRITERION_PLOTS_DIR = bench/target/criterion
+NIGHTLY := $(shell rustup show|grep nightly 2> /dev/null)
 
 .PHONY: bench build build-rel clean clean-plots docs fmt lint find-plots test watch watch-bench watch-test
 
@@ -19,7 +20,11 @@ clean-plots:
 	@rm -rf $(CRITERION_PLOTS_DIR)
 
 docs:
-	@cargo doc --lib --no-deps --all-features
+ifdef NIGHTLY
+	@RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc -p capsule --no-deps --all-features
+else
+	@cargo doc -p capsule --no-deps --all-features
+endif
 
 find-plots:
 	@ls $(CRITERION_PLOTS_DIR)/report/index.html

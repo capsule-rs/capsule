@@ -20,25 +20,24 @@ use crate::dpdk::{CoreId, PortId};
 use crate::ffi::{self, ToCString, ToResult};
 use crate::packets::Packet;
 use crate::{debug, error, Result};
-use libc;
+use std::fmt;
 use std::os::raw;
 use std::ptr::NonNull;
 
-/// DLT_EN10MB; LINKTYPE_ETHERNET=1; 10MB is historical
+// DLT_EN10MB; LINKTYPE_ETHERNET=1; 10MB is historical
 const DLT_EN10MB: raw::c_int = 1;
 const PCAP_SNAPSHOT_LEN: raw::c_int = ffi::RTE_MBUF_DEFAULT_BUF_SIZE as raw::c_int;
 
-/// Pcap Writer for packets
-#[derive(Debug)]
-pub struct Pcap {
+/// Packet Capture (pcap) writer/dumper for packets
+pub(crate) struct Pcap {
     path: String,
     handle: NonNull<ffi::pcap_t>,
     dumper: NonNull<ffi::pcap_dumper_t>,
 }
 
 impl Pcap {
-    /// Create file for dumping packets into from given file a path.
-    pub fn create(path: &str) -> Result<Pcap> {
+    /// Creates a file for dumping packets into from a given file path.
+    pub(crate) fn create(path: &str) -> Result<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
             let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.to_cstring().as_ptr())
@@ -60,7 +59,7 @@ impl Pcap {
 
     /// Append to already-existing file for dumping packets into from a given
     /// file path.
-    pub fn append(path: &str) -> Result<Pcap> {
+    pub(crate) fn append(path: &str) -> Result<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
             let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.to_cstring().as_ptr())
@@ -78,8 +77,8 @@ impl Pcap {
         }
     }
 
-    /// Write packets to PCAP file handler
-    pub fn write<T: Packet>(&self, packets: &[T]) -> Result<()> {
+    /// Write packets to PCAP file handler.
+    pub(crate) fn write<T: Packet>(&self, packets: &[T]) -> Result<()> {
         packets.iter().try_for_each(|p| self.dump_packet(p))?;
         self.flush()
     }
@@ -115,6 +114,12 @@ impl Pcap {
     }
 }
 
+impl<'a> fmt::Debug for Pcap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("pcap").field("path", &self.path).finish()
+    }
+}
+
 impl Drop for Pcap {
     fn drop(&mut self) {
         unsafe {
@@ -133,6 +138,12 @@ pub(crate) fn create_for_queues(port: PortId, core: CoreId) -> Result<()> {
 
 /// Append and write slice of packets to an already-created file, logging errors
 /// that may occur.
+///
+/// # Example
+///
+/// ```
+/// pcap::append_and_write(self.port_id, CoreId::current(), "rx", &mbufs);
+/// ```
 pub(crate) fn append_and_write<T: Packet>(
     port: PortId,
     core: CoreId,

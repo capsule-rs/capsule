@@ -16,6 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Iterator extensions to [`criterion`], leveraging proptest strategy
+//! generators.
+//!
+//! [`criterion`]: https://crates.io/crates/criterion
+
 use super::Rvg;
 use crate::batch::PacketTx;
 use crate::{Batch, Mbuf, Poll};
@@ -25,12 +30,26 @@ use std::cmp;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
+/// Criterion `Bencher` extension trait.
 pub trait BencherExt {
+    /// Times a `routine` with an input generated via a `proptest strategy`
+    /// batch of input, and then times the iteration of the benchmark over the
+    /// input. See [`BatchSize`] for details on choosing the batch size. The
+    /// routine consumes its input.
+    ///
+    /// [`BatchSize`]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
     fn iter_proptest_batched<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where
         R: FnMut(S::Value) -> O,
         S: Strategy;
 
+    /// Times a `routine` with an input generated via a `proptest strategy`
+    /// batch of input that can be polled for benchmarking,
+    /// [`pipeline combinators`] and then times the iteration of the benchmark
+    /// over the input. See [`BatchSize`] for details on choosing the batch size.
+    ///
+    /// [`BatchSize`]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
+    /// [`pipeline combinators`]: crate::Batch
     fn iter_proptest_combinators<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where
         R: FnMut(Poll<Receiver<Mbuf>>) -> O,
@@ -39,8 +58,6 @@ pub trait BencherExt {
 }
 
 impl BencherExt for Bencher<'_> {
-    /// Similar to criterion's `iter_batched`, but uses a proptest strategy as
-    /// the setup to randomly generate a vector of inputs.
     fn iter_proptest_batched<R, S: Strategy, O>(
         &mut self,
         strategy: S,
@@ -68,10 +85,6 @@ impl BencherExt for Bencher<'_> {
         })
     }
 
-    /// Similar to criterion's `iter_batched`, but uses a proptest strategy,
-    /// that returns an mbuf, as the setup to randomly generate a batch
-    /// inputs that can be polled for benchmarking pipeline-combinations of
-    /// combinators.
     fn iter_proptest_combinators<R, S: Strategy<Value = Mbuf>, O: Batch>(
         &mut self,
         strategy: S,
