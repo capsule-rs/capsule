@@ -16,12 +16,15 @@ proptest = "0.9"
 
 [[bench]]
 name = "packets"
+path = "packets.rs"
 harness = false
 
 [[bench]]
 name = "combinators"
+path = "combinators.rs"
 harness = false
 
 [[bench]]
 name = "mbuf"
+path = "mbuf.rs"
 harness = false
