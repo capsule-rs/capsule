@@ -2,9 +2,9 @@
 
 Thank you for your help improving the project! No contribution is too small and all contributions are valued.
 
-When contributing to this repository, please first discuss the change you wish to make via issue, Discord or email with the Capsule maintainers before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](capsule-dev@googlegroups.com) with the Capsule maintainers before making a change.
 
-This guide will help you get started. Please note that we have a code of conduct, please follow it in all your interactions with the project.
+This guide will help you get started. Please note that we have a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Work on Capsule is tracked by Github Issues. Anybody can participate in any stag
 
 ### Asking for General Help
 
-If you have reviewed existing documentation and still have questions or are having problems, you can join our [Discord](https://discord.gg/sVN47RU) channel to ask for help. When applicable, we would appretiate it if you can contribute back a documentation PR that helps others avoid the problems that you encountered.
+If you have reviewed existing documentation and still have questions or are having problems, you can join our [Discord](https://discord.gg/sVN47RU) to ask for help. When applicable, we would appretiate it if you can contribute back a documentation PR that helps others avoid the problems that you encountered.
 
 ### Submitting a Bug Report
 
@@ -43,7 +43,7 @@ The two most important pieces of information we need in order to properly evalua
 
 If you want a new feature added to Capsule, please fill out the [feature request](.github/ISSUE_TEMPLATE/feature-request.md) form.
 
-There are no hard rules as to what features will or will not be accepted. It can be a network protocol, a functionality in DPDK or something new entirely. Ultimately, it depends on what the expected benefit is relative to the expected maintenance burden.
+There are no hard rules as to what features will or will not be accepted. It can be a network protocol, integrating with a feature in DPDK, or something new entirely. Ultimately, it depends on what the expected benefit is relative to the expected maintenance burden.
 
 ## Pull Requests
 
@@ -51,7 +51,7 @@ Pull requests which fix bugs, add features or improve documentation are welcome 
 
 ### Development Notes
 
-Capsule requires extra arguments to many common cargo commands you use. We've simplified these commands with a set of make targets so you don't have to remember them.
+Capsule requires extra arguments to many common `cargo` commands you use. We've simplified these commands with a set of [make targets](Makefile) so you don't have to remember them.
 
 To compile the workspace with all features enabled, use
 
@@ -77,7 +77,7 @@ We use [Clippy](https://github.com/rust-lang/rust-clippy) to catch common Rust m
 make lint
 ```
 
-When building documentation normally, the markers that list the features required for various parts of Capsule are missing. To build the documentation correctly, install nightly Rust and use
+When building documentation normally, the markers that list the features required for various parts of Capsule are missing. To build the documentation correctly, install nightly Rust (`rustup install nightly`) and use
 
 ```
 make docs
