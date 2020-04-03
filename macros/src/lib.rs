@@ -25,7 +25,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{self, parse_macro_input};
 
-// Custom derive macro for SizeOf trait.
+/// Derive macro for [`SizeOf`].
+///
+/// [`SizeOf`]: crate::SizeOf
 #[proc_macro_derive(SizeOf)]
 pub fn derive_size_of(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
@@ -43,16 +45,26 @@ pub fn derive_size_of(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-// Custom-derive macro implementation for `Icmpv4Packet`
+/// Derive macro for [`Icmpv4Packet`].
+///
+/// Also derives the associated [`Packet`] implementation.
+///
+/// [`Packet`]: crate::packets::Packet
+/// [`Icmpv4Packet`]: crate::packets::icmp::v4::Icmpv4Packet
 #[proc_macro_derive(Icmpv4Packet)]
-pub fn derive_icmpv6_packet(input: TokenStream) -> TokenStream {
+pub fn derive_icmpv4_packet(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
     derive_packet::gen_icmpv4(input)
 }
 
-// Custom-derive macro implementation for `Icmpv6Packet`
+/// Derive macro for [`Icmpv6Packet`].
+///
+/// Also derives the associated [`Packet`] implementation.
+///
+/// [`Packet`]: crate::packets::Packet
+/// [`Icmpv6Packet`]: crate::packets::icmp::v6::Icmpv6Packet
 #[proc_macro_derive(Icmpv6Packet)]
-pub fn derive_icmpv4_packet(input: TokenStream) -> TokenStream {
+pub fn derive_icmpv6_packet(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
     derive_packet::gen_icmpv6(input)
 }

@@ -21,7 +21,7 @@ use crate::packets::Packet;
 use crate::{Icmpv4Packet, Result, SizeOf};
 use std::fmt;
 
-/// Echo Request Message defined in [IETF RFC 792].
+/// Echo Request Message defined in [`IETF RFC 792`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -35,16 +35,15 @@ use std::fmt;
 /// +-+-+-+-+-
 /// ```
 ///
-/// Identifier      An identifier to aid in matching Echo Replies
-///                 to this Echo Request.  May be zero.
+/// *Identifier*:       An identifier to aid in matching Echo Replies
+///                     to this Echo Request.  May be zero.
 ///
-/// Sequence Number
-///                 A sequence number to aid in matching Echo Replies
-///                 to this Echo Request.  May be zero.
+/// *Sequence Number*:  A sequence number to aid in matching Echo Replies
+///                     to this Echo Request.  May be zero.
 ///
-/// Data            Zero or more octets of arbitrary data.
+/// *Data*:             Zero or more octets of arbitrary data.
 ///
-/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
+/// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
 #[derive(Clone, Copy, Debug, Default, Icmpv4Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoRequest {

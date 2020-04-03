@@ -1,22 +1,21 @@
 [package]
 name = "capsule-ffi"
-version = "18.11.2"
-authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+version = "18.11.6"
+authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
-keywords = []
 edition = "2018"
 build = "build.rs"
 links = "dpdk"
-description = "Capsule FFI bindings for native libraries"
-readme = "../README.md"
-categories = []
+publish = false
+description = """
+Capsule FFI bindings for native libraries.
+"""
 
 [lib]
 name = "capsule_ffi"
 doctest = false
 
 [build-dependencies]
-# must be pinned to 0.51.1 revision exactly
-bindgen = "0.51.1"
+bindgen = "0.53"
 cc = "1.0"
 libc = "0.2"

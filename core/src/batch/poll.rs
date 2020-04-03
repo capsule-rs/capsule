@@ -23,6 +23,7 @@ use std::collections::VecDeque;
 /// A batch that polls a receiving source for new packets.
 ///
 /// This marks the beginning of the pipeline.
+#[allow(missing_debug_implementations)]
 pub struct Poll<Rx: PacketRx> {
     rx: Rx,
     packets: Option<VecDeque<Mbuf>>,

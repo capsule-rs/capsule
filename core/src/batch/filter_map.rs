@@ -20,7 +20,10 @@ use super::{Batch, Disposition};
 use crate::packets::Packet;
 use crate::{Mbuf, Result};
 
-/// The result of the filter map.
+/// The result of a [`filter_map`].
+///
+/// [`filter_map`]: crate::batch::Batch::filter_map
+#[allow(missing_debug_implementations)]
 pub enum Either<T> {
     /// Keeps the packet as mapped result.
     Keep(T),
@@ -34,6 +37,7 @@ pub enum Either<T> {
 /// If the closure returns `Drop`, the packet is marked as dropped. On
 /// error, the packet is marked as aborted. In both scenarios, it will
 /// short-circuit the remainder of the pipeline.
+#[allow(missing_debug_implementations)]
 pub struct FilterMap<B: Batch, T: Packet, F>
 where
     F: FnMut(B::Item) -> Result<Either<T>>,
@@ -46,6 +50,7 @@ impl<B: Batch, T: Packet, F> FilterMap<B, T, F>
 where
     F: FnMut(B::Item) -> Result<Either<T>>,
 {
+    /// Creates a new `FilterMap` batch.
     #[inline]
     pub fn new(batch: B, f: F) -> Self {
         FilterMap { batch, f }

@@ -22,7 +22,7 @@ use crate::{ensure, Mbuf, Result, SizeOf};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// MTU option defined in [IETF RFC 4861].
+/// MTU option defined in [`IETF RFC 4861`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -34,18 +34,18 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Type            5
+/// - *Type*:            5
 ///
-/// Length          1
+/// - *Length*:          1
 ///
-/// Reserved        This field is unused.  It MUST be initialized to
-///                 zero by the sender and MUST be ignored by the
-///                 receiver.
+/// - *Reserved*:        This field is unused. It *MUST* be initialized to
+///                      zero by the sender and *MUST* be ignored by the
+///                      receiver.
 ///
-/// MTU             32-bit unsigned integer.  The recommended MTU for
-///                 the link.
+/// - *MTU*:             32-bit unsigned integer. The recommended MTU for
+///                      the link.
 ///
-/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.6.4
+/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.4
 pub struct Mtu {
     fields: NonNull<MtuFields>,
     offset: usize,

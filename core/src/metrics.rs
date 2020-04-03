@@ -16,7 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! Exposes the following framework metrics.
+//! Exposes framework metrics, including port, kni, mempool, and pipeline
+//! metrics.
 //!
 //! # Port Metrics
 //!

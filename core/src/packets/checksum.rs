@@ -16,23 +16,37 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Common checksum capabilities and computations for all packet types,
+//! including calculation involving *pseudo headers*.
+
 use crate::packets::ip::{IpPacketError, ProtocolNumber};
 use crate::Result;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::slice;
 
-/// Generic pseudo header used for checksumming purposes.
+/// Generic pseudo header used to calculate checksum.
+#[derive(Debug)]
 pub enum PseudoHeader {
+    /// IPv4 pseudo header.
     V4 {
+        /// Source address.
         src: Ipv4Addr,
+        /// Destination address.
         dst: Ipv4Addr,
+        /// Packet length.
         packet_len: u16,
+        /// Next layer's protocol.
         protocol: ProtocolNumber,
     },
+    /// IPv6 pseudo header.
     V6 {
+        /// Source address.
         src: Ipv6Addr,
+        /// Destination address.
         dst: Ipv6Addr,
+        /// Packet length.
         packet_len: u16,
+        /// Next layer's protocol.
         protocol: ProtocolNumber,
     },
 }
@@ -89,7 +103,7 @@ fn v4_csum(src: Ipv4Addr, dst: Ipv4Addr, packet_len: u16, protocol: ProtocolNumb
 }
 
 /// Calculates the upper-layer checksum using the IPv6 psuedo-header as
-/// defined in [IETF RFC 2460].
+/// defined in [`IETF RFC 2460`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -105,7 +119,7 @@ fn v4_csum(src: Ipv4Addr, dst: Ipv4Addr, packet_len: u16, protocol: ProtocolNumb
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-8.1
+/// [`IETF RFC 2460`]: https://tools.ietf.org/html/rfc2460#section-8.1
 fn v6_csum(src: Ipv6Addr, dst: Ipv6Addr, packet_len: u16, protocol: ProtocolNumber) -> u32 {
     src.segments().iter().fold(0, |acc, &x| acc + u32::from(x))
         + dst.segments().iter().fold(0, |acc, &x| acc + u32::from(x))
@@ -113,7 +127,7 @@ fn v6_csum(src: Ipv6Addr, dst: Ipv6Addr, packet_len: u16, protocol: ProtocolNumb
         + u32::from(protocol.0)
 }
 
-/// Computes the internet checksum as defined in [IETF RFC 1071].
+/// Computes the Internet checksum as defined in [`IETF RFC 1071`].
 ///
 /// 1. Adjacent octets to be checksummed are paired to form 16-bit integers,
 /// and the 1's complement sum of these 16-bit integers is formed.
@@ -126,7 +140,7 @@ fn v6_csum(src: Ipv6Addr, dst: Ipv6Addr, packet_len: u16, protocol: ProtocolNumb
 /// set of octets, including the checksum field.  If the result is all 1 bits
 /// (-0 in 1's complement arithmetic), the check succeeds.
 ///
-/// [IETF RFC 1071]: https://tools.ietf.org/html/rfc1071
+/// [`IETF RFC 1071`]: https://tools.ietf.org/html/rfc1071
 #[allow(clippy::cast_ptr_alignment)]
 pub fn compute(pseudo_header_sum: u16, payload: &[u8]) -> u16 {
     let len = payload.len();
@@ -153,8 +167,8 @@ pub fn compute(pseudo_header_sum: u16, payload: &[u8]) -> u16 {
     !(checksum as u16)
 }
 
-/// Computes the internet checksum via incremental update as defined in
-/// [IETF RFC 1624].
+/// Computes the Internet checksum via incremental update as defined in
+/// [`IETF RFC 1624`].
 ///
 /// Given the following notation:
 /// * `HC`  - old checksum in header
@@ -164,7 +178,7 @@ pub fn compute(pseudo_header_sum: u16, payload: &[u8]) -> u16 {
 ///
 /// `HC' = ~(~HC + ~m + m')`
 ///
-/// [IETF RFC 1624]: https://tools.ietf.org/html/rfc1624
+/// [`IETF RFC 1624`]: https://tools.ietf.org/html/rfc1624
 pub fn compute_inc(old_checksum: u16, old_value: &[u16], new_value: &[u16]) -> u16 {
     let mut checksum = old_value
         .iter()

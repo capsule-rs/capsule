@@ -16,6 +16,17 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! The Neighbor Discovery Protocol is a protocol used in IPv6, using ICMPv6
+//! messages and operates at the link layer of the Internet model, as
+//! per [`IETF RFC 4861`]. It defines three mechanisms:
+//!
+//! - Substitute of ARP for use in IPv6 domains.
+//! - Stateless auto-configuration, allowing nodes on the local link to
+//!   configure their IPv6 addresses by themselves.
+//! - Router redirection to IPv6 nodes
+//!
+//! [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861
+
 mod neighbor_advert;
 mod neighbor_solicit;
 mod options;

@@ -3,12 +3,12 @@ name = "signals"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = []
-publish = false
 edition = "2018"
-description = "Linux signal handling example"
+publish = false
 readme = "README.md"
-categories = []
+description = """
+Linux signal handling example.
+"""
 
 [[bin]]
 name = "signals"

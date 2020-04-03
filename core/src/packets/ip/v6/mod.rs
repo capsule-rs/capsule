@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Internet Protocol v6 and extension headers.
+
 mod fragment;
 mod srh;
 
@@ -30,9 +32,9 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
-/// The minimum IPv6 MTU defined in [IETF RFC 2460].
+/// The minimum IPv6 MTU defined in [`IETF RFC 2460`].
 ///
-/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-5
+/// [`IETF RFC 2460`]: https://tools.ietf.org/html/rfc2460#section-5
 pub const IPV6_MIN_MTU: usize = 1280;
 
 // Masks
@@ -40,7 +42,7 @@ const DSCP: u32 = 0x0fc0_0000;
 const ECN: u32 = 0x0030_0000;
 const FLOW: u32 = 0xfffff;
 
-/// Internet Protocol v6 based on [IETF RFC 8200].
+/// Internet Protocol v6 based on [`IETF RFC 8200`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -56,42 +58,41 @@ const FLOW: u32 = 0xfffff;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Version             4-bit Internet Protocol version number = 6.
+/// - *Version*:              4-bit Internet Protocol version number = 6.
 ///
-/// DSCP                6-bit Differentiated services codepoint defined
-///                     in [IETF RFC 2474]. Used to select the per hop
-///                     behavior a packet experiences at each node.
+/// - *DSCP*:                 6-bit Differentiated services codepoint defined
+///                           in [`IETF RFC 2474`]. Used to select the per hop
+///                           behavior a packet experiences at each node.
 ///
-/// ECN                 2-bit Explicit congestion notification codepoint
-///                     defined in [IETF RFC 3168].
+/// - *ECN*:                  2-bit Explicit congestion notification codepoint
+///                           defined in [`IETF RFC 3168`].
 ///
-/// Flow Label          20-bit flow label.
+/// - *Flow Label*:           20-bit flow label.
 ///
-/// Payload Length      16-bit unsigned integer.  Length of the IPv6
-///                     payload, i.e., the rest of the packet following
-///                     this IPv6 header, in octets.  (Note that any
-///                     extension headers present are considered part of
-///                     the payload, i.e., included in the length count.)
+/// - *Payload Length*:       16-bit unsigned integer.  Length of the IPv6
+///                           payload, i.e., the rest of the packet following
+///                           this IPv6 header, in octets. (*Note* that any
+///                           extension headers present are considered part of
+///                           the payload, i.e., included in the length count.)
 ///
-/// Next Header         8-bit selector.  Identifies the type of header
-///                     immediately following the IPv6 header.  Uses the
-///                     same values as the IPv4 Protocol field [RFC-1700
-///                     et seq.].
+/// - *Next Header*:          8-bit selector.  Identifies the type of header
+///                           immediately following the IPv6 header. Uses the
+///                           same values as the IPv4 Protocol field
+///                           [RFC-1700 et seq.].
 ///
-/// Hop Limit           8-bit unsigned integer.  Decremented by 1 by
-///                     each node that forwards the packet. The packet
-///                     is discarded if Hop Limit is decremented to
-///                     zero.
+/// - *Hop Limit*:            8-bit unsigned integer. Decremented by 1 by
+///                           each node that forwards the packet. The packet
+///                           is discarded if Hop Limit is decremented to zero.
 ///
-/// Source Address      128-bit address of the originator of the packet.
+/// - *Source Address*:       128-bit address of the originator of the packet.
 ///
-/// Destination Address 128-bit address of the intended recipient of the
-///                     packet (possibly not the ultimate recipient, if
-///                     a Routing header is present).
+/// - *Destination Address*:  128-bit address of the intended recipient of the
+///                           packet (possibly not the ultimate recipient, if
+///                           a Routing header is present).
 ///
-/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
-/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
-/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
+/// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-3
+/// [`IETF RFC 2474`]: https://tools.ietf.org/html/rfc2474
+/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
 #[derive(Clone)]
 pub struct Ipv6 {
     envelope: CondRc<Ethernet>,
@@ -366,7 +367,7 @@ impl IpPacket for Ipv6 {
             IpPacketError::MtuTooSmall(mtu, IPV6_MIN_MTU)
         );
 
-        // accounts for the ethernet frame length.
+        // accounts for the Ethernet frame length.
         let to_len = mtu + self.offset();
         self.mbuf_mut().truncate(to_len)
     }
@@ -420,10 +421,12 @@ impl Default for Ipv6Header {
 
 impl Header for Ipv6Header {}
 
+/// IPv6 TCP packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const IPV6_PACKET: [u8; 78] = [
-// ethernet header
+// Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x86, 0xDD,

@@ -23,7 +23,7 @@ use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
 
-/// User Datagram Protocol packet based on [IETF RFC 768].
+/// User Datagram Protocol packet based on [`IETF RFC 768`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -37,34 +37,38 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Source Port is an optional field, when meaningful, it indicates the port
-/// of the sending  process,  and may be assumed  to be the port  to which a
-/// reply should  be addressed  in the absence of any other information.  If
-/// not used, a value of zero is inserted.
+/// - *Source Port*: (16 bits)
+///      An  optional field that, when meaningful, indicates the port
+///      of the sending  process, and may be assumed to be the port to which a
+///      reply should be addressed in the absence of any other information. If
+///      not used, a value of zero is inserted.
 ///
-/// Destination  Port has a meaning  within  the  context  of  a  particular
-/// internet destination address.
+/// - *Destination Port*: (16 bits)
+///      Has a meaning  within the context of a particular Internet
+///      destination address.
 ///
-/// Length  is the length  in octets  of this user datagram  including  this
-/// header  and the data.   (This  means  the minimum value of the length is
-/// eight.)
+/// - *Length*: (16 bits)
+///      The length  in octets of this user datagram including its
+///      header and the data. (This  means the minimum value of the length is
+///      eight.)
 ///
-/// Checksum is the 16-bit one's complement of the one's complement sum of a
-/// pseudo header of information from the IP header, the UDP header, and the
-/// data,  padded  with zero octets  at the end (if  necessary)  to  make  a
-/// multiple of two octets.
+/// - *Checksum*: (16 bits)
+///      The 16-bit one's complement of the one's complement sum of a
+///      pseudo header of information from the IP header, the UDP header, and
+///      the data, padded with zero octets at the end (if necessary) to make a
+///      multiple of two octets.
 ///
-/// The pseudo  header  conceptually prefixed to the UDP header contains the
-/// source  address,  the destination  address,  the protocol,  and the  UDP
-/// length.   This information gives protection against misrouted datagrams.
-/// This checksum procedure is the same as is used in TCP.
+///      The pseudo  header conceptually prefixed to the UDP header contains the
+///      source address,  the destination address, the protocol, and the UDP
+///      length. This information gives protection against misrouted datagrams.
+///      This checksum procedure is the same as is used in TCP.
 ///
-/// If the computed  checksum  is zero,  it is transmitted  as all ones (the
-/// equivalent  in one's complement  arithmetic).   An all zero  transmitted
-/// checksum  value means that the transmitter  generated  no checksum  (for
-/// debugging or for higher level protocols that don't care).
+///      If the computed  checksum  is zero,  it is transmitted  as all ones (the
+///      equivalent  in one's complement  arithmetic).   An all zero  transmitted
+///      checksum  value means that the transmitter  generated  no checksum  (for
+///      debugging or for higher level protocols that don't care).
 ///
-/// [IETF RFC 768]: https://tools.ietf.org/html/rfc768
+/// [`IETF RFC 768`]: https://tools.ietf.org/html/rfc768
 #[derive(Clone)]
 pub struct Udp<E: IpPacket> {
     envelope: CondRc<E>,
@@ -309,7 +313,9 @@ pub struct UdpHeader {
 
 impl Header for UdpHeader {}
 
+/// IPv4 UDP packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const UDP_PACKET: [u8; 52] = [
 // ethernet header

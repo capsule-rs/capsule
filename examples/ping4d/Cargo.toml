@@ -3,12 +3,12 @@ name = "ping4d"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = []
-publish = false
 edition = "2018"
-description = "Ping4 daemon example"
+publish = false
 readme = "README.md"
-categories = []
+description = """
+Ping4 daemon example.
+"""
 
 [[bin]]
 name = "ping4d"

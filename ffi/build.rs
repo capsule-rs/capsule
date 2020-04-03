@@ -16,8 +16,6 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use bindgen;
-use cc;
 use std::env;
 use std::path::{Path, PathBuf};
 

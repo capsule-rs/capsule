@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-pub use capsule_ffi::*;
+pub(crate) use capsule_ffi::*;
 
 use crate::dpdk::DpdkError;
 use crate::{warn, Result};
@@ -25,7 +25,7 @@ use std::os::raw;
 use std::ptr::NonNull;
 
 /// Simplify `*const c_char` or [c_char] to `&str` conversion.
-pub trait AsStr {
+pub(crate) trait AsStr {
     fn as_str(&self) -> &str;
 }
 
@@ -54,7 +54,7 @@ impl AsStr for [raw::c_char] {
 }
 
 /// Simplify `String` and `&str` to `CString` conversion.
-pub trait ToCString {
+pub(crate) trait ToCString {
     fn to_cstring(self) -> CString;
 }
 
@@ -73,7 +73,7 @@ impl ToCString for &str {
 }
 
 /// Simplify FFI binding's return to `Result` conversion.
-pub trait ToResult {
+pub(crate) trait ToResult {
     type Ok;
 
     fn to_result(self) -> Result<Self::Ok>;

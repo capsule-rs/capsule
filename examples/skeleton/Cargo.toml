@@ -3,12 +3,12 @@ name = "skeleton"
 version = "0.1.0"
 authors = ["Capsule Developers <occam_engineering@comcast.com>"]
 license = "Apache-2.0"
-keywords = []
-publish = false
 edition = "2018"
-description = "Base skeleton example"
+publish = false
 readme = "README.md"
-categories = []
+description = """
+Base skeleton example.
+"""
 
 [[bin]]
 name = "skeleton"

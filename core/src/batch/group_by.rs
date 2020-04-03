@@ -24,17 +24,20 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 /// A bridge between the main batch pipeline and the branch pipelines
-/// created by the `GroupBy` combinator. Packets can be fed one at a time
+/// created by the [`GroupBy`] combinator. Packets can be fed one at a time
 /// through the bridge. Because the pipeline execution is depth first,
 /// this is the most efficient way storage wise.
+#[allow(missing_debug_implementations)]
 #[derive(Clone, Default)]
 pub struct Bridge<T: Packet>(Rc<Cell<Option<T>>>);
 
 impl<T: Packet> Bridge<T> {
+    /// Creates a new, empty bridge.
     pub fn new() -> Self {
         Bridge(Rc::new(Cell::new(None)))
     }
 
+    /// Feeds a packet into the bridge container.
     pub fn set(&self, pkt: T) {
         self.0.set(Some(pkt));
     }
@@ -63,6 +66,7 @@ pub type GroupByBatchBuilder<T> = dyn FnOnce(Bridge<T>) -> Box<dyn Batch<Item = 
 ///
 /// All the sub batches must have the same packet type as the underlying
 /// batch.
+#[allow(missing_debug_implementations)]
 pub struct GroupBy<B: Batch, D, S>
 where
     D: Eq + Clone + Hash,
@@ -80,6 +84,7 @@ where
     D: Eq + Clone + Hash,
     S: Fn(&B::Item) -> D,
 {
+    /// Creates a new `GroupBy` batch.
     #[inline]
     pub fn new<C>(batch: B, selector: S, composer: C) -> Self
     where
@@ -156,7 +161,9 @@ macro_rules! __compose {
     }};
 }
 
-/// Composes the batch builders for the `group_by` combinator
+/// Composes the batch builders for the [`group_by`] combinator.
+///
+/// [`group_by`]: crate::batch::Batch::group_by
 #[macro_export]
 macro_rules! compose {
     ($map:ident { $($key:expr => |$arg:tt| $body:block)+ }) => {{

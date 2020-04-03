@@ -19,13 +19,17 @@
 use super::{Batch, Disposition, PacketTx};
 use crate::packets::Packet;
 
-/// A batch that transmits the packets through the specified `PacketTx`.
+/// A batch that transmits the packets through the specified [`PacketTx`].
+///
+/// [`PacketTx`]: crate::batch::PacketTx
+#[allow(missing_debug_implementations)]
 pub struct Emit<B: Batch, Tx: PacketTx> {
     batch: B,
     tx: Tx,
 }
 
 impl<B: Batch, Tx: PacketTx> Emit<B, Tx> {
+    /// Creates a new `Emit` batch.
     #[inline]
     pub fn new(batch: B, tx: Tx) -> Self {
         Emit { batch, tx }

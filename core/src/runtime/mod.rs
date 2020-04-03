@@ -18,7 +18,7 @@
 
 mod core_map;
 
-pub use self::core_map::*;
+pub(crate) use self::core_map::*;
 
 use super::Pipeline;
 use crate::config::RuntimeConfig;
@@ -27,8 +27,8 @@ use crate::dpdk::{
 };
 use crate::{debug, ensure, info, Result};
 use futures::{future, stream, StreamExt};
-use libc;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -37,14 +37,35 @@ use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 use tokio_timer::{timer, Interval};
 
-/// Supported Unix signals.
+/// Supported [`Unix signals`].
+///
+/// [`Unix signals`]: https://en.wikipedia.org/wiki/Signal_(IPC)#POSIX_signals
 #[derive(Copy, Clone, Debug)]
 pub enum UnixSignal {
+    /// This signal is sent to a process when its controlling terminal is closed.
+    /// In modern systems, this signal usually means that the controlling pseudo
+    /// or virtual terminal has been closed. Many daemons will reload their
+    /// configuration files and reopen their log files instead of exiting when
+    /// receiving this signal. `nohup` is a command to make a command ignore the
+    /// signal.
     SIGHUP = libc::SIGHUP as isize,
+    /// This signal is sent to a process by its controlling terminal when a user
+    /// wishes to interrupt the process. This is typically initiated by pressing
+    /// `Ctrl-C`, but on some systems, the "delete" character or "break" key can
+    /// be used.
     SIGINT = libc::SIGINT as isize,
+    /// This signal is sent to a process to request its termination. Unlike the
+    /// `SIGKILL` signal, it can be caught and interpreted or ignored by the
+    /// process. This allows the process to perform nice termination releasing
+    /// resources and saving state if appropriate. `SIGINT` is nearly identical
+    /// to `SIGTERM`.
     SIGTERM = libc::SIGTERM as isize,
 }
 
+/// The Capsule runtime.
+///
+/// The runtime initializes the underlying DPDK environment, and it also manages
+/// the task scheduler that executes the packet processing pipelines.
 pub struct Runtime {
     ports: ManuallyDrop<Vec<Port>>,
     mempools: ManuallyDrop<Vec<Mempool>>,
@@ -195,8 +216,19 @@ impl Runtime {
     /// cores assigned to the port.
     ///
     /// `port` is the logical name that identifies the port. The `installer`
-    /// is a closure that takes in a `PortQueue` and returns a `Pipeline`
+    /// is a closure that takes in a [`PortQueue`] and returns a [`Pipeline`]
     /// that will be spawned onto the thread executor.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// Runtime::build(config)?
+    ///     .add_add_pipeline_to_port("eth1", install)?
+    ///     .execute()
+    /// ```
+    ///
+    /// [`PortQueue`]: crate::PortQueue
+    /// [`Pipeline`]: crate::Pipeline
     pub fn add_pipeline_to_port<T: Pipeline + 'static, F>(
         &mut self,
         port: &str,
@@ -239,7 +271,7 @@ impl Runtime {
     /// This function has be to invoked once per port. Otherwise the packets
     /// coming from the kernel will be silently dropped. For the most common
     /// use case where the application only needs simple packet forwarding,
-    /// use `batch::splice` to join the kernel's RX with the port's TX.
+    /// use [`batch::splice`] to join the kernel's RX with the port's TX.
     ///
     /// # Example
     ///
@@ -249,6 +281,8 @@ impl Runtime {
     ///     .add_kni_rx_pipeline_to_port("kni0", batch::splice)?
     ///     .execute()
     /// ```
+    ///
+    /// [`batch::splice`]: crate::batch::splice
     pub fn add_kni_rx_pipeline_to_port<T: Pipeline + 'static, F>(
         &mut self,
         port: &str,
@@ -290,8 +324,19 @@ impl Runtime {
     /// to will be available to the pipeline.
     ///
     /// `core` is the logical id that identifies the core. The `installer`
-    /// is a closure that takes in a hashmap of `PortQueue`s and returns a
-    /// `Pipeline` that will be spawned onto the thread executor of the core.
+    /// is a closure that takes in a hashmap of [`PortQueues`] and returns a
+    /// [`Pipeline`] that will be spawned onto the thread executor of the core.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// Runtime::build(config)?
+    ///     .add_pipeline_to_core(1, install)?
+    ///     .execute()
+    /// ```
+    ///
+    /// [`PortQueues`]: crate::PortQueue
+    /// [`Pipeline`]: crate::Pipeline
     pub fn add_pipeline_to_core<T: Pipeline + 'static, F>(
         &mut self,
         core: usize,
@@ -319,17 +364,29 @@ impl Runtime {
 
     /// Installs a periodic pipeline to a core.
     ///
-    /// `core` is the logical id that identifies the core. The `installer`
-    /// is a closure that takes in a hashmap of `PortQueue`s and returns a
-    /// `Pipeline` that will be run periodically every `dur` interval.
+    /// `core` is the logical id that identifies the core. The `installer` is a
+    /// closure that takes in a hashmap of [`PortQueues`] and returns a
+    /// [`Pipeline`] that will be run periodically every `dur` interval.
     ///
     /// # Remarks
     ///
     /// All the ports the core is assigned to will be available to this
     /// pipeline. However they should only be used to transmit packets. This
     /// variant is for pipelines that generate new packets periodically.
-    /// A new packet batch can be created with `batch::poll_fn` and ingested
+    /// A new packet batch can be created with [`batch::poll_fn`] and ingested
     /// into the pipeline.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// Runtime::build(config)?
+    ///     .add_periodic_pipeline_to_core(1, install, Duration::from_millis(10))?
+    ///     .execute()
+    /// ```
+    ///
+    /// [`PortQueues`]: crate::PortQueue
+    /// [`Pipeline`]: crate::Pipeline
+    /// [`batch::poll_fn`]: crate::batch::poll_fn
     pub fn add_periodic_pipeline_to_core<T: Pipeline + 'static, F>(
         &mut self,
         core: usize,
@@ -365,6 +422,14 @@ impl Runtime {
     ///
     /// `core` is the logical id that identifies the core. `task` is the
     /// closure to execute. The task will rerun every `dur` interval.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// Runtime::build(config)?
+    ///     .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
+    ///     .execute()
+    /// ```
     pub fn add_periodic_task_to_core<F>(
         &mut self,
         core: usize,
@@ -517,6 +582,7 @@ impl Runtime {
         }
     }
 
+    /// Executes the pipeline(s) until a stop signal is received.
     pub fn execute(&mut self) -> Result<()> {
         self.add_kni_tx_pipelines()?;
         self.start_ports()?;
@@ -533,6 +599,14 @@ impl Runtime {
         info!("runtime terminated.");
 
         Ok(())
+    }
+}
+
+impl<'a> fmt::Debug for Runtime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("runtime")
+            .field("runtime configuration", &format!("{:?}", self.config))
+            .finish()
     }
 }
 

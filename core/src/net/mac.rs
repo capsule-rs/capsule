@@ -21,20 +21,22 @@ use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
 
-/// MAC address
+/// Ethernet MAC address.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(C, packed)]
 pub struct MacAddr([u8; 6]);
 
 impl MacAddr {
+    /// A MAC address representing an unspecified address: 00:00:00:00:00:00.
     pub const UNSPECIFIED: Self = MacAddr([0, 0, 0, 0, 0, 0]);
 
+    /// Creates a MAC address from 6 octets.
     #[allow(clippy::many_single_char_names)]
     pub fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> Self {
         MacAddr([a, b, c, d, e, f])
     }
 
-    /// Returns the six bytes the MAC address consists of
+    /// Returns the six bytes the MAC address consists of.
     #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn octets(&self) -> [u8; 6] {
         self.0
@@ -57,6 +59,7 @@ impl From<[u8; 6]> for MacAddr {
     }
 }
 
+/// Error returned when parsing a malformed MAC address.
 #[derive(Debug, Fail)]
 #[fail(display = "Failed to parse '{}' as MAC address.", _0)]
 pub struct MacParseError(String);

@@ -23,6 +23,9 @@ use std::str::FromStr;
 
 const IPV4ADDR_BITS: usize = 32;
 
+/// [`CIDR`] range for IPv4 addresses.
+///
+/// [`CIDR`]: https://tools.ietf.org/html/rfc4632#section-3.1
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ipv4Cidr {
     address: Ipv4Addr,

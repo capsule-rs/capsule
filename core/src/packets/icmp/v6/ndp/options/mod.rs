@@ -20,25 +20,37 @@ mod link_layer_addr;
 mod mtu;
 mod prefix_info;
 
+#[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
 pub use self::link_layer_addr::*;
+#[allow(unreachable_pub)]
 pub use self::mtu::*;
+#[allow(unreachable_pub)]
 pub use self::prefix_info::*;
 
 use crate::packets::ParseError;
 use crate::{Mbuf, Result};
 use fallible_iterator::FallibleIterator;
 
+/// Source link-layer address option.
 pub const SOURCE_LINK_LAYER_ADDR: u8 = 1;
+/// Target link-layer address option.
 pub const TARGET_LINK_LAYER_ADDR: u8 = 2;
+/// Prefix Information option.
 pub const PREFIX_INFORMATION: u8 = 3;
 //const REDIRECTED_HEADER: u8 = 4;
+/// MTU option.
 pub const MTU: u8 = 5;
 
 /// A parsed NDP option.
+#[derive(Debug)]
 pub enum NdpOptions {
+    /// Source link-layer address of a device.
     SourceLinkLayerAddress(LinkLayerAddress),
+    /// Target link-layer address of a device.
     TargetLinkLayerAddress(LinkLayerAddress),
+    /// Prefix information.
     PrefixInformation(PrefixInformation),
+    /// MTU information.
     Mtu(Mtu),
     /// An undefined NDP option.
     Undefined(u8, u8),
@@ -53,12 +65,14 @@ pub trait NdpOption {
 }
 
 /// NDP options iterator.
+#[allow(missing_debug_implementations)]
 pub struct NdpOptionsIterator<'a> {
     mbuf: &'a Mbuf,
     offset: usize,
 }
 
 impl<'a> NdpOptionsIterator<'a> {
+    /// Creates a new NDP options iterator.
     pub fn new(mbuf: &'a Mbuf, offset: usize) -> NdpOptionsIterator<'a> {
         NdpOptionsIterator { mbuf, offset }
     }
@@ -107,6 +121,7 @@ impl FallibleIterator for NdpOptionsIterator<'_> {
     }
 }
 
+/// ICMPv6 packet with invalid MTU-option length.
 #[cfg(test)]
 #[rustfmt::skip]
 const INVALID_OPTION_LENGTH: [u8;78] = [

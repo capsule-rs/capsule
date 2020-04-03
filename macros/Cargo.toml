@@ -1,12 +1,13 @@
 [package]
 name = "capsule-macros"
 version = "0.1.0"
-authors = ["Capsule Developers <occam_engineering@comcast.com>"]
+authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
-keywords = []
 edition = "2018"
-description = "Capsule procedural macros"
-categories = []
+publish = false
+description = """
+Capsule procedural macros.
+"""
 
 [lib]
 name = "capsule_macros"

@@ -27,7 +27,7 @@ use std::ptr::NonNull;
 const ONLINK: u8 = 0b1000_0000;
 const AUTO: u8 = 0b0100_0000;
 
-/// Prefix Information option defined in [IETF RFC 4861].
+/// Prefix Information option defined in [`IETF RFC 4861`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -43,71 +43,72 @@ const AUTO: u8 = 0b0100_0000;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |                Prefix (128 bits IPv6 address)                 |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
 ///
-/// Type            3
+/// - *Type*:                3
 ///
-/// Length          4
+/// - *Length*:              4
 ///
-/// Prefix Length   8-bit unsigned integer.  The number of leading bits
-///                 in the Prefix that are valid.  The value ranges
-///                 from 0 to 128.  The prefix length field provides
-///                 necessary information for on-link determination
-///                 (when combined with the L flag in the prefix
-///                 information option).  It also assists with address
-///                 autoconfiguration as specified in [ADDRCONF], for
-///                 which there may be more restrictions on the prefix
-///                 length.
+/// - *Prefix Length*:       8-bit unsigned integer. The number of leading bits
+///                          in the Prefix that are valid. The value ranges
+///                          from 0 to 128. The prefix length field provides
+///                          necessary information for on-link determination
+///                          (when combined with the L flag in the prefix
+///                          information option). It also assists with address
+///                          auto-configuration as specified in `ADDRCONF`, for
+///                          which there may be more restrictions on the prefix
+///                          length.
 ///
-/// L               1-bit on-link flag.  When set, indicates that this
-///                 prefix can be used for on-link determination.  When
-///                 not set the advertisement makes no statement about
-///                 on-link or off-link properties of the prefix.  In
-///                 other words, if the L flag is not set a host MUST
-///                 NOT conclude that an address derived from the
-///                 prefix is off-link.  That is, it MUST NOT update a
-///                 previous indication that the address is on-link.
+/// - *L*:                   1-bit on-link flag. When set, indicates that this
+///                          prefix can be used for on-link determination. When
+///                          not set the advertisement makes no statement about
+///                          on-link or off-link properties of the prefix. In
+///                          other words, if the L flag is not set a host
+///                          **MUST NOT** conclude that an address derived from
+///                          the prefix is off-link.  That is, it **MUST NOT**
+///                          update a previous indication that the address is
+///                          on-link.
 ///
-/// A               1-bit autonomous address-configuration flag.  When
-///                 set indicates that this prefix can be used for
-///                 stateless address configuration as specified in
-///                 [ADDRCONF].
+/// - *A*:                   1-bit autonomous address-configuration flag. When
+///                          set indicates that this prefix can be used for
+///                          stateless address configuration as specified in
+///                          `ADDRCONF`.
 ///
-/// Reserved1       6-bit unused field.  It MUST be initialized to zero
-///                 by the sender and MUST be ignored by the receiver.
+/// - *Reserved1*:           6-bit unused field. It **MUST** be initialized to
+///                          zero by the sender and **MUST** be ignored by the
+///                          receiver.
 ///
-/// Valid Lifetime
-///                 32-bit unsigned integer.  The length of time in
-///                 seconds (relative to the time the packet is sent)
-///                 that the prefix is valid for the purpose of on-link
-///                 determination.  A value of all one bits
-///                 (0xffffffff) represents infinity.  The Valid
-///                 Lifetime is also used by [ADDRCONF].
+/// - *Valid Lifetime*:      32-bit unsigned integer. The length of time in
+///                          seconds (relative to the time the packet is sent)
+///                          that the prefix is valid for the purpose of on-link
+///                          determination. A value of all one bits
+///                          (0xffffffff) represents infinity. The Valid
+///                          Lifetime is also used by `ADDRCONF`.
 ///
-/// Preferred Lifetime
-///                 32-bit unsigned integer.  The length of time in
-///                 seconds (relative to the time the packet is sent)
-///                 that addresses generated from the prefix via
-///                 stateless address autoconfiguration remain
-///                 preferred [ADDRCONF].  A value of all one bits
-///                 (0xffffffff) represents infinity.  See [ADDRCONF].
-///                 Note that the value of this field MUST NOT exceed
-///                 the Valid Lifetime field to avoid preferring
-///                 addresses that are no longer valid.
+/// - *Preferred Lifetime*:  32-bit unsigned integer. The length of time in
+///                          seconds (relative to the time the packet is sent)
+///                          that addresses generated from the prefix via
+///                          stateless address auto-configuration remain
+///                          preferred `ADDRCONF`.  A value of all one bits
+///                          (0xffffffff) represents infinity.  See `ADDRCONF`.
+///                          Note that the value of this field MUST NOT exceed
+///                          the Valid Lifetime field to avoid preferring
+///                          addresses that are no longer valid.
 ///
-/// Reserved2       This field is unused.  It MUST be initialized to
-///                 zero by the sender and MUST be ignored by the
-///                 receiver.
+/// - *Reserved2*:           This field is unused.  It MUST be initialized to
+///                          zero by the sender and MUST be ignored by the
+///                          receiver.
 ///
-/// Prefix          An IP address or a prefix of an IP address.  The
-///                 Prefix Length field contains the number of valid
-///                 leading bits in the prefix.  The bits in the prefix
-///                 after the prefix length are reserved and MUST be
-///                 initialized to zero by the sender and ignored by
-///                 the receiver.  A router SHOULD NOT send a prefix
-///                 option for the link-local prefix and a host SHOULD
-///                 ignore such a prefix option.
+/// - *Prefix*:              An IP address or a prefix of an IP address.  The
+///                          Prefix Length field contains the number of valid
+///                          leading bits in the prefix. The bits in the prefix
+///                          after the prefix length are reserved and MUST be
+///                          initialized to zero by the sender and ignored by
+///                          the receiver. A router *SHOULD NOT* send a prefix
+///                          option for the link-local prefix and a host *SHOULD*
+///                          ignore such a prefix option.
 ///
-/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.6.2
+/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.2
 pub struct PrefixInformation {
     fields: NonNull<PrefixInformationFields>,
     offset: usize,

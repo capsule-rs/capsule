@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Common behaviors for all packet types and their associated headers.
+
 pub mod checksum;
 mod ethernet;
 pub mod icmp;
@@ -120,7 +122,7 @@ pub trait Packet: Clone {
         T::do_parse(self)
     }
 
-    // the public `parse::<T>` delegates to this function.
+    /// The public `parse::<T>` delegates to this function.
     #[doc(hidden)]
     fn do_parse(envelope: Self::Envelope) -> Result<Self>
     where
@@ -147,7 +149,7 @@ pub trait Packet: Clone {
         T::do_push(self)
     }
 
-    // the public `push::<T>` delegates to this function.
+    /// The public `push::<T>` delegates to this function.
     #[doc(hidden)]
     fn do_push(envelope: Self::Envelope) -> Result<Self>
     where
@@ -201,6 +203,7 @@ impl<T: Packet + fmt::Debug> fmt::Debug for Immutable<'_, T> {
 }
 
 impl<T: Packet> Immutable<'_, T> {
+    /// Creates a new immutable smart pointer to a packet.
     pub fn new(value: T) -> Self {
         Immutable {
             value,
@@ -230,11 +233,13 @@ pub(crate) enum CondRc<T: Packet> {
 }
 
 impl<T: Packet> CondRc<T> {
-    pub fn new(value: T) -> Self {
+    /// Creates a conditional reference to a packet counted smart pointer.
+    pub(crate) fn new(value: T) -> Self {
         CondRc::Raw(value)
     }
 
-    pub fn into_owned(self) -> T {
+    /// Consumes the CondRc and returns the packet of type T.
+    pub(crate) fn into_owned(self) -> T {
         match self {
             CondRc::Raw(value) => value,
             // because this fn requires ownership move, it should
@@ -281,6 +286,7 @@ impl<T: Packet> DerefMut for CondRc<T> {
 pub struct ParseError(String);
 
 impl ParseError {
+    /// Creates a new `ParseError` with a message.
     pub fn new(msg: &str) -> ParseError {
         ParseError(msg.into())
     }

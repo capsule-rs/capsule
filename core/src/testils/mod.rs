@@ -16,13 +16,18 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Utilities for unit tests and benchmarks.
+
 pub mod criterion;
 mod packet;
 pub mod proptest;
 mod rvg;
 
+/// Hand-crafted packet byte-arrays for testing and running examples.
 pub mod byte_arrays {
     pub use crate::packets::icmp::v4::ICMPV4_PACKET;
+    pub use crate::packets::icmp::v6::ndp::ROUTER_ADVERT_PACKET;
+    pub use crate::packets::icmp::v6::ndp::ROUTER_SOLICIT_PACKET;
     pub use crate::packets::icmp::v6::ICMPV6_PACKET;
     pub use crate::packets::ip::v6::{IPV6_PACKET, SRH_PACKET};
     pub use crate::packets::TCP_PACKET;
@@ -49,6 +54,7 @@ pub fn cargo_test_init() {
 
 /// A handle that keeps the mempool in scope for the duration of the test. It
 /// will unset the thread-bound mempool on drop.
+#[derive(Debug)]
 pub struct MempoolGuard {
     #[allow(dead_code)]
     inner: Mempool,

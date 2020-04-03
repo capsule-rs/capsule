@@ -18,7 +18,6 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn;
 
 pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
     let name = input.ident;

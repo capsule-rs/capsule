@@ -33,7 +33,7 @@ const RST: u8 = 0b0000_0100;
 const SYN: u8 = 0b0000_0010;
 const FIN: u8 = 0b0000_0001;
 
-/// Transmission Control Protocol packet based on [IETF RFC 793].
+/// Transmission Control Protocol packet based on [`IETF RFC 793`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -57,62 +57,62 @@ const FIN: u8 = 0b0000_0001;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// Source Port:  16 bits
-///     The source port number.
+/// - *Source Port*: (16 bits)
+///      The source port number.
 ///
-/// Destination Port:  16 bits
-///     The destination port number.
+/// - *Destination Port*: (16 bits)
+///      The destination port number.
 ///
-/// Sequence Number:  32 bits
-///     The sequence number of the first data octet in this segment (except
-///     when SYN is present). If SYN is present the sequence number is the
-///     initial sequence number (ISN) and the first data octet is ISN+1.
+/// - *Sequence Number*: (32 bits)
+///      The sequence number of the first data octet in this segment (except
+///      when SYN is present). If SYN is present the sequence number is the
+///      initial sequence number (ISN) and the first data octet is ISN+1.
 ///
-/// Acknowledgment Number:  32 bits
-///     If the ACK control bit is set this field contains the value of the
-///     next sequence number the sender of the segment is expecting to
-///     receive.  Once a connection is established this is always sent.
+/// - *Acknowledgment Number*: (32 bits)
+///      If the ACK control bit is set this field contains the value of the
+///      next sequence number the sender of the segment is expecting to
+///      receive.  Once a connection is established this is always sent.
 ///
-/// Data Offset:  4 bits
-///     The number of 32 bit words in the TCP Header.  This indicates where
-///     the data begins.  The TCP header (even one including options) is an
-///     integral number of 32 bits long.
+/// - *Data Offset*: (4 bits)
+///      The number of 32 bit words in the TCP Header.  This indicates where
+///      the data begins.  The TCP header (even one including options) is an
+///      integral number of 32 bits long.
 ///
-/// Control Bits:  9 bits (from left to right):
-///     NS:   ECN-nonce nonce sum [IETF RFC 3540]
-///     CWR:  Congestion Window Reduced flag [IETF RFC 3168]
-///     ECE:  ECN-Echo flag [IETF RFC 3168]
-///     URG:  Urgent Pointer field significant
-///     ACK:  Acknowledgment field significant
-///     PSH:  Push Function
-///     RST:  Reset the connection
-///     SYN:  Synchronize sequence numbers
-///     FIN:  No more data from sender
+/// - *Control Bits*: (9 bits) [from left to right]
+///      - NS:   ECN-nonce nonce sum [`IETF RFC 3540`]
+///      - CWR:  Congestion Window Reduced flag [`IETF RFC 3168`]
+///      - ECE:  ECN-Echo flag [`IETF RFC 3168`]
+///      - URG:  Urgent Pointer field significant
+///      - ACK:  Acknowledgment field significant
+///      - PSH:  Push Function
+///      - RST:  Reset the connection
+///      - SYN:  Synchronize sequence numbers
+///      - FIN:  No more data from sender
 ///
-/// Window:  16 bits
-///     The number of data octets beginning with the one indicated in the
-///     acknowledgment field which the sender of this segment is willing to
-///     accept.
+/// - *Window*: (16 bits)
+///      The number of data octets beginning with the one indicated in the
+///      acknowledgment field which the sender of this segment is willing to
+///      accept.
 ///
-/// Checksum:  16 bits
-///     The checksum field is the 16 bit one's complement of the one's
-///     complement sum of all 16 bit words in the header and text.
+/// - *Checksum*: (16 bits)
+///      The checksum field is the 16 bit one's complement of the one's
+///      complement sum of all 16 bit words in the header and text.
 ///
-/// Urgent Pointer:  16 bits
-///     This field communicates the current value of the urgent pointer as a
-///     positive offset from the sequence number in this segment.  The
-///     urgent pointer points to the sequence number of the octet following
-///     the urgent data.  This field is only be interpreted in segments with
-///     the URG control bit set.
+/// - *Urgent Pointer*: (16 bits)
+///      This field communicates the current value of the urgent pointer as a
+///      positive offset from the sequence number in this segment.  The
+///      urgent pointer points to the sequence number of the octet following
+///      the urgent data.  This field is only be interpreted in segments with
+///      the URG control bit set.
 ///
-/// Options:  variable
+/// - *Options*: (variable)
 ///     Options may occupy space at the end of the TCP header and are a
 ///     multiple of 8 bits in length.  All options are included in the
 ///     checksum.
 ///
-/// [IETF RFC 793]: https://tools.ietf.org/html/rfc793#section-3.1
-/// [IETF RFC 3540]: https://tools.ietf.org/html/rfc3540
-/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
+/// [`IETF RFC 793`]: https://tools.ietf.org/html/rfc793#section-3.1
+/// [`IETF RFC 3540`]: https://tools.ietf.org/html/rfc3540
+/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
 #[derive(Clone)]
 pub struct Tcp<E: IpPacket> {
     envelope: CondRc<E>,
@@ -601,10 +601,12 @@ impl Default for TcpHeader {
 
 impl Header for TcpHeader {}
 
+/// IPv4 TCP packet as byte-array.
 #[cfg(any(test, feature = "testils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 #[rustfmt::skip]
 pub const TCP_PACKET: [u8; 58] = [
-// ethernet header
+// Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     0x08, 0x00,

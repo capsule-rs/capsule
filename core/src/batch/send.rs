@@ -39,7 +39,8 @@ fn new_counter(name: &'static str, pipeline: &str) -> Counter {
     )
 }
 
-/// Turns the batch pipeline into an executable task.
+/// A batch that can be executed as a runtime task.
+#[allow(missing_debug_implementations)]
 pub struct Send<B: Batch, Tx: PacketTx> {
     name: String,
     batch: B,
@@ -55,12 +56,14 @@ pub struct Send<B: Batch, Tx: PacketTx> {
 }
 
 impl<B: Batch, Tx: PacketTx> Send<B, Tx> {
+    /// Creates a new `Send` batch.
     #[cfg(not(feature = "metrics"))]
     #[inline]
     pub fn new(name: String, batch: B, tx: Tx) -> Self {
         Send { name, batch, tx }
     }
 
+    /// Creates a new `Send` batch.
     #[cfg(feature = "metrics")]
     #[inline]
     pub fn new(name: String, batch: B, tx: Tx) -> Self {

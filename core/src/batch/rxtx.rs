@@ -70,6 +70,8 @@ impl PacketTx for Sender<Mbuf> {
     }
 }
 
+/// A batch that polls a closure for packets.
+#[allow(missing_debug_implementations)]
 pub struct PollRx<F>
 where
     F: Fn() -> Vec<Mbuf>,

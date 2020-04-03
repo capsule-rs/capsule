@@ -16,6 +16,35 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Toml-based configuration for use with Capsule applications.
+//!
+//! # Example
+//!
+//! A configuration from our [`pktdump`] example:
+//! ```
+//! app_name = "pktdump"
+//! master_core = 0
+//! duration = 5
+//!
+//! [mempool]
+//!     capacity = 65535
+//!     cache_size = 256
+//!
+//! [[ports]]
+//!     name = "eth1"
+//!     device = "net_pcap0"
+//!     args = "rx_pcap=tcp4.pcap,tx_iface=lo"
+//!     cores = [0]
+//!
+//! [[ports]]
+//!     name = "eth2"
+//!     device = "net_pcap1"
+//!     args = "rx_pcap=tcp6.pcap,tx_iface=lo"
+//!     cores = [0]
+//! ```
+//!
+//! [`pktdump`]: https://github.com/capsule-rs/capsule/tree/master/examples/pktdump
+
 use crate::dpdk::CoreId;
 use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
 use crate::Result;
@@ -26,7 +55,6 @@ use std::fmt;
 use std::fs;
 use std::str::FromStr;
 use std::time::Duration;
-use toml;
 
 // make `CoreId` serde deserializable.
 impl<'de> Deserialize<'de> for CoreId {
@@ -103,7 +131,7 @@ where
     Ok(option)
 }
 
-/// Runtime config settings.
+/// Runtime configuration settings.
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeConfig {
@@ -145,10 +173,10 @@ pub struct RuntimeConfig {
     /// The ports to use for the application. Must have at least one.
     pub ports: Vec<PortConfig>,
 
-    /// Additional DPDK parameters to pass on for EAL initialization. When
+    /// Additional DPDK [`parameters`] to pass on for EAL initialization. When
     /// set, the values are passed through as is without validation.
     ///
-    /// See https://doc.dpdk.org/guides/linux_gsg/linux_eal_parameters.html.
+    /// [`parameters`]: https://doc.dpdk.org/guides/linux_gsg/linux_eal_parameters.html
     #[serde(default)]
     pub dpdk_args: Option<String>,
 
@@ -259,7 +287,7 @@ impl fmt::Debug for RuntimeConfig {
     }
 }
 
-/// Mempool config settings.
+/// Mempool configuration settings.
 #[derive(Clone, Deserialize)]
 pub struct MempoolConfig {
     /// The maximum number of Mbufs the mempool can allocate. The optimum
@@ -302,7 +330,7 @@ impl fmt::Debug for MempoolConfig {
     }
 }
 
-/// Port config settings.
+/// Port configuration settings.
 #[derive(Clone, Deserialize)]
 pub struct PortConfig {
     /// The application assigned logical name of the port.
