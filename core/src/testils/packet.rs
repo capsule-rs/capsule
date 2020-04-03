@@ -38,12 +38,12 @@ pub trait PacketExt: Packet + Sized {
         self.into_eth().parse::<Ipv4>().unwrap()
     }
 
-    /// Converts the packet into an TCP packet inside IPv4.
+    /// Converts the packet into a TCP packet inside IPv4.
     fn into_v4_tcp(self) -> Tcp<Ipv4> {
         self.into_v4().parse::<Tcp<Ipv4>>().unwrap()
     }
 
-    /// Converts the packet into an UDP packet inside IPv4.
+    /// Converts the packet into a UDP packet inside IPv4.
     fn into_v4_udp(self) -> Udp<Ipv4> {
         self.into_v4().parse::<Udp<Ipv4>>().unwrap()
     }
@@ -53,12 +53,12 @@ pub trait PacketExt: Packet + Sized {
         self.into_eth().parse::<Ipv6>().unwrap()
     }
 
-    /// Converts the packet into an TCP packet inside IPv6.
+    /// Converts the packet into a TCP packet inside IPv6.
     fn into_v6_tcp(self) -> Tcp<Ipv6> {
         self.into_v6().parse::<Tcp<Ipv6>>().unwrap()
     }
 
-    /// Converts the packet into an UDP packet inside IPv6.
+    /// Converts the packet into a UDP packet inside IPv6.
     fn into_v6_udp(self) -> Udp<Ipv6> {
         self.into_v6().parse::<Udp<Ipv6>>().unwrap()
     }
@@ -68,7 +68,7 @@ pub trait PacketExt: Packet + Sized {
         self.into_v6().parse::<SegmentRouting<Ipv6>>().unwrap()
     }
 
-    /// Converts the packet into an TCP packet inside IPv6 with a SRH extension.
+    /// Converts the packet into a TCP packet inside IPv6 with a SRH extension.
     fn into_sr_tcp(self) -> Tcp<SegmentRouting<Ipv6>> {
         self.into_sr().parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap()
     }
