@@ -14,7 +14,7 @@ A framework for network function development. Written in Rust, inspired by [NetB
 
 ## Overview
 
-The goal of `Capsule` is to offer an ergonomic framework for network function development that traditionally has high barriers of entry for developers. We've created a tool to efficiently manipulate network packets while being type-safe, memory-safe, and thread-safe. By building on `DPDK` and `Rust`, `Capsule` offers
+The goal of `Capsule` is to offer an ergonomic framework for network function development that traditionally has high barriers of entry for developers. We've created a tool to efficiently manipulate network packets while being type-safe, memory-safe, and thread-safe. Building on `DPDK` and `Rust`, `Capsule` offers
 
 * a fast packet processor that uses minimum number of CPU cycles.
 * a rich packet type system that guarantees memory-safety and thread-safety.

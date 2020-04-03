@@ -51,7 +51,7 @@ Pull requests which fix bugs, add features or improve documentation are welcome 
 
 ### Development Notes
 
-`Capsule` requires extra arguments to many common `cargo` commands you use. We've simplified these commands with a set of [make targets](Makefile) so you don't have to remember them.
+`Capsule` requires extra arguments to many common `cargo` commands typically use. We've simplified these commands with a set of [make targets](Makefile) so you don't have to remember them.
 
 To compile the workspace with all features enabled, use
 
