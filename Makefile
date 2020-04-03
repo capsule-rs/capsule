@@ -1,17 +1,16 @@
+SHELL := /bin/bash
+
 CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 CRITERION_PLOTS_DIR = bench/target/criterion
 NIGHTLY := $(shell rustup show|grep nightly 2> /dev/null)
 
-.PHONY: bench build build-rel clean clean-plots docs fmt lint find-plots test watch watch-bench watch-test
+.PHONY: bench check clean clean-plots docs fmt lint find-plots test watch watch-lint
 
 bench:
 	@cargo bench
 
-build:
-	@cargo build --all-features
-
-build-rel:
-	@cargo build --release
+check:
+	@cargo check --workspace --all-targets --all-features
 
 clean:
 	@cargo clean
@@ -21,9 +20,11 @@ clean-plots:
 
 docs:
 ifdef NIGHTLY
-	@RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc -p capsule --no-deps --all-features
+	@RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --lib -p capsule \
+	-p capsule-ffi -p capsule-macros --no-deps --all-features
 else
-	@cargo doc -p capsule --no-deps --all-features
+	@cargo doc --lib -p capsule -p capsule-ffi -p capsule-macros --no-deps \
+	--all-features
 endif
 
 find-plots:
@@ -36,7 +37,8 @@ lint:
 	@cargo clippy $(CLIPPY_ARGS)
 
 test:
-	@cargo test --all-features
+	@pushd core && cargo test --features full && popd
+	@cargo test --all-targets --workspace --exclude capsule
 
 watch:
 ifdef WATCH
@@ -45,23 +47,9 @@ else
 	@cargo watch --poll -x build --all
 endif
 
-watch-bench:
-ifdef WATCH
-	@cargo watch --poll -x bench -w $(WATCH)
-else
-	@cargo watch --poll -x bench --all
-endif
-
 watch-lint:
 ifdef WATCH
 	@cargo watch --poll -s "make lint" -w $(WATCH)
 else
 	@cargo watch --poll -s "make lint" --all
-endif
-
-watch-test:
-ifdef WATCH
-	@cargo watch --poll -s "cargo test --all-features" -w $(WATCH)
-else
-	@cargo watch --poll -s "cargo test --all-features" --all
 endif

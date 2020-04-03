@@ -10,7 +10,7 @@ Benchmarks for Capsule.
 """
 
 [dev-dependencies]
-capsule = { path = "../core", features = ["testils"] }
+capsule = { version = "0.1", path = "../core", features = ["testils"] }
 criterion = "0.3"
 proptest = "0.9"
 

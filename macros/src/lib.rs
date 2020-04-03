@@ -16,7 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Procedural macros for [`Capsule`].
+//!
+//! [`Capsule`]: https://crates.io/crates/capsule
+
 #![recursion_limit = "128"]
+#![allow(intra_doc_link_resolution_failure)]
 
 mod derive_packet;
 

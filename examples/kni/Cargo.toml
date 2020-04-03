@@ -16,7 +16,7 @@ path = "main.rs"
 doctest = false
 
 [dependencies]
-capsule = { path = "../../core" }
+capsule = { version = "0.1", path = "../../core" }
 failure = "0.1"
 metrics-core = "0.5"
 metrics-runtime = "0.12"

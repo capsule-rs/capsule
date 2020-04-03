@@ -8,8 +8,8 @@
 
 [crates-badge]: https://img.shields.io/crates/v/capsule.svg
 [crates-url]: https://crates.io/crates/capsule
-[docs-badge]: https://docs.rs/capsule/badge.svg?version=0.1.0
-[docs-url]: https://docs.rs/capsule/0.1.0/capsule
+[docs-badge]: https://docs.rs/capsule/badge.svg
+[docs-url]: https://docs.rs/capsule
 [apache-badge]: https://img.shields.io/github/license/capsule-rs/capsule
 [apache-url]: LICENSE
 [gh-actions-badge]: https://github.com/capsule-rs/capsule/workflows/build/badge.svg
