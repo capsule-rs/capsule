@@ -6,15 +6,21 @@ The Kernel NIC Interface (KNI) is a DPDK control plane solution that allows user
 
 KNI is useful for applications that want to conceptually share the port with the Linux kernel. For example, the application may want to leverage the kernel's built-in ability to handle [ARP](https://tools.ietf.org/html/rfc826) traffic instead of implementing the protocol natively. By enabling KNI for a port, a virtual device with the same name and MAC address as the port is exposed to the Linux kernel. The kernel will be able to receive all packets that are forwarded to this virtual device and the application will receive all packets the kernel sends to it.
 
+## Prerequisite
+
+This application requires the kernel module `rte_kni`. Kernel modules are version specific. If you are using our `Vagrant` with `Docker` setup, the module is already preloaded. Otherwise, you will have to compile it by installing the kernel headers or sources required to build kernel modules on your system, then [build `DPDK` from source](https://doc.dpdk.org/guides/linux_gsg/build_dpdk.html).
+
+Once the build is complete, load the module with command:
+
+```
+$ sudo insmod /lib/modules/`uname -r`/extra/dpdk/rte_kni.ko
+```
+
+We may provide precompiled modules for different kernel versions and Linux distributions in the future. 
+
 ## Running the application
 
-The example is located in the `examples/kni` sub-directory. Before running the application, the DPDK KNI kernel module must be loaded,
-
-```
-$ insmod rte_kni.ko
-```
-
-To run the application,
+The example is located in the `examples/kni` sub-directory. To run the application,
 
 ```
 /examples/kni$ cargo run -- -f kni.toml

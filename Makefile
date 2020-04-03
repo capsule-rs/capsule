@@ -7,7 +7,7 @@ bench:
 	@cargo bench
 
 build:
-	@cargo build
+	@cargo build --all-features
 
 build-rel:
 	@cargo build --release

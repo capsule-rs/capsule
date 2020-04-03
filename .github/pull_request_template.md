@@ -14,4 +14,3 @@ Fixes # (issue) - if applicable
 
 - [ ] Associated tests
 - [ ] Associated documentation
-
