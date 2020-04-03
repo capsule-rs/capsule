@@ -14,7 +14,7 @@ A framework for network function development. Written in Rust, inspired by [NetB
 
 ## Overview
 
-The goal of `Capsule` is to offer an ergonomic framework for network function development that traditionally has high barriers of entry for developers. We've built a tool to efficiently manipulate network packets while being type-safe, memory-safe, and thread-safe. By combining `DPDK` with `Rust` Programming Language, `Capsule` offers
+The goal of `Capsule` is to offer an ergonomic framework for network function development that traditionally has high barriers of entry for developers. We've created a tool to efficiently manipulate network packets while being type-safe, memory-safe, and thread-safe. By building on `DPDK` and `Rust`, `Capsule` offers
 
 * a fast packet processor that uses minimum number of CPU cycles.
 * a rich packet type system that guarantees memory-safety and thread-safety.
@@ -68,7 +68,7 @@ Add `Capsule` as a dependency to your `Cargo.toml` and start writing your applic
 capsule = "0.1"
 ```
 
-If you want to develop `Capsule` without using `Docker` in `Vagrant`, please check out our [sandbox repo](https://github.com/capsule-rs/sandbox/blob/master/README.md) for instructions on running our Vagrant VM environment and for others options not using either `Vagrant` or `Docker`.
+If you want to develop `Capsule` without using `Docker` in `Vagrant`, please check out our [sandbox repo](https://github.com/capsule-rs/sandbox/blob/master/README.md) for instructions on running our Vagrant VM environment, as well as others options not using either `Vagrant` or `Docker`.
 
 ## Contributing
 

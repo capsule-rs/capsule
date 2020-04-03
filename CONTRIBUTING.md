@@ -2,7 +2,7 @@
 
 Thank you for your help improving the project! No contribution is too small and all contributions are valued.
 
-When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](capsule-dev@googlegroups.com) with the Capsule maintainers before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](capsule-dev@googlegroups.com) with the `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) before making a change.
 
 This guide will help you get started. Please note that we have a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
@@ -27,7 +27,7 @@ participating, you agree to this Code. Please report any violations of the code 
 
 ## Contributing in Issues
 
-Work on Capsule is tracked by Github Issues. Anybody can participate in any stage of contribution. We encourage you to participate in the discussion around bugs and PRs.
+Work on `Capsule` is tracked by Github Issues. Anybody can participate in any stage of contribution. We encourage you to participate in the discussion around bugs and PRs.
 
 ### Asking for General Help
 
@@ -41,7 +41,7 @@ The two most important pieces of information we need in order to properly evalua
 
 ### Requesting a New Feature
 
-If you want a new feature added to Capsule, please fill out the [feature request](.github/ISSUE_TEMPLATE/feature-request.md) form.
+If you want a new feature added to `Capsule`, please fill out the [feature request](.github/ISSUE_TEMPLATE/feature-request.md) form.
 
 There are no hard rules as to what features will or will not be accepted. It can be a network protocol, integrating with a feature in DPDK, or something new entirely. Ultimately, it depends on what the expected benefit is relative to the expected maintenance burden.
 
@@ -51,7 +51,7 @@ Pull requests which fix bugs, add features or improve documentation are welcome 
 
 ### Development Notes
 
-Capsule requires extra arguments to many common `cargo` commands you use. We've simplified these commands with a set of [make targets](Makefile) so you don't have to remember them.
+`Capsule` requires extra arguments to many common `cargo` commands you use. We've simplified these commands with a set of [make targets](Makefile) so you don't have to remember them.
 
 To compile the workspace with all features enabled, use
 
@@ -77,7 +77,7 @@ We use [Clippy](https://github.com/rust-lang/rust-clippy) to catch common Rust m
 make lint
 ```
 
-When building documentation normally, the markers that list the features required for various parts of Capsule are missing. To build the documentation correctly, install nightly Rust (`rustup install nightly`) and use
+When generating documentation normally, the markers that list the features required for various parts of `Capsule` are missing. To build the documentation correctly, install nightly Rust (`rustup install nightly`) and use
 
 ```
 make docs
@@ -100,9 +100,9 @@ Note that multiple commits may get squashed when they are merged.
 
 Opening a new Pull Request will present you with a [template](.github/pull_request_template.md) that should be filled out. Please try to do your best at filling out the details.
 
-You will probably get feedback or requests for changes to your Pull Request. This is a big part of the submission process so don't be discouraged! This is a necessary part of the process in order to evaluate whether the changes are correct and necessary.
+You will get feedback or requests for changes to your Pull Request. This is a big part of the submission process so don't be discouraged! This is a necessary part of the process in order to evaluate whether the changes are correct and necessary.
 
-Any community member can review a PR and you might get conflicting feedback. Keep an eye out for comments from Capsule maintainers to provide guidance on conflicting feedback.
+Any community member can review a PR and you might get conflicting feedback. Keep an eye out for comments from `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) to provide guidance on conflicting feedback.
 
 ### Contributor License Agreement
 
@@ -112,4 +112,4 @@ If you haven't previously signed a Comcast CLA, you'll automatically be asked to
 
 ### Pull Request Approval
 
-A Pull Request must be approved by at least one maintainer of Capsule. Once approved, a maintainer will merge it. If you are a maintainer, you can merge your Pull Request once you have the approval of another maintainer.
+A Pull Request must be approved by at least one maintainer of `Capsule`. Once approved, a maintainer will merge it. If you are a maintainer, you can merge your Pull Request once you have the approval of another maintainer.

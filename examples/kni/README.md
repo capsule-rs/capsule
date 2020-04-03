@@ -8,7 +8,7 @@ KNI is useful for applications that want to conceptually share the port with the
 
 ## Prerequisite
 
-This application requires the kernel module `rte_kni`. Kernel modules are version specific. If you are using our `Vagrant` and `Docker` setup, the module is already preloaded. Otherwise, you will have to compile it by installing the kernel headers or sources required to build kernel modules on your system, then [build `DPDK` from source](https://doc.dpdk.org/guides/linux_gsg/build_dpdk.html).
+This application requires the kernel module `rte_kni`. Kernel modules are version specific. If you are using our `Vagrant` with `Docker` setup, the module is already preloaded. Otherwise, you will have to compile it by installing the kernel headers or sources required to build kernel modules on your system, then [build `DPDK` from source](https://doc.dpdk.org/guides/linux_gsg/build_dpdk.html).
 
 Once the build is complete, load the module with command:
 
