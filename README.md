@@ -72,7 +72,7 @@ If you want to develop `Capsule` without using `Docker` in `Vagrant`, please che
 
 ## Contributing
 
-Thanks for your help improving the project! We have a [contributing guide](https://github.com/capsule-rs/capsule/blob/master/CONTRIBUTING.md) to help you get involved with the `Capsule` project.
+Thanks for your help improving the project! We have a [contributing guide](CONTRIBUTING.md) to help you get involved with the `Capsule` project.
 
 ## Code of Conduct
 
