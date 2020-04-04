@@ -20,7 +20,7 @@ use proptest::collection::vec;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::{Config, TestRunner};
 
-/// A random value generator (RVG), which, given proptest strategies, will to
+/// A random value generator (RVG), which, given proptest strategies, will
 /// generate random values based on those strategies.
 #[derive(Debug, Default)]
 pub struct Rvg {
@@ -28,22 +28,22 @@ pub struct Rvg {
 }
 
 impl Rvg {
-    /// Creates a new RVG with the default RNG (random number generator).
+    /// Creates a new RVG with the default random number generator.
     pub fn new() -> Self {
         Rvg {
             runner: TestRunner::new(Config::default()),
         }
     }
 
-    /// Creates a new RVG with a deterministic RNG
-    /// (random number generator), using the same seed across test runs.
+    /// Creates a new RVG with a deterministic random number generator,
+    /// using the same seed across test runs.
     pub fn deterministic() -> Self {
         Rvg {
             runner: TestRunner::deterministic(),
         }
     }
 
-    /// Generate a value for the strategy.
+    /// Generates a value for the strategy.
     ///
     /// # Example
     ///
@@ -58,7 +58,7 @@ impl Rvg {
             .current()
     }
 
-    /// Generate a vec of some length with a value for the strategy.
+    /// Generates a vec of some length with a value for the strategy.
     ///
     /// # Example
     ///
