@@ -444,7 +444,7 @@ mod tests {
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Ethernet;
-    use crate::testils::byte_arrays::{ICMPV4_PACKET, TCP_PACKET, UDP_PACKET};
+    use crate::testils::byte_arrays::{ICMPV4_PACKET, IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use std::sync::mpsc::{self, TryRecvError};
 
     fn new_batch(data: &[&[u8]]) -> impl Batch<Item = Mbuf> {
@@ -464,7 +464,7 @@ mod tests {
     fn emit_batch() {
         let (tx, mut rx) = mpsc::channel();
 
-        let mut batch = new_batch(&[&UDP_PACKET])
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET])
             .map(|p| p.parse::<Ethernet>())
             .emit(tx)
             .for_each(|_| panic!("emit broken!"));
@@ -477,16 +477,16 @@ mod tests {
 
     #[capsule::test]
     fn filter_batch() {
-        let mut batch = new_batch(&[&UDP_PACKET]).filter(|_| true);
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).filter(|_| true);
         assert!(batch.next().unwrap().is_act());
 
-        let mut batch = new_batch(&[&UDP_PACKET]).filter(|_| false);
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).filter(|_| false);
         assert!(batch.next().unwrap().is_drop());
     }
 
     #[capsule::test]
     fn filter_map_batch() {
-        let mut batch = new_batch(&[&UDP_PACKET, &ICMPV4_PACKET]).filter_map(|p| {
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET, &ICMPV4_PACKET]).filter_map(|p| {
             let v4 = p.parse::<Ethernet>()?.parse::<Ipv4>()?;
             if v4.protocol() == ProtocolNumbers::Udp {
                 Ok(Either::Keep(v4))
@@ -505,11 +505,11 @@ mod tests {
 
     #[capsule::test]
     fn map_batch() {
-        let mut batch = new_batch(&[&UDP_PACKET]).map(|p| p.parse::<Ethernet>());
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).map(|p| p.parse::<Ethernet>());
         assert!(batch.next().unwrap().is_act());
 
         // can't shrink the mbuf that much
-        let mut batch = new_batch(&[&UDP_PACKET]).map(|mut p| {
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).map(|mut p| {
             p.shrink(0, 999_999)?;
             Ok(p)
         });
@@ -520,7 +520,7 @@ mod tests {
     fn for_each_batch() {
         let mut side_effect = false;
 
-        let mut batch = new_batch(&[&UDP_PACKET]).for_each(|_| {
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).for_each(|_| {
             side_effect = true;
             Ok(())
         });
@@ -533,7 +533,7 @@ mod tests {
     fn inspect_batch() {
         let mut side_effect = false;
 
-        let mut batch = new_batch(&[&UDP_PACKET]).inspect(|_| {
+        let mut batch = new_batch(&[&IPV4_UDP_PACKET]).inspect(|_| {
             side_effect = true;
         });
 
@@ -543,7 +543,7 @@ mod tests {
 
     #[capsule::test]
     fn group_by_batch() {
-        let mut batch = new_batch(&[&TCP_PACKET, &UDP_PACKET, &ICMPV4_PACKET])
+        let mut batch = new_batch(&[&IPV4_TCP_PACKET, &IPV4_UDP_PACKET, &ICMPV4_PACKET])
             .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
             .group_by(
                 |p| p.protocol(),
@@ -609,7 +609,7 @@ mod tests {
 
     #[capsule::test]
     fn group_by_or() {
-        let mut batch = new_batch(&[&TCP_PACKET, &UDP_PACKET, &ICMPV4_PACKET])
+        let mut batch = new_batch(&[&IPV4_TCP_PACKET, &IPV4_UDP_PACKET, &ICMPV4_PACKET])
             .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
             .group_by(
                 |p| p.protocol(),
@@ -650,7 +650,7 @@ mod tests {
 
     #[capsule::test]
     fn group_by_or_no_catchall() {
-        let mut batch = new_batch(&[&TCP_PACKET, &UDP_PACKET])
+        let mut batch = new_batch(&[&IPV4_TCP_PACKET, &IPV4_UDP_PACKET])
             .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
             .group_by(
                 |p| p.protocol(),
@@ -683,7 +683,8 @@ mod tests {
 
     #[capsule::test]
     fn replace_batch() {
-        let mut batch = new_batch(&[&UDP_PACKET]).replace(|_| Mbuf::from_bytes(&TCP_PACKET));
+        let mut batch =
+            new_batch(&[&IPV4_UDP_PACKET]).replace(|_| Mbuf::from_bytes(&IPV4_TCP_PACKET));
 
         // first one is the replacement
         assert!(batch.next().unwrap().is_act());
@@ -713,7 +714,7 @@ mod tests {
         assert_eq!(TryRecvError::Empty, rx2.try_recv().unwrap_err());
 
         // send one packet
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         tx1.transmit(vec![packet]);
         pipeline.run_once();
         assert!(rx2.try_recv().is_ok());

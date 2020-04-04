@@ -421,48 +421,11 @@ impl Default for Ipv6Header {
 
 impl Header for Ipv6Header {}
 
-/// IPv6 TCP packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const IPV6_PACKET: [u8; 78] = [
-// Ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x86, 0xDD,
-// IPv6 header
-    // version, dscp, ecn, flow label
-    0x60, 0x00, 0x00, 0x00,
-    // payload length
-    0x00, 0x18,
-    // next Header
-    0x06,
-    // hop limit
-    0x02,
-    // src addr
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    // dst addr
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-// TCP header
-    // src_port = 36869, dst_port = 23
-    0x90, 0x05, 0x00, 0x17,
-    // seq_no = 1913975060
-    0x72, 0x14, 0xf1, 0x14,
-    // ack_no = 0
-    0x00, 0x00, 0x00, 0x00,
-    // data_offset = 24, flags = 0x02
-    0x60, 0x02,
-    // window = 8760, checksum = 0xa92c, urgent = 0
-    0x22, 0x38, 0xa9, 0x2c, 0x00, 0x00,
-    // options
-    0x02, 0x04, 0x05, 0xb4
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::testils::byte_arrays::UDP_PACKET;
+    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 
     #[test]
@@ -472,7 +435,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv6_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -489,7 +452,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_ipv6_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert!(ethernet.parse::<Ipv6>().is_err());
@@ -497,7 +460,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv6_setter_checks() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ipv6 = ethernet.parse::<Ipv6>().unwrap();
 

@@ -284,41 +284,12 @@ pub struct FragmentHeader {
 
 impl Header for FragmentHeader {}
 
-/// IPv6 fragment packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const FRAGMENT_PACKET: [u8; 72] = [
-// ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x86, 0xdd,
-// IPv6 header
-    0x60, 0x02, 0x12, 0x89,
-    // payload length
-    0x00, 0x12,
-    // next header (fragment)
-    0x2c,
-    0x40,
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-// Fragment header
-    // next header (udp)
-    0x11,
-    0x00,
-    // offset = 543, more fragment = no
-    0x10, 0xf8,
-    // identification
-    0xf8, 0x8e, 0xb4, 0x66,
-// UDP payload fragment
-    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x68, 0x65, 0x6c, 0x6c, 0x6f
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v6::{Ipv6, IPV6_PACKET};
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Ethernet;
+    use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 
     #[test]
@@ -328,7 +299,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_fragment_packet() {
-        let packet = Mbuf::from_bytes(&FRAGMENT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_FRAGMENT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let frag = ipv6.parse::<Fragment<Ipv6>>().unwrap();
@@ -365,7 +336,7 @@ mod tests {
 
     #[capsule::test]
     fn insert_fragment_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -380,7 +351,7 @@ mod tests {
 
     #[capsule::test]
     fn remove_fragment_packet() {
-        let packet = Mbuf::from_bytes(&FRAGMENT_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_FRAGMENT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let frag = ipv6.parse::<Fragment<Ipv6>>().unwrap();

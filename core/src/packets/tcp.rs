@@ -601,49 +601,13 @@ impl Default for TcpHeader {
 
 impl Header for TcpHeader {}
 
-/// IPv4 TCP packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const TCP_PACKET: [u8; 58] = [
-// Ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x08, 0x00,
-// IPv4 header
-    0x45, 0x00,
-    // IPv4 payload length
-    0x00, 0x2c,
-    // ident = 2232, flags = 4, frag_offset = 0
-    0x08, 0xb8, 0x40, 0x00,
-    // ttl = 255, protocol = TCP, checksum = 0x9997
-    0xff, 0x06, 0x99, 0x97,
-    // src = 139.133.217.110
-    0x8b, 0x85, 0xd9, 0x6e,
-    // dst = 139.133.233.2
-    0x8b, 0x85, 0xe9, 0x02,
-// TCP header
-    // src_port = 36869, dst_port = 23
-    0x90, 0x05, 0x00, 0x17,
-    // seq_no = 1913975060
-    0x72, 0x14, 0xf1, 0x14,
-    // ack_no = 0
-    0x00, 0x00, 0x00, 0x00,
-    // data_offset = 6, flags = 0x02
-    0x60, 0x02,
-    // window = 8760, checksum = 0xa92c, urgent = 0
-    0x22, 0x38, 0xa9, 0x2c, 0x00, 0x00,
-    // options
-    0x02, 0x04, 0x05, 0xb4
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::ip::v6::{Ipv6, SegmentRouting, SRH_PACKET};
+    use crate::packets::ip::v6::{Ipv6, SegmentRouting};
     use crate::packets::Ethernet;
-    use crate::testils::byte_arrays::UDP_PACKET;
+    use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -654,7 +618,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_tcp_packet() {
-        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -680,7 +644,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_tcp_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -689,7 +653,7 @@ mod tests {
 
     #[capsule::test]
     fn tcp_flow_v4() {
-        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -704,7 +668,7 @@ mod tests {
 
     #[capsule::test]
     fn tcp_flow_v6() {
-        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
@@ -720,7 +684,7 @@ mod tests {
 
     #[capsule::test]
     fn set_src_dst_ip() {
-        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
@@ -743,7 +707,7 @@ mod tests {
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();

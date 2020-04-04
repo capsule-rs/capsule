@@ -18,21 +18,11 @@
 
 //! Utilities for unit tests and benchmarks.
 
+pub mod byte_arrays;
 pub mod criterion;
 mod packet;
 pub mod proptest;
 mod rvg;
-
-/// Hand-crafted packet byte-arrays for testing and running examples.
-pub mod byte_arrays {
-    pub use crate::packets::icmp::v4::ICMPV4_PACKET;
-    pub use crate::packets::icmp::v6::ndp::ROUTER_ADVERT_PACKET;
-    pub use crate::packets::icmp::v6::ndp::ROUTER_SOLICIT_PACKET;
-    pub use crate::packets::icmp::v6::ICMPV6_PACKET;
-    pub use crate::packets::ip::v6::{IPV6_PACKET, SRH_PACKET};
-    pub use crate::packets::TCP_PACKET;
-    pub use crate::packets::UDP_PACKET;
-}
 
 pub use self::packet::*;
 pub use self::rvg::*;
