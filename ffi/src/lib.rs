@@ -16,6 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! FFI bindings for [`Capsule`].
+//!
+//! [`Capsule`]: https://crates.io/crates/capsule
+
 #![allow(clippy::all)]
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
@@ -23,4 +27,8 @@
 #![allow(non_snake_case)]
 #![cfg(target_os = "linux")]
 
+#[cfg(not(feature = "rustdoc"))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+#[cfg(feature = "rustdoc")]
+include!("bindings_rustdoc.rs");

@@ -16,9 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+#[cfg(not(feature = "rustdoc"))]
 use std::env;
+#[cfg(not(feature = "rustdoc"))]
 use std::path::{Path, PathBuf};
 
+#[cfg(not(feature = "rustdoc"))]
 const RTE_CORE_LIBS: &[&str] = &[
     "rte_acl",
     "rte_bbdev",
@@ -79,6 +82,7 @@ const RTE_CORE_LIBS: &[&str] = &[
     "rte_vhost",
 ];
 
+#[cfg(not(feature = "rustdoc"))]
 static RTE_PMD_LIBS: &[&str] = &[
     "rte_pmd_af_packet",
     "rte_pmd_ark",
@@ -134,8 +138,10 @@ static RTE_PMD_LIBS: &[&str] = &[
     "rte_pmd_virtio_crypto",
 ];
 
+#[cfg(not(feature = "rustdoc"))]
 const RTE_DEPS_LIBS: &[&str] = &["numa", "pcap"];
 
+#[cfg(not(feature = "rustdoc"))]
 fn bind(path: &Path) {
     cc::Build::new()
         .file("src/shim.c")
@@ -163,6 +169,7 @@ fn bind(path: &Path) {
         .expect("Couldn't write bindings!");
 }
 
+#[cfg(not(feature = "rustdoc"))]
 fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -178,3 +185,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/");
 }
+
+// Skip the build script on docs.rs
+#[cfg(feature = "rustdoc")]
+fn main() {}

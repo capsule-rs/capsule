@@ -16,7 +16,7 @@ path = "main.rs"
 doctest = false
 
 [dependencies]
-capsule = { path = "../../core" }
+capsule = { version = "0.1", path = "../../core" }
 chashmap = "2.2"
 failure = "0.1"
 once_cell = "1.2"

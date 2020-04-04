@@ -16,7 +16,7 @@ path = "main.rs"
 doctest = false
 
 [dependencies]
-capsule = { path = "../../core" }
+capsule = { version = "0.1", path = "../../core" }
 colored = "1.8"
 failure = "0.1"
 tracing = "0.1"
