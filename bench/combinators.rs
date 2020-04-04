@@ -16,12 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::batch::Either;
+use capsule::batch::{Batch, Either};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet};
 use capsule::testils::criterion::BencherExt;
 use capsule::testils::proptest::*;
-use capsule::{compose, Batch, Mbuf, Result};
+use capsule::{compose, Mbuf, Result};
 use criterion::{criterion_group, criterion_main, Criterion};
 use proptest::prelude::*;
 use proptest::strategy;

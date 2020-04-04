@@ -174,7 +174,8 @@ pub(crate) fn append_and_write<T: Packet>(
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Ethernet, Udp, UDP_PACKET};
+    use crate::packets::{Ethernet, Udp};
+    use crate::testils::byte_arrays::IPV4_UDP_PACKET;
     use crate::Mbuf;
     use std::fs;
     use std::ptr;
@@ -203,7 +204,7 @@ mod tests {
     #[capsule::test]
     fn create_pcap_and_write_packet() {
         let writer = Pcap::create("foo.pcap").unwrap();
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let data_len = packet.data_len();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
@@ -220,9 +221,9 @@ mod tests {
     #[capsule::test]
     fn create_pcap_and_write_packets() {
         let writer = Pcap::create("foo1.pcap").unwrap();
-        let udp = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let udp = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let data_len1 = udp.data_len();
-        let udp2 = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let udp2 = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let data_len2 = udp2.data_len();
 
         let packets = vec![udp, udp2];
@@ -238,7 +239,7 @@ mod tests {
         let open = Pcap::create("foo2.pcap");
         assert!(open.is_ok());
 
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let data_len = packet.data_len();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();

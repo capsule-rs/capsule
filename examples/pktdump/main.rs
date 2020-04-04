@@ -16,12 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use capsule::batch::{Batch, Pipeline, Poll};
 use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::{compose, Batch, Mbuf, Pipeline, Poll, PortQueue, Result, Runtime};
+use capsule::{compose, Mbuf, PortQueue, Result, Runtime};
 use colored::*;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

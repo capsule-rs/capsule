@@ -479,74 +479,13 @@ impl Default for SegmentRoutingHeader {
 
 impl Header for SegmentRoutingHeader {}
 
-/// IPv6 SRH packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const SRH_PACKET: [u8; 170] = [
-// ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x86, 0xdd,
-// IPv6 Header
-    0x60, 0x00, 0x00, 0x00,
-    // payload length
-    0x00, 0x74,
-    // next header (routing)
-    0x2b,
-    0x02,
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-// SRv6 header
-    // next header (tcp)
-    0x06,
-    // hdr ext len (3 segments, units of 8 octets)
-    0x06,
-    // routing type
-    0x04,
-    // segments left
-    0x00,
-    // last entry
-    0x02,
-    // flags
-    0x00,
-    // tag
-    0x00, 0x00,
-    // segments[0] 2001:0db8:85a3:0000:0000:8a2e:0370:7333
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x33,
-    // segments[1] 2001:0db8:85a3:0000:0000:8a2e:0370:7334
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
-    // segments[2] 2001:0db8:85a3:0000:0000:8a2e:0370:7335
-    0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x35,
-// TCP header
-    // src port
-    0x0d, 0x88,
-    // dst port
-    0x04, 0x00,
-    // sequence number
-    0x00, 0x00, 0x00, 0x00,
-    // ack number
-    0x00, 0x00, 0x00, 0x00,
-    // flags
-    0x50, 0x02,
-    // window
-    0x00, 0x0a,
-    // checksum
-    0x00, 0x00,
-    // urgent pointer
-    0x00, 0x00,
-    // payload
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v6::{Ipv6, IPV6_PACKET};
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::{Ethernet, Tcp};
+    use crate::testils::byte_arrays::{IPV6_TCP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
 
     #[test]
@@ -556,7 +495,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
@@ -578,7 +517,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -587,7 +526,7 @@ mod tests {
 
     #[capsule::test]
     fn set_segments() {
-        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
@@ -623,7 +562,7 @@ mod tests {
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
@@ -674,7 +613,7 @@ mod tests {
 
     #[capsule::test]
     fn insert_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let ipv6_payload_len = ipv6.payload_len();
@@ -704,7 +643,7 @@ mod tests {
 
     #[capsule::test]
     fn remove_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&SRH_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();

@@ -297,11 +297,12 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Udp, UDP_PACKET};
+    use crate::packets::Udp;
+    use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
     #[capsule::test]
     fn parse_and_reset_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let len = packet.data_len();
 
         let ethernet = packet.parse::<Ethernet>().unwrap();
@@ -314,7 +315,7 @@ mod tests {
 
     #[capsule::test]
     fn peek_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
 
         let ethernet = packet.peek::<Ethernet>().unwrap();
         assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
@@ -326,7 +327,7 @@ mod tests {
 
     #[capsule::test]
     fn peek_back_via_envelope() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let v4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = v4.parse::<Udp<Ipv4>>().unwrap();

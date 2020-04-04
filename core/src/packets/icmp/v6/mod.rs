@@ -489,39 +489,12 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
     }
 }
 
-/// ICMPv6 packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const ICMPV6_PACKET: [u8; 62] = [
-// Ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x86, 0xDD,
-// IPv6 header
-    0x60, 0x00, 0x00, 0x00,
-    // payload length
-    0x00, 0x08,
-    0x3a,
-    0xff,
-    0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd4, 0xf0, 0x45, 0xff, 0xfe, 0x0c, 0x66, 0x4b,
-    0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-// ICMPv6 header
-    // unknown type
-    0xFF,
-    // code
-    0x00,
-    // checksum
-    0x01, 0xf0,
-    // data
-    0x00, 0x00, 0x00, 0x00
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v6::{Ipv6, IPV6_PACKET};
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Ethernet;
+    use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
     use crate::Mbuf;
 
     #[test]
@@ -543,7 +516,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_icmpv6_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
 

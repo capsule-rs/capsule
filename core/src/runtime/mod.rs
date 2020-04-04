@@ -20,7 +20,7 @@ mod core_map;
 
 pub(crate) use self::core_map::*;
 
-use super::Pipeline;
+use crate::batch::Pipeline;
 use crate::config::RuntimeConfig;
 use crate::dpdk::{
     self, CoreId, KniError, KniRx, Mempool, Port, PortBuilder, PortError, PortQueue,

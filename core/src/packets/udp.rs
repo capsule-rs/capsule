@@ -313,42 +313,12 @@ pub struct UdpHeader {
 
 impl Header for UdpHeader {}
 
-/// IPv4 UDP packet as byte-array.
-#[cfg(any(test, feature = "testils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
-#[rustfmt::skip]
-pub const UDP_PACKET: [u8; 52] = [
-// ethernet header
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-    0x08, 0x00,
-// IPv4 header
-    0x45, 0x00,
-    // IPv4 payload length
-    0x00, 0x26,
-    // ident = 43849, flags = 4, frag_offset = 0
-    0xab, 0x49, 0x40, 0x00,
-    // ttl = 255, protocol = UDP, checksum = 0xf700
-    0xff, 0x11, 0xf7, 0x00,
-    // src = 139.133.217.110
-    0x8b, 0x85, 0xd9, 0x6e,
-    // dst = 139.133.233.2
-    0x8b, 0x85, 0xe9, 0x02,
-// UDP header
-    // src_port = 39376, dst_port = 1087
-    0x99, 0xd0, 0x04, 0x3f,
-    // UDP length = 18, checksum = 0x7228
-    0x00, 0x12, 0x72, 0x28,
-    // UDP payload
-    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x68, 0x65, 0x6c, 0x6c, 0x6f
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::Ethernet;
-    use crate::testils::byte_arrays::TCP_PACKET;
+    use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -359,7 +329,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_udp_packet() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -372,7 +342,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_udp_packet() {
-        let packet = Mbuf::from_bytes(&TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -381,7 +351,7 @@ mod tests {
 
     #[capsule::test]
     fn udp_flow_v4() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -396,7 +366,7 @@ mod tests {
 
     #[capsule::test]
     fn set_src_dst_ip() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
@@ -419,7 +389,7 @@ mod tests {
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ipv4.parse::<Udp<Ipv4>>().unwrap();

@@ -130,7 +130,6 @@ mod runtime;
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub mod testils;
 
-pub use self::batch::{Batch, Pipeline, Poll};
 pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
 #[cfg(any(test, feature = "testils"))]
