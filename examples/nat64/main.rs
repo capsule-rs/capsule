@@ -16,13 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::batch::Either;
+use capsule::batch::{Batch, Either, Pipeline, Poll};
 use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::{compose, Batch, Pipeline, Poll, PortQueue, Result, Runtime};
+use capsule::{compose, PortQueue, Result, Runtime};
 use chashmap::CHashMap;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;

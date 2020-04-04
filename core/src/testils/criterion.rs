@@ -22,8 +22,8 @@
 //! [`criterion`]: https://crates.io/crates/criterion
 
 use super::Rvg;
-use crate::batch::PacketTx;
-use crate::{Batch, Mbuf, Poll};
+use crate::batch::{Batch, PacketTx, Poll};
+use crate::Mbuf;
 use criterion::{black_box, Bencher};
 use proptest::strategy::Strategy;
 use std::cmp;
