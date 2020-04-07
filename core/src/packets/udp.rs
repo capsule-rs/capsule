@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -70,9 +70,8 @@ use std::ptr::NonNull;
 ///      debugging or for higher level protocols that don't care).
 ///
 /// [`IETF RFC 768`]: https://tools.ietf.org/html/rfc768
-#[derive(Clone)]
 pub struct Udp<E: IpPacket> {
-    envelope: CondRc<E>,
+    envelope: E,
     header: NonNull<UdpHeader>,
     offset: usize,
 }
@@ -212,6 +211,16 @@ impl<E: IpPacket> fmt::Debug for Udp<E> {
     }
 }
 
+impl<E: IpPacket> PacketBase for Udp<E> {
+    fn clone(&self, internal: Internal) -> Self {
+        Udp::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+}
+
 impl<E: IpPacket> Packet for Udp<E> {
     type Envelope = E;
     type Header = UdpHeader;
@@ -256,7 +265,7 @@ impl<E: IpPacket> Packet for Udp<E> {
         let header = mbuf.read_data(offset)?;
 
         Ok(Udp {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -274,7 +283,7 @@ impl<E: IpPacket> Packet for Udp<E> {
         envelope.set_next_protocol(ProtocolNumbers::Udp);
 
         Ok(Udp {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -285,7 +294,7 @@ impl<E: IpPacket> Packet for Udp<E> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
@@ -298,7 +307,7 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 

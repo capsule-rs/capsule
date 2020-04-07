@@ -28,7 +28,7 @@ use std::rc::Rc;
 /// through the bridge. Because the pipeline execution is depth first,
 /// this is the most efficient way storage wise.
 #[allow(missing_debug_implementations)]
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Bridge<T: Packet>(Rc<Cell<Option<T>>>);
 
 impl<T: Packet> Bridge<T> {
@@ -40,6 +40,12 @@ impl<T: Packet> Bridge<T> {
     /// Feeds a packet into the bridge container.
     pub fn set(&self, pkt: T) {
         self.0.set(Some(pkt));
+    }
+}
+
+impl<T: Packet> Clone for Bridge<T> {
+    fn clone(&self) -> Self {
+        Bridge(Rc::clone(&self.0))
     }
 }
 

@@ -20,7 +20,6 @@ use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
-use std::convert::From;
 use std::fmt;
 use std::mem;
 use std::os::raw;
@@ -107,6 +106,7 @@ pub(crate) enum BufferError {
 /// of a single Mbuf segment (`RTE_MBUF_DEFAULT_DATAROOM` = 2048).
 pub struct Mbuf {
     raw: NonNull<ffi::rte_mbuf>,
+    cloned: bool,
 }
 
 impl Mbuf {
@@ -119,7 +119,7 @@ impl Mbuf {
     pub fn new() -> Fallible<Self> {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
-        Ok(raw.into())
+        Ok(Mbuf { raw, cloned: false })
     }
 
     /// Creates a new message buffer from a byte array.
@@ -394,12 +394,13 @@ impl Mbuf {
             mem::forget(mbuf);
         }
     }
-}
 
-impl From<NonNull<ffi::rte_mbuf>> for Mbuf {
-    #[inline]
-    fn from(raw: NonNull<ffi::rte_mbuf>) -> Self {
-        Mbuf { raw }
+    /// Clones the reference to the underlying message buffer.
+    pub(crate) fn shallow_clone(&self) -> Self {
+        Mbuf {
+            raw: self.raw,
+            cloned: true,
+        }
     }
 }
 
@@ -415,19 +416,16 @@ impl fmt::Debug for Mbuf {
     }
 }
 
-// TODO: revisit clone/drop and ref count.
-impl Clone for Mbuf {
-    fn clone(&self) -> Self {
-        self.raw.into()
-    }
-}
-
 impl Drop for Mbuf {
     fn drop(&mut self) {
-        trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
+        // if the reference is a clone, we can't release the mbuf
+        // back to the mempool yet.
+        if !self.cloned {
+            trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
 
-        unsafe {
-            ffi::_rte_pktmbuf_free(self.raw_mut());
+            unsafe {
+                ffi::_rte_pktmbuf_free(self.raw_mut());
+            }
         }
     }
 }

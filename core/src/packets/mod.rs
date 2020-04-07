@@ -34,8 +34,7 @@ use crate::{Mbuf, SizeOf};
 use failure::{Fail, Fallible};
 use std::fmt;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
+use std::ops::Deref;
 
 /// Packet header marker trait.
 ///
@@ -44,9 +43,35 @@ use std::rc::Rc;
 /// defined, but the variable portion has to be parsed separately.
 pub trait Header: SizeOf {}
 
-/// Common behaviors shared by all packets.
+/// An argument to restrict users from calling functions on the [`PacketBase`]
+/// trait.
+///
+/// While `Internal` is a publicly exported type, it can only be created
+/// inside the crate. Hence any function using it as an argument can only
+/// be called from within the crate. For example, users cannot invoke
+/// [`PacketBase::clone`] directly from their code.
+///
+/// [`PacketBase`]: PacketBase
+/// [`PacketBase::clone`]: PacketBase::clone
+#[derive(Clone, Debug)]
+pub struct Internal(());
+
+/// A trait network protocols implement to become typed packets.
+pub trait PacketBase {
+    /// Returns a copy of the packet.
+    ///
+    /// The underlying byte buffer is not cloned. Only the references to
+    /// that buffer is cloned. [`Packet::peek`] converts the clones into
+    /// [`Immutable`] packets.
+    ///
+    /// [`Packet::peek`]: Packet::peek
+    /// [`Immutable] Immutable
+    fn clone(&self, internal: Internal) -> Self;
+}
+
+/// Common behaviors shared by all typed packets.
 #[allow(clippy::len_without_is_empty)]
-pub trait Packet: Clone {
+pub trait Packet: PacketBase {
     /// The header type of the packet.
     type Header: Header;
     /// The outer packet type that encapsulates the packet.
@@ -137,7 +162,7 @@ pub trait Packet: Clone {
     where
         Self: Sized,
     {
-        self.clone().parse::<T>().map(Immutable::new)
+        self.clone(Internal(())).parse::<T>().map(Immutable::new)
     }
 
     /// Pushes a new packet `T` as the payload.
@@ -217,66 +242,6 @@ impl<T: Packet> Deref for Immutable<'_, T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
-    }
-}
-
-/// Conditional reference counted smart pointer.
-///
-/// The content of the pointer will be deep-copied the first time `clone` is
-/// invoked. Subsequent calls to `clone` will clone a `std::rc::Rc` pointer,
-/// and not perform deep copy any more.
-#[doc(hidden)]
-#[derive(Debug)]
-pub(crate) enum CondRc<T: Packet> {
-    Raw(T),
-    Counted(Rc<T>),
-}
-
-impl<T: Packet> CondRc<T> {
-    /// Creates a conditional reference to a packet counted smart pointer.
-    pub(crate) fn new(value: T) -> Self {
-        CondRc::Raw(value)
-    }
-
-    /// Consumes the CondRc and returns the packet of type T.
-    pub(crate) fn into_owned(self) -> T {
-        match self {
-            CondRc::Raw(value) => value,
-            // because this fn requires ownership move, it should
-            // never be invoked on a reference counted one.
-            CondRc::Counted(_) => unreachable!(),
-        }
-    }
-}
-
-impl<T: Packet> Clone for CondRc<T> {
-    fn clone(&self) -> Self {
-        match self {
-            CondRc::Raw(value) => CondRc::Counted(Rc::new(value.clone())),
-            CondRc::Counted(value) => CondRc::Counted(Rc::clone(value)),
-        }
-    }
-}
-
-impl<T: Packet> Deref for CondRc<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            CondRc::Raw(value) => value,
-            CondRc::Counted(value) => Deref::deref(value),
-        }
-    }
-}
-
-impl<T: Packet> DerefMut for CondRc<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            CondRc::Raw(value) => value,
-            // because this fn requires a mutable reference, it should
-            // never be invoked on a reference counted one.
-            CondRc::Counted(_) => unreachable!(),
-        }
     }
 }
 

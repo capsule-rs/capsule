@@ -32,7 +32,7 @@ pub use self::too_big::*;
 use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -76,9 +76,8 @@ use std::ptr::NonNull;
 ///
 /// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443
 /// [`Icmpv6Payload`]: Icmpv6Payload
-#[derive(Clone)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
-    envelope: CondRc<E>,
+    envelope: E,
     header: NonNull<Icmpv6Header>,
     payload: NonNull<P>,
     offset: usize,
@@ -104,6 +103,17 @@ impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
 
     fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
+    }
+}
+
+impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
+    fn clone(&self, internal: Internal) -> Self {
+        Icmpv6::<E, ()> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            payload: self.payload,
+            offset: self.offset,
+        }
     }
 }
 
@@ -152,7 +162,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         let payload = mbuf.read_data(offset + Self::Header::size_of())?;
 
         Ok(Icmpv6 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             payload,
             offset,
@@ -169,7 +179,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
 
         let mut packet = Icmpv6 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             payload,
             offset,
@@ -188,7 +198,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
@@ -199,7 +209,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 

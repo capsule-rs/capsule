@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -114,9 +114,8 @@ const FIN: u8 = 0b0000_0001;
 /// [`IETF RFC 793`]: https://tools.ietf.org/html/rfc793#section-3.1
 /// [`IETF RFC 3540`]: https://tools.ietf.org/html/rfc3540
 /// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
-#[derive(Clone)]
 pub struct Tcp<E: IpPacket> {
-    envelope: CondRc<E>,
+    envelope: E,
     header: NonNull<TcpHeader>,
     offset: usize,
 }
@@ -478,6 +477,16 @@ impl<E: IpPacket> fmt::Debug for Tcp<E> {
     }
 }
 
+impl<E: IpPacket> PacketBase for Tcp<E> {
+    fn clone(&self, internal: Internal) -> Self {
+        Tcp::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+}
+
 impl<E: IpPacket> Packet for Tcp<E> {
     type Envelope = E;
     type Header = TcpHeader;
@@ -522,7 +531,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
         let header = mbuf.read_data(offset)?;
 
         Ok(Tcp {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -540,7 +549,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
         envelope.set_next_protocol(ProtocolNumbers::Tcp);
 
         Ok(Tcp {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -551,7 +560,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
@@ -562,7 +571,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 
