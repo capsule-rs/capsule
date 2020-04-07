@@ -49,7 +49,7 @@ pub trait BencherExt {
     /// over the input. See [`BatchSize`] for details on choosing the batch size.
     ///
     /// [`BatchSize`]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
-    /// [`pipeline combinators`]: crate::Batch
+    /// [`pipeline combinators`]: crate::batch::Batch
     fn iter_proptest_combinators<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where
         R: FnMut(Poll<Receiver<Mbuf>>) -> O,
