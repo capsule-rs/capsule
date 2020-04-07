@@ -228,7 +228,7 @@ impl Runtime {
     /// ```
     ///
     /// [`PortQueue`]: crate::PortQueue
-    /// [`Pipeline`]: crate::Pipeline
+    /// [`Pipeline`]: crate::batch::Pipeline
     pub fn add_pipeline_to_port<T: Pipeline + 'static, F>(
         &mut self,
         port: &str,
@@ -336,7 +336,7 @@ impl Runtime {
     /// ```
     ///
     /// [`PortQueues`]: crate::PortQueue
-    /// [`Pipeline`]: crate::Pipeline
+    /// [`Pipeline`]: crate::batch::Pipeline
     pub fn add_pipeline_to_core<T: Pipeline + 'static, F>(
         &mut self,
         core: usize,
@@ -385,7 +385,7 @@ impl Runtime {
     /// ```
     ///
     /// [`PortQueues`]: crate::PortQueue
-    /// [`Pipeline`]: crate::Pipeline
+    /// [`Pipeline`]: crate::batch::Pipeline
     /// [`batch::poll_fn`]: crate::batch::poll_fn
     pub fn add_periodic_pipeline_to_core<T: Pipeline + 'static, F>(
         &mut self,
