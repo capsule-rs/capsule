@@ -18,7 +18,8 @@
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -156,7 +157,7 @@ impl<E: IpPacket> Udp<E> {
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
-    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
+    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
         let old_ip = self.envelope().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
         self.envelope_mut().set_src(src_ip)?;
@@ -170,7 +171,7 @@ impl<E: IpPacket> Udp<E> {
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
-    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
+    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
         let old_ip = self.envelope().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
         self.envelope_mut().set_dst(dst_ip)?;
@@ -244,9 +245,9 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
-            envelope.next_proto() == ProtocolNumbers::Udp,
+            envelope.next_protocol() == ProtocolNumbers::Udp,
             ParseError::new("not a UDP packet.")
         );
 
@@ -263,14 +264,14 @@ impl<E: IpPacket> Packet for Udp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
-        envelope.set_next_proto(ProtocolNumbers::Udp);
+        envelope.set_next_protocol(ProtocolNumbers::Udp);
 
         Ok(Udp {
             envelope: CondRc::new(envelope),
@@ -280,7 +281,7 @@ impl<E: IpPacket> Packet for Udp<E> {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -301,7 +302,9 @@ impl<E: IpPacket> Packet for Udp<E> {
     }
 }
 
-/// UDP header.
+/// UDP header accessible through [`Udp`].
+///
+/// [`Udp`]: Udp
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
 pub struct UdpHeader {
@@ -409,7 +412,7 @@ mod tests {
 
         assert_eq!(UdpHeader::size_of(), udp.len());
 
-        // make sure next proto is fixed
-        assert_eq!(ProtocolNumbers::Udp, udp.envelope().next_proto());
+        // make sure the next protocol is fixed
+        assert_eq!(ProtocolNumbers::Udp, udp.envelope().next_protocol());
     }
 }

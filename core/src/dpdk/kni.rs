@@ -21,8 +21,8 @@ use crate::ffi::{self, AsStr, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
-use crate::{debug, error, warn, Result};
-use failure::Fail;
+use crate::{debug, error, warn};
+use failure::{Fail, Fallible};
 use futures::{future, Future, StreamExt};
 use std::cmp;
 use std::mem;
@@ -279,12 +279,12 @@ impl Kni {
     }
 
     /// Takes ownership of the RX handle.
-    pub(crate) fn take_rx(&mut self) -> Result<KniRx> {
+    pub(crate) fn take_rx(&mut self) -> Fallible<KniRx> {
         self.rx.take().ok_or_else(|| KniError::NotAcquired.into())
     }
 
     /// Takes ownership of the TX handle.
-    pub(crate) fn take_tx(&mut self) -> Result<KniTx> {
+    pub(crate) fn take_tx(&mut self) -> Fallible<KniTx> {
         self.tx.take().ok_or_else(|| KniError::NotAcquired.into())
     }
 
@@ -378,7 +378,7 @@ impl<'a> KniBuilder<'a> {
         self
     }
 
-    pub(crate) fn finish(&mut self) -> Result<Kni> {
+    pub(crate) fn finish(&mut self) -> Fallible<Kni> {
         self.conf.mbuf_size = ffi::RTE_MBUF_DEFAULT_BUF_SIZE;
         self.ops.change_mtu = Some(change_mtu);
         self.ops.config_network_if = Some(config_network_if);
@@ -394,7 +394,7 @@ impl<'a> KniBuilder<'a> {
 }
 
 /// Initializes and preallocates the KNI subsystem.
-pub(crate) fn kni_init(max: usize) -> Result<()> {
+pub(crate) fn kni_init(max: usize) -> Fallible<()> {
     unsafe {
         ffi::rte_kni_init(max as raw::c_uint)
             .to_result()

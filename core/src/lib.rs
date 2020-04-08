@@ -136,6 +136,3 @@ pub use self::runtime::{Runtime, UnixSignal};
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub use capsule_macros::{bench, test};
 pub use capsule_macros::{Icmpv4Packet, Icmpv6Packet, SizeOf};
-
-/// A type alias of `std:result::Result` for convenience.
-pub type Result<T> = std::result::Result<T, failure::Error>;

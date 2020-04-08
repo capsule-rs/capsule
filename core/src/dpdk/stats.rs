@@ -19,7 +19,7 @@
 use super::{Mempool, Port, PortId};
 use crate::ffi::{self, AsStr, ToResult};
 use crate::metrics::{labels, Key, Measurement};
-use crate::Result;
+use failure::Fallible;
 use std::ptr::NonNull;
 
 /// Port stats collector.
@@ -57,7 +57,7 @@ impl PortStats {
     }
 
     /// Collects the port stats tracked by DPDK.
-    pub(crate) fn collect(&self) -> Result<Vec<(Key, Measurement)>> {
+    pub(crate) fn collect(&self) -> Fallible<Vec<(Key, Measurement)>> {
         let mut stats = ffi::rte_eth_stats::default();
         unsafe {
             ffi::rte_eth_stats_get(self.id.raw(), &mut stats).to_result()?;

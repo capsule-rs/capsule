@@ -18,7 +18,8 @@
 
 use super::{NdpOption, PREFIX_INFORMATION};
 use crate::packets::ParseError;
-use crate::{ensure, Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::net::Ipv6Addr;
 use std::ptr::NonNull;
@@ -117,7 +118,7 @@ pub struct PrefixInformation {
 impl PrefixInformation {
     /// Parses the prefix information option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<PrefixInformation> {
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<PrefixInformation> {
         let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
 
         ensure!(
@@ -262,7 +263,7 @@ impl fmt::Debug for PrefixInformation {
 
 impl NdpOption for PrefixInformation {
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
     where
         Self: Sized,
     {

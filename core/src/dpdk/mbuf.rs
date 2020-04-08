@@ -18,8 +18,8 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
-use crate::{ensure, trace, Result};
-use failure::Fail;
+use crate::{ensure, trace};
+use failure::{Fail, Fallible};
 use std::convert::From;
 use std::fmt;
 use std::mem;
@@ -116,7 +116,7 @@ impl Mbuf {
     /// executing thread by the `Runtime`. The call will fail if invoked
     /// from a thread not managed by the `Runtime`.
     #[inline]
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Fallible<Self> {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
         Ok(raw.into())
@@ -124,7 +124,7 @@ impl Mbuf {
 
     /// Creates a new message buffer from a byte array.
     #[inline]
-    pub fn from_bytes(data: &[u8]) -> Result<Self> {
+    pub fn from_bytes(data: &[u8]) -> Fallible<Self> {
         let mut mbuf = Mbuf::new()?;
         mbuf.extend(0, data.len())?;
         mbuf.write_data_slice(0, data)?;
@@ -168,7 +168,7 @@ impl Mbuf {
     /// If the offset is not at the end of the data. The data after the
     /// offset is shifted down to make room.
     #[inline]
-    pub fn extend(&mut self, offset: usize, len: usize) -> Result<()> {
+    pub fn extend(&mut self, offset: usize, len: usize) -> Fallible<()> {
         ensure!(len > 0, BufferError::NotResized);
         ensure!(offset <= self.data_len(), BufferError::NotResized);
         ensure!(len < self.tailroom(), BufferError::NotResized);
@@ -194,7 +194,7 @@ impl Mbuf {
     ///
     /// The data at offset is shifted up.
     #[inline]
-    pub fn shrink(&mut self, offset: usize, len: usize) -> Result<()> {
+    pub fn shrink(&mut self, offset: usize, len: usize) -> Fallible<()> {
         ensure!(len > 0, BufferError::NotResized);
         ensure!(offset + len <= self.data_len(), BufferError::NotResized);
 
@@ -217,7 +217,7 @@ impl Mbuf {
 
     /// Resizes the data buffer.
     #[inline]
-    pub fn resize(&mut self, offset: usize, len: isize) -> Result<()> {
+    pub fn resize(&mut self, offset: usize, len: isize) -> Fallible<()> {
         if len < 0 {
             self.shrink(offset, -len as usize)
         } else {
@@ -227,7 +227,7 @@ impl Mbuf {
 
     /// Truncates the data buffer to len.
     #[inline]
-    pub fn truncate(&mut self, to_len: usize) -> Result<()> {
+    pub fn truncate(&mut self, to_len: usize) -> Fallible<()> {
         ensure!(to_len < self.data_len(), BufferError::NotResized);
 
         self.raw_mut().data_len = to_len as u16;
@@ -238,7 +238,7 @@ impl Mbuf {
 
     /// Reads the data at offset as `T` and returns it as a raw pointer.
     #[inline]
-    pub fn read_data<T: SizeOf>(&self, offset: usize) -> Result<NonNull<T>> {
+    pub fn read_data<T: SizeOf>(&self, offset: usize) -> Fallible<NonNull<T>> {
         ensure!(
             offset < self.data_len(),
             BufferError::BadOffset(offset, self.data_len())
@@ -261,7 +261,7 @@ impl Mbuf {
     /// to make sure enough space is allocated for the write and data is not
     /// being overridden.
     #[inline]
-    pub fn write_data<T: SizeOf>(&mut self, offset: usize, item: &T) -> Result<NonNull<T>> {
+    pub fn write_data<T: SizeOf>(&mut self, offset: usize, item: &T) -> Fallible<NonNull<T>> {
         ensure!(
             offset + T::size_of() <= self.data_len(),
             BufferError::OutOfBuffer(T::size_of(), self.data_len() - offset)
@@ -279,7 +279,11 @@ impl Mbuf {
     /// Reads the data at offset as a slice of `T` and returns the slice as
     /// a raw pointer.
     #[inline]
-    pub fn read_data_slice<T: SizeOf>(&self, offset: usize, count: usize) -> Result<NonNull<[T]>> {
+    pub fn read_data_slice<T: SizeOf>(
+        &self,
+        offset: usize,
+        count: usize,
+    ) -> Fallible<NonNull<[T]>> {
         ensure!(
             offset < self.data_len(),
             BufferError::BadOffset(offset, self.data_len())
@@ -307,7 +311,7 @@ impl Mbuf {
         &mut self,
         offset: usize,
         slice: &[T],
-    ) -> Result<NonNull<[T]>> {
+    ) -> Fallible<NonNull<[T]>> {
         let count = slice.len();
 
         ensure!(
@@ -336,7 +340,7 @@ impl Mbuf {
     }
 
     /// Allocates a Vec of `Mbuf`s of `len` size.
-    pub fn alloc_bulk(len: usize) -> Result<Vec<Mbuf>> {
+    pub fn alloc_bulk(len: usize) -> Fallible<Vec<Mbuf>> {
         let mut ptrs = Vec::with_capacity(len);
         let mempool = MEMPOOL.with(|tls| tls.get());
 

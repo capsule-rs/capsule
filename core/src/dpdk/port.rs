@@ -23,8 +23,8 @@ use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
 #[cfg(feature = "pcap-dump")]
 use crate::pcap;
-use crate::{debug, ensure, info, warn, Result};
-use failure::Fail;
+use crate::{debug, ensure, info, warn};
+use failure::{Fail, Fallible};
 use std::collections::HashMap;
 use std::fmt;
 use std::mem;
@@ -318,7 +318,7 @@ impl Port {
     /// # Errors
     ///
     /// If the port fails to start, `DpdkError` is returned.
-    pub(crate) fn start(&mut self) -> Result<()> {
+    pub(crate) fn start(&mut self) -> Fallible<()> {
         unsafe {
             ffi::rte_eth_dev_start(self.id.0).to_result()?;
         }
@@ -391,7 +391,7 @@ impl<'a> PortBuilder<'a> {
     /// # Errors
     ///
     /// If the device is not found, `DpdkError` is returned.
-    pub(crate) fn new(name: String, device: String) -> Result<Self> {
+    pub(crate) fn new(name: String, device: String) -> Fallible<Self> {
         let mut port_id = 0u16;
         unsafe {
             ffi::rte_eth_dev_get_port_by_name(device.clone().to_cstring().as_ptr(), &mut port_id)
@@ -427,7 +427,7 @@ impl<'a> PortBuilder<'a> {
     ///
     /// If either the maximum number of RX or TX queues is less than the
     /// number of cores assigned, `PortError` is returned.
-    pub(crate) fn cores(&mut self, cores: &[CoreId]) -> Result<&mut Self> {
+    pub(crate) fn cores(&mut self, cores: &[CoreId]) -> Fallible<&mut Self> {
         ensure!(!cores.is_empty(), PortError::CoreNotBound);
 
         let mut cores = cores.to_vec();
@@ -457,7 +457,7 @@ impl<'a> PortBuilder<'a> {
     /// # Errors
     ///
     /// If the adjustment failed, `DpdkError` is returned.
-    pub(crate) fn rx_tx_queue_capacity(&mut self, rxd: usize, txd: usize) -> Result<&mut Self> {
+    pub(crate) fn rx_tx_queue_capacity(&mut self, rxd: usize, txd: usize) -> Fallible<&mut Self> {
         let mut rxd2 = rxd as u16;
         let mut txd2 = txd as u16;
 
@@ -497,7 +497,7 @@ impl<'a> PortBuilder<'a> {
         promiscuous: bool,
         multicast: bool,
         with_kni: bool,
-    ) -> Result<Port> {
+    ) -> Fallible<Port> {
         let len = self.cores.len() as u16;
         let mut conf = ffi::rte_eth_conf::default();
 

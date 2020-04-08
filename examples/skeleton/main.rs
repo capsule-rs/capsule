@@ -17,11 +17,12 @@
 */
 
 use capsule::config::load_config;
-use capsule::{Result, Runtime};
+use capsule::Runtime;
+use failure::Fallible;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::TRACE)
         .finish();

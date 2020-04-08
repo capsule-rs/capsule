@@ -33,10 +33,10 @@ pub use self::port::*;
 #[cfg(feature = "metrics")]
 pub(crate) use self::stats::*;
 
+use crate::debug;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
-use crate::{debug, Result};
-use failure::Fail;
+use failure::{Fail, Fallible};
 use std::cell::Cell;
 use std::fmt;
 use std::mem;
@@ -148,7 +148,7 @@ impl CoreId {
     /// Sets the current thread's affinity to this core.
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
-    pub(crate) fn set_thread_affinity(&self) -> Result<()> {
+    pub(crate) fn set_thread_affinity(&self) -> Fallible<()> {
         unsafe {
             // the two types that represent `cpu_set` have identical layout,
             // hence it is safe to transmute between them.
@@ -174,7 +174,7 @@ thread_local! {
 }
 
 /// Initializes the Environment Abstraction Layer (EAL).
-pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
+pub(crate) fn eal_init(args: Vec<String>) -> Fallible<()> {
     debug!(arguments=?args);
 
     let len = args.len() as raw::c_int;
@@ -191,7 +191,7 @@ pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
 }
 
 /// Cleans up the Environment Abstraction Layer (EAL).
-pub(crate) fn eal_cleanup() -> Result<()> {
+pub(crate) fn eal_cleanup() -> Fallible<()> {
     unsafe { ffi::rte_eal_cleanup().to_result().map(|_| ()) }
 }
 

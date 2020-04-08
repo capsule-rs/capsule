@@ -28,7 +28,8 @@ pub use self::mtu::*;
 pub use self::prefix_info::*;
 
 use crate::packets::ParseError;
-use crate::{Mbuf, Result};
+use crate::Mbuf;
+use failure::Fallible;
 use fallible_iterator::FallibleIterator;
 
 /// Source link-layer address option.
@@ -59,7 +60,7 @@ pub enum NdpOptions {
 /// Common behaviors shared by NDP options.
 pub trait NdpOption {
     #[doc(hidden)]
-    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
     where
         Self: Sized;
 }
@@ -82,7 +83,7 @@ impl FallibleIterator for NdpOptionsIterator<'_> {
     type Item = NdpOptions;
     type Error = failure::Error;
 
-    fn next(&mut self) -> std::result::Result<Option<Self::Item>, Self::Error> {
+    fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
         let buffer_len = self.mbuf.data_len();
 
         if self.offset <= buffer_len {

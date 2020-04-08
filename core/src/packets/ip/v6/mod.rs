@@ -27,7 +27,8 @@ pub use self::srh::*;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
@@ -251,7 +252,7 @@ impl Packet for Ipv6 {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv6,
             ParseError::new("not an IPv6 packet.")
@@ -270,7 +271,7 @@ impl Packet for Ipv6 {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -287,7 +288,7 @@ impl Packet for Ipv6 {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -309,12 +310,12 @@ impl Packet for Ipv6 {
 
 impl IpPacket for Ipv6 {
     #[inline]
-    fn next_proto(&self) -> ProtocolNumber {
+    fn next_protocol(&self) -> ProtocolNumber {
         self.next_header()
     }
 
     #[inline]
-    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+    fn set_next_protocol(&mut self, proto: ProtocolNumber) {
         self.set_next_header(proto);
     }
 
@@ -324,7 +325,7 @@ impl IpPacket for Ipv6 {
     }
 
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Result<()> {
+    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
         match src {
             IpAddr::V6(addr) => {
                 self.set_src(addr);
@@ -340,7 +341,7 @@ impl IpPacket for Ipv6 {
     }
 
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
         match dst {
             IpAddr::V6(addr) => {
                 self.set_dst(addr);
@@ -361,7 +362,7 @@ impl IpPacket for Ipv6 {
     }
 
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Result<()> {
+    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
         ensure!(
             mtu >= IPV6_MIN_MTU,
             IpPacketError::MtuTooSmall(mtu, IPV6_MIN_MTU)
@@ -394,7 +395,9 @@ pub trait Ipv6Packet: IpPacket {
     fn set_next_header(&mut self, next_header: ProtocolNumber);
 }
 
-/// IPv6 header.
+/// IPv6 header accessible through [`Ipv6`].
+///
+/// [`Ipv6`]: Ipv6
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 pub struct Ipv6Header {

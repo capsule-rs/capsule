@@ -42,7 +42,7 @@ pub use self::router_solicit::*;
 use super::{Icmpv6, Icmpv6Packet, Icmpv6Payload};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
-use crate::Result;
+use failure::Fallible;
 
 /// NDP message payload marker.
 pub trait NdpPayload: Icmpv6Payload {}
@@ -55,7 +55,7 @@ pub trait NdpPacket<E: Ipv6Packet, P: NdpPayload>: Icmpv6Packet<E, P> {
     fn options(&self) -> NdpOptionsIterator<'_>;
 
     /// Add option to NDP messaged.
-    fn push_option<T: NdpOption>(&mut self) -> Result<T>;
+    fn push_option<T: NdpOption>(&mut self) -> Fallible<T>;
 }
 
 impl<E: Ipv6Packet, P: NdpPayload> NdpPacket<E, P> for Icmpv6<E, P>
@@ -68,7 +68,7 @@ where
         NdpOptionsIterator::new(mbuf, offset)
     }
 
-    fn push_option<T: NdpOption>(&mut self) -> Result<T> {
+    fn push_option<T: NdpOption>(&mut self) -> Fallible<T> {
         T::do_push(self.mbuf_mut())
     }
 }
@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::icmp::v6::ndp::{NdpOptions, SOURCE_LINK_LAYER_ADDR};
+    use crate::packets::icmp::v6::ndp::NdpOptions;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
     use crate::Mbuf;
@@ -96,7 +96,7 @@ mod tests {
 
         let mut option: LinkLayerAddress = router_advert.push_option().unwrap();
         option.set_addr(mac_addr);
-        option.set_option_type(SOURCE_LINK_LAYER_ADDR);
+        option.set_option_type_source();
 
         let mut iter = router_advert.options();
 

@@ -16,18 +16,19 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule::{Mbuf, Result};
+use capsule::Mbuf;
 use criterion::{criterion_group, criterion_main, Criterion};
+use failure::Fallible;
 
 const BATCH_SIZE: usize = 100;
 
-fn alloc() -> Result<Vec<Mbuf>> {
+fn alloc() -> Fallible<Vec<Mbuf>> {
     (0..BATCH_SIZE)
         .map(|_| Mbuf::new())
-        .collect::<Result<Vec<Mbuf>>>()
+        .collect::<Fallible<Vec<Mbuf>>>()
 }
 
-fn alloc_bulk() -> Result<Vec<Mbuf>> {
+fn alloc_bulk() -> Fallible<Vec<Mbuf>> {
     Mbuf::alloc_bulk(BATCH_SIZE)
 }
 

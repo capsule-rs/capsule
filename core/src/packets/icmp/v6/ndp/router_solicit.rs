@@ -20,7 +20,7 @@ use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
-use crate::{Icmpv6Packet, Result, SizeOf};
+use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 
 /// Router Solicitation Message defined in [`IETF RFC 4861`].
@@ -49,11 +49,14 @@ use std::fmt;
 ///                                 Otherwise, it *SHOULD* be included on link
 ///                                 layers that have addresses.
 ///
+/// The fields are accessible through [`Icmpv6<E, RouterSolicitation>`].
+///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.1
+/// [`Icmpv6<E, RouterSolicitation>`]: Icmpv6
 #[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterSolicitation {
-    reserved: u32,
+    _reserved: u32,
 }
 
 impl Icmpv6Payload for RouterSolicitation {
@@ -67,13 +70,6 @@ impl NdpPayload for RouterSolicitation {}
 
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
-    /// Unused field that must be initialized to zero by sender and ignored
-    /// by the receiver.
-    pub fn reserved(&self) -> u32 {
-        u32::from_be(self.payload().reserved)
-    }
-
-    #[inline]
     fn cascade(&mut self) {
         self.compute_checksum();
         self.envelope_mut().cascade();
@@ -86,7 +82,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterSolicitation> {
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
-            .field("reserved", &self.reserved())
             .finish()
     }
 }
@@ -113,7 +108,6 @@ mod tests {
 
         if let Ok(Icmpv6Message::RouterSolicitation(solicit)) = ipv6.parse_icmpv6() {
             assert_eq!(Icmpv6Types::RouterSolicitation, solicit.msg_type());
-            assert_eq!(0, solicit.reserved());
         } else {
             panic!("bad packet");
         }

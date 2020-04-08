@@ -20,7 +20,7 @@ use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
-use crate::{Icmpv6Packet, Result, SizeOf};
+use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 
 const M_FLAG: u8 = 0b1000_0000;
@@ -132,7 +132,10 @@ const O_FLAG: u8 = 0b0100_0000;
 ///                                 interface when sending traffic to its
 ///                                 neighbors.
 ///
+/// The fields are accessible through [`Icmpv6<E, RouterAdvertisement>`].
+///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.2
+/// [`Icmpv6<E, RouterAdvertisement>`]: Icmpv6
 #[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct RouterAdvertisement {
@@ -206,7 +209,6 @@ impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     /// of seconds.
     #[inline]
     pub fn router_lifetime(&self) -> u16 {
-        // TODO: should these times be translated to duration?
         u16::from_be(self.payload().router_lifetime)
     }
 
@@ -269,9 +271,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
 mod tests {
     use super::*;
     use crate::net::MacAddr;
-    use crate::packets::icmp::v6::ndp::{
-        LinkLayerAddress, NdpOptions, NdpPacket, SOURCE_LINK_LAYER_ADDR,
-    };
+    use crate::packets::icmp::v6::ndp::{LinkLayerAddress, NdpOptions, NdpPacket};
     use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::{Ethernet, Packet};
@@ -315,7 +315,7 @@ mod tests {
         if let Ok(Icmpv6Message::RouterAdvertisement(mut advert)) = ipv6.parse_icmpv6() {
             let mut source_link_address: LinkLayerAddress = advert.push_option().unwrap();
             source_link_address.set_addr(MacAddr::from_str("70:3a:cb:1b:f9:7a").unwrap());
-            source_link_address.set_option_type(SOURCE_LINK_LAYER_ADDR);
+            source_link_address.set_option_type_source();
 
             let mut slla_found = false;
             let mut iter = advert.options();

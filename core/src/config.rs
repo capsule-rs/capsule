@@ -47,8 +47,8 @@
 
 use crate::dpdk::CoreId;
 use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
-use crate::Result;
 use clap::{clap_app, crate_version};
+use failure::Fallible;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
@@ -58,7 +58,7 @@ use std::time::Duration;
 
 // make `CoreId` serde deserializable.
 impl<'de> Deserialize<'de> for CoreId {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -69,7 +69,7 @@ impl<'de> Deserialize<'de> for CoreId {
 
 // make `MacAddr` serde deserializable.
 impl<'de> Deserialize<'de> for MacAddr {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -80,7 +80,7 @@ impl<'de> Deserialize<'de> for MacAddr {
 
 // make `Ipv4Cidr` serde deserializable.
 impl<'de> Deserialize<'de> for Ipv4Cidr {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -91,7 +91,7 @@ impl<'de> Deserialize<'de> for Ipv4Cidr {
 
 // make `Ipv6Cidr` serde deserializable.
 impl<'de> Deserialize<'de> for Ipv6Cidr {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -101,7 +101,7 @@ impl<'de> Deserialize<'de> for Ipv6Cidr {
 }
 
 /// Deserializes a duration from seconds expressed as `u64`.
-pub fn duration_from_secs<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
+pub fn duration_from_secs<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -110,9 +110,7 @@ where
 }
 
 /// Deserializes an option of duration from seconds expressed as `u64`.
-pub fn duration_option_from_secs<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<Duration>, D::Error>
+pub fn duration_option_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -414,7 +412,7 @@ impl fmt::Debug for PortConfig {
 /// ```
 /// home$ ./myapp -f config.toml
 /// ```
-pub fn load_config() -> Result<RuntimeConfig> {
+pub fn load_config() -> Fallible<RuntimeConfig> {
     let matches = clap_app!(capsule =>
         (version: crate_version!())
         (@arg file: -f --file +required +takes_value "configuration file")

@@ -17,8 +17,9 @@
 */
 
 use capsule::config::load_config;
+use capsule::Runtime;
 use capsule::UnixSignal::{self, *};
-use capsule::{Result, Runtime};
+use failure::Fallible;
 use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
@@ -30,7 +31,7 @@ fn on_signal(signal: UnixSignal) -> bool {
     }
 }
 
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

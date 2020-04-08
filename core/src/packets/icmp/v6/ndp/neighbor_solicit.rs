@@ -20,7 +20,7 @@ use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
-use crate::{Icmpv6Packet, Result, SizeOf};
+use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -58,7 +58,10 @@ use std::net::Ipv6Addr;
 ///                                 multicast solicitations and *SHOULD* be
 ///                                 included in unicast solicitations.
 ///
+/// The fields are accessible through [`Icmpv6<E, NeighborSolicitation>`].
+///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.3
+/// [`Icmpv6<E, NeighborSolicitation>`]: Icmpv6
 #[derive(Clone, Copy, Debug, Icmpv6Packet, SizeOf)]
 #[repr(C)]
 pub struct NeighborSolicitation {
