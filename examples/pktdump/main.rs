@@ -22,13 +22,14 @@ use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::{compose, Mbuf, PortQueue, Result, Runtime};
+use capsule::{compose, Mbuf, PortQueue, Runtime};
 use colored::*;
+use failure::Fallible;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
 #[inline]
-fn dump_eth(packet: Mbuf) -> Result<Ethernet> {
+fn dump_eth(packet: Mbuf) -> Fallible<Ethernet> {
     let ethernet = packet.parse::<Ethernet>()?;
 
     let info_fmt = format!("{:?}", ethernet).magenta().bold();
@@ -38,7 +39,7 @@ fn dump_eth(packet: Mbuf) -> Result<Ethernet> {
 }
 
 #[inline]
-fn dump_v4(ethernet: &Ethernet) -> Result<()> {
+fn dump_v4(ethernet: &Ethernet) -> Fallible<()> {
     let v4 = ethernet.peek::<Ipv4>()?;
     let info_fmt = format!("{:?}", v4).yellow();
     println!("{}", info_fmt);
@@ -50,7 +51,7 @@ fn dump_v4(ethernet: &Ethernet) -> Result<()> {
 }
 
 #[inline]
-fn dump_v6(ethernet: &Ethernet) -> Result<()> {
+fn dump_v6(ethernet: &Ethernet) -> Fallible<()> {
     let v6 = ethernet.peek::<Ipv6>()?;
     let info_fmt = format!("{:?}", v6).cyan();
     println!("{}", info_fmt);
@@ -89,7 +90,7 @@ fn install(q: PortQueue) -> impl Pipeline {
         .send(q)
 }
 
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();

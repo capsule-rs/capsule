@@ -33,7 +33,8 @@ use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -59,20 +60,22 @@ use std::ptr::NonNull;
 /// - *Checksum*:      This field is used to detect data corruption in the
 ///                    ICMPv6 message and parts of the IPv6 header.
 ///
-/// - *Message Body*:  Varies based on the type field. The packet needs to
-///                    be first parsed with the unit `()` payload before the
-///                    type field can be read.
+/// - *Message Body*:  Varies based on the type field and implemented with
+///                    trait [`Icmpv6Payload`]. The packet needs to be first
+///                    parsed with the unit `()` payload before the type field
+///                    can be read.
 ///
 /// # Example
 ///
 /// ```
 /// if ipv6.next_header() == NextHeaders::Icmpv6 {
-///     let icmpv6 = ipv6.parse::<Icmpv6<()>>().unwrap();
+///     let icmpv6 = ipv6.parse::<Icmpv6<Ipv6, ()>>().unwrap();
 ///     println!("{}", icmpv6.msg_type());
 /// }
 /// ```
 ///
 /// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443
+/// [`Icmpv6Payload`]: Icmpv6Payload
 #[derive(Clone)]
 pub struct Icmpv6<E: Ipv6Packet, P: Icmpv6Payload> {
     envelope: CondRc<E>,
@@ -137,9 +140,9 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
-            envelope.next_proto() == ProtocolNumbers::Icmpv6,
+            envelope.next_protocol() == ProtocolNumbers::Icmpv6,
             ParseError::new("not an ICMPv6 packet.")
         );
 
@@ -157,7 +160,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
     }
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -181,7 +184,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -286,7 +289,9 @@ impl fmt::Display for Icmpv6Type {
     }
 }
 
-/// ICMPv6 packet header.
+/// ICMPv6 header accessible through [`Icmpv6`].
+///
+/// [`Icmpv6`]: Icmpv6
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv6Header {
@@ -399,6 +404,10 @@ pub enum Icmpv6Message<E: Ipv6Packet> {
     EchoRequest(Icmpv6<E, EchoRequest>),
     /// EchoReply message.
     EchoReply(Icmpv6<E, EchoReply>),
+    /// TimeExceeded message.
+    TimeExceeded(Icmpv6<E, TimeExceeded>),
+    /// PacketTooBig message.
+    PacketTooBig(Icmpv6<E, PacketTooBig>),
     /// NDP Neighbor Advertisement message.
     NeighborAdvertisement(Icmpv6<E, NeighborAdvertisement>),
     /// NDP Neighbor Solicitation message.
@@ -435,14 +444,14 @@ pub trait Icmpv6Parse {
     ///     }
     /// }
     /// ```
-    fn parse_icmpv6(self) -> Result<Icmpv6Message<Self::Envelope>>;
+    fn parse_icmpv6(self) -> Fallible<Icmpv6Message<Self::Envelope>>;
 }
 
 impl<T: Ipv6Packet> Icmpv6Parse for T {
     type Envelope = T;
 
-    fn parse_icmpv6(self) -> Result<Icmpv6Message<Self::Envelope>> {
-        if self.next_proto() == ProtocolNumbers::Icmpv6 {
+    fn parse_icmpv6(self) -> Fallible<Icmpv6Message<Self::Envelope>> {
+        if self.next_protocol() == ProtocolNumbers::Icmpv6 {
             let icmpv6 = self.parse::<Icmpv6<Self::Envelope, ()>>()?;
             match icmpv6.msg_type() {
                 Icmpv6Types::EchoRequest => {
@@ -456,6 +465,18 @@ impl<T: Ipv6Packet> Icmpv6Parse for T {
                         .deparse()
                         .parse::<Icmpv6<Self::Envelope, EchoReply>>()?;
                     Ok(Icmpv6Message::EchoReply(packet))
+                }
+                Icmpv6Types::TimeExceeded => {
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, TimeExceeded>>()?;
+                    Ok(Icmpv6Message::TimeExceeded(packet))
+                }
+                Icmpv6Types::PacketTooBig => {
+                    let packet = icmpv6
+                        .deparse()
+                        .parse::<Icmpv6<Self::Envelope, PacketTooBig>>()?;
+                    Ok(Icmpv6Message::PacketTooBig(packet))
                 }
                 Icmpv6Types::NeighborAdvertisement => {
                     let packet = icmpv6

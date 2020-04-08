@@ -17,8 +17,8 @@
 */
 
 use crate::dpdk::{CoreId, Mempool, MempoolMap, MEMPOOL};
-use crate::{debug, error, ffi, info, Result};
-use failure::Fail;
+use crate::{debug, error, ffi, info};
+use failure::{Fail, Fallible};
 use futures::Future;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{self, Receiver, SyncSender};
@@ -212,7 +212,7 @@ impl<'a> CoreMapBuilder<'a> {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub(crate) fn finish(&'a mut self) -> Result<CoreMap> {
+    pub(crate) fn finish(&'a mut self) -> Fallible<CoreMap> {
         let mut map = HashMap::new();
 
         // first initializes the master core, which the current running
@@ -301,7 +301,7 @@ impl<'a> CoreMapBuilder<'a> {
 fn init_master_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Result<(MasterExecutor, CoreExecutor)> {
+) -> Fallible<(MasterExecutor, CoreExecutor)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 
@@ -341,7 +341,7 @@ fn init_master_core(
 fn init_background_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Result<(
+) -> Fallible<(
     CurrentThread<Timer<ParkThread>>,
     Park,
     Shutdown,

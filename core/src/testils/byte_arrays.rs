@@ -18,9 +18,9 @@
 
 //! Hand-crafted packet byte-arrays for testing.
 
-/// A VLAN 802.1Q packet.
+/// A VLAN Dot1q (802.1Q) packet.
 #[rustfmt::skip]
-pub const VLAN_802_1Q_PACKET: [u8; 64] = [
+pub const VLAN_DOT1Q_PACKET: [u8; 64] = [
 // Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
@@ -38,9 +38,9 @@ pub const VLAN_802_1Q_PACKET: [u8; 64] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
-/// A VLAN 802.1AD packet.
+/// A VLAN QinQ (802.1AD) packet.
 #[rustfmt::skip]
-pub const VLAN_802_1AD_PACKET: [u8; 68] = [
+pub const VLAN_QINQ_PACKET: [u8; 68] = [
 // Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,

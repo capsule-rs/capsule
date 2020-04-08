@@ -19,7 +19,8 @@
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
-use crate::{Icmpv6Packet, Result, SizeOf};
+use crate::{Icmpv6Packet, SizeOf};
+use failure::Fallible;
 use std::fmt;
 
 /// Echo Reply Message defined in [`IETF RFC 4443`].
@@ -43,7 +44,10 @@ use std::fmt;
 ///
 /// - *Data*:             The data from the invoking Echo Request message.
 ///
+/// The fields are accessible through [`Icmpv6<E, EchoReply>`].
+///
 /// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-4.2
+/// [`Icmpv6<E, EchoReply>`]: Icmpv6
 #[derive(Clone, Copy, Debug, Default, SizeOf, Icmpv6Packet)]
 #[repr(C, packed)]
 pub struct EchoReply {
@@ -109,7 +113,7 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoReply> {
 
     /// Sets the data.
     #[inline]
-    pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
+    pub fn set_data(&mut self, data: &[u8]) -> Fallible<()> {
         let offset = self.data_offset();
         let len = data.len() as isize - self.data_len() as isize;
         self.mbuf_mut().resize(offset, len)?;

@@ -21,7 +21,8 @@
 use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
@@ -259,13 +260,6 @@ impl Ipv4 {
             u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !FLAGS_MF);
     }
 
-    /// Clears the don't fragment and more fragments flags.
-    #[inline]
-    pub fn clear_flags(&mut self) {
-        self.header_mut().flags_to_frag_offset =
-            u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !0xe000);
-    }
-
     /// Returns an offset indicating where in the datagram this fragment
     /// belongs. It is measured in units of 8 octets or 64 bits. The first
     /// fragment has offset zero.
@@ -413,7 +407,7 @@ impl Packet for Ipv4 {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv4,
             ParseError::new("not an IPv4 packet.")
@@ -432,7 +426,7 @@ impl Packet for Ipv4 {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -449,7 +443,7 @@ impl Packet for Ipv4 {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -471,12 +465,12 @@ impl Packet for Ipv4 {
 
 impl IpPacket for Ipv4 {
     #[inline]
-    fn next_proto(&self) -> ProtocolNumber {
+    fn next_protocol(&self) -> ProtocolNumber {
         self.protocol()
     }
 
     #[inline]
-    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+    fn set_next_protocol(&mut self, proto: ProtocolNumber) {
         self.set_protocol(proto);
     }
 
@@ -486,7 +480,7 @@ impl IpPacket for Ipv4 {
     }
 
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Result<()> {
+    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
         match src {
             IpAddr::V4(addr) => {
                 self.set_src(addr);
@@ -502,7 +496,7 @@ impl IpPacket for Ipv4 {
     }
 
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
         match dst {
             IpAddr::V4(addr) => {
                 self.set_dst(addr);
@@ -523,7 +517,7 @@ impl IpPacket for Ipv4 {
     }
 
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Result<()> {
+    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
         ensure!(
             mtu >= IPV4_MIN_MTU,
             IpPacketError::MtuTooSmall(mtu, IPV4_MIN_MTU)
@@ -535,10 +529,12 @@ impl IpPacket for Ipv4 {
     }
 }
 
-/// IPv4 header.
+/// IPv4 header accessible through [`Ipv4`].
 ///
 /// The header only include the fixed portion of the IPv4 header.
 /// Options are parsed separately.
+///
+/// [`Ipv4`]: Ipv4
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct Ipv4Header {
@@ -630,9 +626,6 @@ mod tests {
         assert_eq!(true, ipv4.more_fragments());
         ipv4.set_fragment_offset(5);
         assert_eq!(5, ipv4.fragment_offset());
-        ipv4.clear_flags();
-        assert_eq!(false, ipv4.dont_fragment());
-        assert_eq!(false, ipv4.more_fragments());
 
         // DSCP & ECN
         assert_eq!(0, ipv4.dscp());

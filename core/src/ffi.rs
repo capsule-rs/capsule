@@ -19,7 +19,8 @@
 pub(crate) use capsule_ffi::*;
 
 use crate::dpdk::DpdkError;
-use crate::{warn, Result};
+use crate::warn;
+use failure::Fallible;
 use std::ffi::{CStr, CString};
 use std::os::raw;
 use std::ptr::NonNull;
@@ -76,14 +77,14 @@ impl ToCString for &str {
 pub(crate) trait ToResult {
     type Ok;
 
-    fn to_result(self) -> Result<Self::Ok>;
+    fn to_result(self) -> Fallible<Self::Ok>;
 }
 
 impl ToResult for raw::c_int {
     type Ok = u32;
 
     #[inline]
-    fn to_result(self) -> Result<Self::Ok> {
+    fn to_result(self) -> Fallible<Self::Ok> {
         match self {
             -1 => Err(DpdkError::new().into()),
             err if err < 0 => Err(DpdkError::new_with_errno(-err).into()),
@@ -96,7 +97,7 @@ impl<T> ToResult for *mut T {
     type Ok = NonNull<T>;
 
     #[inline]
-    fn to_result(self) -> Result<Self::Ok> {
+    fn to_result(self) -> Fallible<Self::Ok> {
         NonNull::new(self).ok_or_else(|| DpdkError::new().into())
     }
 }

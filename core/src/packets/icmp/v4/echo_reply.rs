@@ -18,7 +18,8 @@
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
 use crate::packets::Packet;
-use crate::{Icmpv4Packet, Result, SizeOf};
+use crate::{Icmpv4Packet, SizeOf};
+use failure::Fallible;
 use std::fmt;
 
 /// Echo Reply Message defined in [`IETF RFC 792`].
@@ -42,7 +43,10 @@ use std::fmt;
 ///
 /// *Data*:             The data from the invoking Echo Request message.
 ///
+/// The fields are accessible through [`Icmpv4<EchoReply>`].
+///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+/// [`Icmpv4<EchoReply>`]: Icmpv4
 #[derive(Clone, Copy, Debug, Default, Icmpv4Packet, SizeOf)]
 #[repr(C, packed)]
 pub struct EchoReply {
@@ -108,7 +112,7 @@ impl Icmpv4<EchoReply> {
 
     /// Sets the data.
     #[inline]
-    pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
+    pub fn set_data(&mut self, data: &[u8]) -> Fallible<()> {
         let offset = self.data_offset();
         let len = data.len() as isize - self.data_len() as isize;
         self.mbuf_mut().resize(offset, len)?;

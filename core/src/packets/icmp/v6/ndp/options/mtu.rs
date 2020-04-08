@@ -18,7 +18,8 @@
 
 use super::{NdpOption, MTU};
 use crate::packets::ParseError;
-use crate::{ensure, Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -54,7 +55,7 @@ pub struct Mtu {
 impl Mtu {
     /// Parses the MTU option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<Mtu> {
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<Mtu> {
         let fields = mbuf.read_data::<MtuFields>(offset)?;
 
         ensure!(
@@ -115,7 +116,7 @@ impl fmt::Debug for Mtu {
 
 impl NdpOption for Mtu {
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
     where
         Self: Sized,
     {

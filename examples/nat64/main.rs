@@ -22,8 +22,9 @@ use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::{compose, PortQueue, Result, Runtime};
+use capsule::{compose, PortQueue, Runtime};
 use chashmap::CHashMap;
+use failure::Fallible;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -85,7 +86,7 @@ fn map6to4(addr: Ipv6Addr) -> Ipv4Addr {
 }
 
 #[inline]
-fn nat_4to6(ethernet: Ethernet) -> Result<Either<Ethernet>> {
+fn nat_4to6(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
     let v4 = ethernet.parse::<Ipv4>()?;
     if v4.protocol() == ProtocolNumbers::Tcp && v4.fragment_offset() == 0 && !v4.more_fragments() {
         let tcp = v4.peek::<Tcp<Ipv4>>()?;
@@ -119,7 +120,7 @@ fn nat_4to6(ethernet: Ethernet) -> Result<Either<Ethernet>> {
 }
 
 #[inline]
-fn nat_6to4(ethernet: Ethernet) -> Result<Either<Ethernet>> {
+fn nat_6to4(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
     let v6 = ethernet.parse::<Ipv6>()?;
     if v6.next_header() == ProtocolNumbers::Tcp {
         let dscp = v6.dscp();
@@ -171,7 +172,7 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
         .send(qs["eth2"].clone())
 }
 
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

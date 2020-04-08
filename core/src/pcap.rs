@@ -19,7 +19,8 @@
 use crate::dpdk::{CoreId, PortId};
 use crate::ffi::{self, ToCString, ToResult};
 use crate::packets::Packet;
-use crate::{debug, error, Result};
+use crate::{debug, error};
+use failure::Fallible;
 use std::fmt;
 use std::os::raw;
 use std::ptr::NonNull;
@@ -37,7 +38,7 @@ pub(crate) struct Pcap {
 
 impl Pcap {
     /// Creates a file for dumping packets into from a given file path.
-    pub(crate) fn create(path: &str) -> Result<Pcap> {
+    pub(crate) fn create(path: &str) -> Fallible<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
             let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.to_cstring().as_ptr())
@@ -59,7 +60,7 @@ impl Pcap {
 
     /// Append to already-existing file for dumping packets into from a given
     /// file path.
-    pub(crate) fn append(path: &str) -> Result<Pcap> {
+    pub(crate) fn append(path: &str) -> Fallible<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
             let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.to_cstring().as_ptr())
@@ -78,12 +79,12 @@ impl Pcap {
     }
 
     /// Write packets to PCAP file handler.
-    pub(crate) fn write<T: Packet>(&self, packets: &[T]) -> Result<()> {
+    pub(crate) fn write<T: Packet>(&self, packets: &[T]) -> Fallible<()> {
         packets.iter().try_for_each(|p| self.dump_packet(p))?;
         self.flush()
     }
 
-    fn dump_packet<T: Packet>(&self, packet: &T) -> Result<()> {
+    fn dump_packet<T: Packet>(&self, packet: &T) -> Fallible<()> {
         let mut pcap_hdr = ffi::pcap_pkthdr::default();
         pcap_hdr.len = packet.mbuf().data_len() as u32;
         pcap_hdr.caplen = pcap_hdr.len;
@@ -105,7 +106,7 @@ impl Pcap {
         Ok(())
     }
 
-    fn flush(&self) -> Result<()> {
+    fn flush(&self) -> Fallible<()> {
         unsafe {
             ffi::pcap_dump_flush(self.dumper.as_ptr())
                 .to_result()
@@ -130,7 +131,7 @@ impl Drop for Pcap {
 }
 
 /// Generate PCAP files for rx/tx queues per port and per core.
-pub(crate) fn create_for_queues(port: PortId, core: CoreId) -> Result<()> {
+pub(crate) fn create_for_queues(port: PortId, core: CoreId) -> Fallible<()> {
     Pcap::create(format!("{:?}-{:?}-rx.pcap", port, core).as_str())?;
     Pcap::create(format!("{:?}-{:?}-tx.pcap", port, core).as_str())?;
     Ok(())

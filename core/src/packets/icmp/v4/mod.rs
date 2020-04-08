@@ -27,7 +27,8 @@ pub use self::echo_request::*;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::{IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -51,9 +52,10 @@ use std::ptr::NonNull;
 /// - *Checksum*:      This field is used to detect data corruption in the
 ///                    ICMPv4 message and parts of the IPv4 header.
 ///
-/// - *Message Body*:  Varies based on the type field. The packet needs to
-///                    be first parsed with the unit `()` payload before the
-///                    type field can be read.
+/// - *Message Body*:  Varies based on the type field and implemented with
+///                    trait [`Icmpv4Payload`]. The packet needs to be first
+///                    parsed with the unit `()` payload before the type field
+///                    can be read.
 ///
 /// # Example
 ///
@@ -65,6 +67,7 @@ use std::ptr::NonNull;
 /// ```
 ///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+/// [`Icmpv4Payload`]: Icmpv4Payload
 #[derive(Clone)]
 pub struct Icmpv4<P: Icmpv4Payload> {
     envelope: CondRc<Ipv4>,
@@ -129,9 +132,9 @@ impl Packet for Icmpv4<()> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
-            envelope.next_proto() == ProtocolNumbers::Icmpv4,
+            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
             ParseError::new("not an ICMPv4 packet.")
         );
 
@@ -150,7 +153,7 @@ impl Packet for Icmpv4<()> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -168,13 +171,13 @@ impl Packet for Icmpv4<()> {
         packet.header_mut().msg_type = <()>::msg_type().0;
         packet
             .envelope_mut()
-            .set_next_proto(ProtocolNumbers::Icmpv4);
+            .set_next_protocol(ProtocolNumbers::Icmpv4);
 
         Ok(packet)
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -237,7 +240,9 @@ impl fmt::Display for Icmpv4Type {
     }
 }
 
-/// ICMPv4 packet header.
+/// ICMPv4 header accessible through [`Icmpv4`].
+///
+/// [`Icmpv4`]: Icmpv4
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv4Header {
@@ -347,12 +352,12 @@ pub enum Icmpv4Message {
 /// Trait for parsing IPv4 packet payload as an ICMPv4 message.
 pub trait Icmpv4Parse {
     /// Parses the IPv4 packet payload as an ICMPv4 message.
-    fn parse_icmpv4(self) -> Result<Icmpv4Message>;
+    fn parse_icmpv4(self) -> Fallible<Icmpv4Message>;
 }
 
 impl Icmpv4Parse for Ipv4 {
-    fn parse_icmpv4(self) -> Result<Icmpv4Message> {
-        if self.next_proto() == ProtocolNumbers::Icmpv4 {
+    fn parse_icmpv4(self) -> Fallible<Icmpv4Message> {
+        if self.next_protocol() == ProtocolNumbers::Icmpv4 {
             let icmpv4 = self.parse::<Icmpv4<()>>()?;
             match icmpv4.msg_type() {
                 Icmpv4Types::EchoRequest => {

@@ -19,7 +19,8 @@
 use crate::dpdk::BufferError;
 use crate::net::MacAddr;
 use crate::packets::{CondRc, Header, Packet};
-use crate::{ensure, Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -53,10 +54,10 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// - *Ether Type*:      16-bit indicator. Identifies which protocol is
 ///                      encapsulated in the payload of the frame.
 ///
-/// # 802.1Q
+/// # 802.1Q aka Dot1q
 ///
 /// For networks support virtual LANs, the frame may include an extra VLAN
-/// tag after the source MAC as specified in [`IEEE 802.1Q`] (Dot1q).
+/// tag after the source MAC as specified in [`IEEE 802.1Q`].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -95,7 +96,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// - *VID*:             12-bit VLAN identifier specifying the VLAN to which the
 ///                      frame belongs.
 ///
-/// # 802.1ad
+/// # 802.1ad aka QinQ
 ///
 /// The frame may be double tagged as per [`IEEE 802.1ad`].
 ///
@@ -158,8 +159,8 @@ impl Ethernet {
         let header = self.header();
         let ether_type = unsafe {
             match self.vlan_marker() {
-                VLAN_802_1Q => header.chunk.chunk_802_1q.ether_type,
-                VLAN_802_1AD => header.chunk.chunk_802_1ad.ether_type,
+                VLAN_802_1Q => header.chunk.dot1q.ether_type,
+                VLAN_802_1AD => header.chunk.qinq.ether_type,
                 _ => header.chunk.ether_type,
             }
         };
@@ -172,21 +173,21 @@ impl Ethernet {
     pub fn set_ether_type(&mut self, ether_type: EtherType) {
         let ether_type = u16::to_be(ether_type.0);
         match self.vlan_marker() {
-            VLAN_802_1Q => self.header_mut().chunk.chunk_802_1q.ether_type = ether_type,
-            VLAN_802_1AD => self.header_mut().chunk.chunk_802_1ad.ether_type = ether_type,
+            VLAN_802_1Q => self.header_mut().chunk.dot1q.ether_type = ether_type,
+            VLAN_802_1AD => self.header_mut().chunk.qinq.ether_type = ether_type,
             _ => self.header_mut().chunk.ether_type = ether_type,
         }
     }
 
-    /// Returns whether the frame is VLAN 802.1Q tagged.
+    /// Returns whether the frame is VLAN Dot1q (802.1Q) tagged.
     #[inline]
-    pub fn is_vlan_802_1q(&self) -> bool {
+    pub fn is_dot1q(&self) -> bool {
         self.vlan_marker() == VLAN_802_1Q
     }
 
-    /// Returns whether the frame is VLAN 802.1ad tagged.
+    /// Returns whether the frame is VLAN QinQ (802.1ad) tagged.
     #[inline]
-    pub fn is_vlan_802_1ad(&self) -> bool {
+    pub fn is_qinq(&self) -> bool {
         self.vlan_marker() == VLAN_802_1AD
     }
 
@@ -206,7 +207,7 @@ impl fmt::Debug for Ethernet {
             .field("src", &format!("{}", self.src()))
             .field("dst", &format!("{}", self.dst()))
             .field("ether_type", &format!("{}", self.ether_type()))
-            .field("vlan", &(self.is_vlan_802_1q() || self.is_vlan_802_1ad()))
+            .field("vlan", &(self.is_dot1q() || self.is_qinq()))
             .field("$offset", &self.offset())
             .field("$len", &self.len())
             .field("$header_len", &self.header_len())
@@ -247,9 +248,9 @@ impl Packet for Ethernet {
 
     #[inline]
     fn header_len(&self) -> usize {
-        if self.is_vlan_802_1q() {
+        if self.is_dot1q() {
             Self::Header::size_of() + VlanTag::size_of()
-        } else if self.is_vlan_802_1ad() {
+        } else if self.is_qinq() {
             Self::Header::size_of() + VlanTag::size_of() * 2
         } else {
             Self::Header::size_of()
@@ -258,7 +259,7 @@ impl Packet for Ethernet {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -283,7 +284,7 @@ impl Packet for Ethernet {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -298,7 +299,7 @@ impl Packet for Ethernet {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -365,7 +366,7 @@ pub struct VlanTag {
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
 impl VlanTag {
-    /// Returns the tag protocol identifier, either 802.1q or 802.1ad.
+    /// Returns the tag protocol identifier, either 802.1q (Dot1q) or 802.1ad (QinQ).
     pub fn tag_id(&self) -> u16 {
         self.tpid
     }
@@ -390,7 +391,7 @@ impl VlanTag {
 /// Dot1q chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
-pub struct Chunk802_1q {
+pub(crate) struct Dot1q {
     tag: VlanTag,
     ether_type: u16,
 }
@@ -398,7 +399,7 @@ pub struct Chunk802_1q {
 /// QinQ chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
-pub struct Chunk802_1ad {
+pub(crate) struct Qinq {
     stag: VlanTag,
     ctag: VlanTag,
     ether_type: u16,
@@ -408,10 +409,10 @@ pub struct Chunk802_1ad {
 #[allow(missing_debug_implementations)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
-pub union Chunk {
+pub(crate) union Chunk {
     ether_type: u16,
-    chunk_802_1q: Chunk802_1q,
-    chunk_802_1ad: Chunk802_1ad,
+    dot1q: Dot1q,
+    qinq: Qinq,
 }
 
 impl Default for Chunk {
@@ -420,7 +421,9 @@ impl Default for Chunk {
     }
 }
 
-/// Ethernet header.
+/// Ethernet header accessible through [`Ethernet`].
+///
+/// [`Ethernet`]: Ethernet
 #[allow(missing_debug_implementations)]
 #[derive(Clone, Copy, Default)]
 #[repr(C, packed)]
@@ -450,7 +453,7 @@ impl SizeOf for EthernetHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, VLAN_802_1AD_PACKET, VLAN_802_1Q_PACKET};
+    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
 
     #[test]
     fn size_of_ethernet_header() {
@@ -476,25 +479,25 @@ mod tests {
     }
 
     #[capsule::test]
-    fn parse_vlan_802_1q_packet() {
-        let packet = Mbuf::from_bytes(&VLAN_802_1Q_PACKET).unwrap();
+    fn parse_dot1q_packet() {
+        let packet = Mbuf::from_bytes(&VLAN_DOT1Q_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
-        assert!(ethernet.is_vlan_802_1q());
+        assert!(ethernet.is_dot1q());
         assert_eq!(EtherTypes::Arp, ethernet.ether_type());
         assert_eq!(18, ethernet.header_len());
     }
 
     #[capsule::test]
-    fn parse_vlan_802_1ad_packet() {
-        let packet = Mbuf::from_bytes(&VLAN_802_1AD_PACKET).unwrap();
+    fn parse_qinq_packet() {
+        let packet = Mbuf::from_bytes(&VLAN_QINQ_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
         assert_eq!("00:00:00:00:00:02", ethernet.src().to_string());
-        assert!(ethernet.is_vlan_802_1ad());
+        assert!(ethernet.is_qinq());
         assert_eq!(EtherTypes::Arp, ethernet.ether_type());
         assert_eq!(22, ethernet.header_len());
     }

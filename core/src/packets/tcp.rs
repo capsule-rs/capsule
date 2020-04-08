@@ -18,7 +18,8 @@
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
+use crate::{ensure, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -409,7 +410,7 @@ impl<E: IpPacket> Tcp<E> {
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
-    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
+    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
         let old_ip = self.envelope().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
         self.envelope_mut().set_src(src_ip)?;
@@ -423,7 +424,7 @@ impl<E: IpPacket> Tcp<E> {
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
-    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
+    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
         let old_ip = self.envelope().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
         self.envelope_mut().set_dst(dst_ip)?;
@@ -510,9 +511,9 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
-            envelope.next_proto() == ProtocolNumbers::Tcp,
+            envelope.next_protocol() == ProtocolNumbers::Tcp,
             ParseError::new("not a TCP packet.")
         );
 
@@ -529,14 +530,14 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
         mbuf.extend(offset, Self::Header::size_of())?;
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
-        envelope.set_next_proto(ProtocolNumbers::Tcp);
+        envelope.set_next_protocol(ProtocolNumbers::Tcp);
 
         Ok(Tcp {
             envelope: CondRc::new(envelope),
@@ -546,7 +547,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
@@ -565,10 +566,12 @@ impl<E: IpPacket> Packet for Tcp<E> {
     }
 }
 
-/// TCP header.
+/// TCP header accessible through [`Tcp`].
 ///
 /// The header only include the fixed portion of the TCP header. Variable
 /// sized options are parsed separately.
+///
+/// [`Tcp`]: Tcp
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct TcpHeader {
@@ -728,7 +731,7 @@ mod tests {
         assert_eq!(TcpHeader::size_of(), tcp.len());
         assert_eq!(5, tcp.data_offset());
 
-        // make sure next proto is fixed
-        assert_eq!(ProtocolNumbers::Tcp, tcp.envelope().next_proto());
+        // make sure the next protocol is fixed
+        assert_eq!(ProtocolNumbers::Tcp, tcp.envelope().next_protocol());
     }
 }

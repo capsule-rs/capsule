@@ -66,13 +66,13 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
 
             #[doc(hidden)]
             #[inline]
-            fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+            fn do_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
                 use crate::ensure;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
                 use crate::packets::{CondRc, ParseError};
 
                 ensure!(
-                    envelope.next_proto() == ProtocolNumbers::Icmpv6,
+                    envelope.next_protocol() == ProtocolNumbers::Icmpv6,
                     ParseError::new("not an ICMPv6 packet.")
                 );
 
@@ -91,7 +91,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
 
             #[doc(hidden)]
             #[inline]
-            fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+            fn do_push(mut envelope: Self::Envelope) -> failure::Fallible<Self> {
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
                 use crate::packets::CondRc;
 
@@ -118,7 +118,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[inline]
-            fn remove(mut self) -> Result<Self::Envelope> {
+            fn remove(mut self) -> failure::Fallible<Self::Envelope> {
                 let offset = self.offset();
                 let len = self.header_len();
                 self.mbuf_mut().shrink(offset, len)?;
@@ -187,13 +187,13 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
 
             #[doc(hidden)]
             #[inline]
-            fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+            fn do_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
                 use crate::ensure;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
                 use crate::packets::{CondRc, ParseError};
 
                 ensure!(
-                    envelope.next_proto() == ProtocolNumbers::Icmpv4,
+                    envelope.next_protocol() == ProtocolNumbers::Icmpv4,
                     ParseError::new("not an ICMPv4 packet.")
                 );
 
@@ -212,7 +212,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
 
             #[doc(hidden)]
             #[inline]
-            fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+            fn do_push(mut envelope: Self::Envelope) -> failure::Fallible<Self> {
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
                 use crate::packets::CondRc;
 
@@ -233,13 +233,13 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 packet.header_mut().msg_type = #name::msg_type().0;
                 packet
                     .envelope_mut()
-                    .set_next_proto(ProtocolNumbers::Icmpv4);
+                    .set_next_protocol(ProtocolNumbers::Icmpv4);
 
                 Ok(packet)
             }
 
             #[inline]
-            fn remove(mut self) -> Result<Self::Envelope> {
+            fn remove(mut self) -> failure::Fallible<Self::Envelope> {
                 let offset = self.offset();
                 let len = self.header_len();
                 self.mbuf_mut().shrink(offset, len)?;

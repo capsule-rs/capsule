@@ -20,8 +20,8 @@ use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::{CondRc, Header, Packet, ParseError};
-use crate::{ensure, Result, SizeOf};
-use failure::Fail;
+use crate::{ensure, SizeOf};
+use failure::{Fail, Fallible};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
@@ -94,7 +94,12 @@ use std::ptr::NonNull;
 ///                        SR Policy, the second element contains the
 ///                        penultimate segment of the SR Policy and so on.
 ///
-/// Type Length Value (TLV) are described in Section 2.1.
+/// - *Type Length Value*: A TLV provides meta-data for segment processing.  The
+///                        TLVs defined in this spec are the HMAC and PAD TLVs.
+///
+/// # Remarks
+///
+/// TLVs are not supported yet.
 ///
 /// [`IETF Draft`]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
 /// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-4.4
@@ -120,13 +125,16 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
         self.header_mut().hdr_ext_len = hdr_ext_len;
     }
 
-    /// Returns the routing type. Suggested value is `4`.
+    /// Returns the routing type. Suggested value is `4` to be assigned by
+    /// IANA.
     #[inline]
     pub fn routing_type(&self) -> u8 {
         self.header().routing_type
     }
 
-    /// Sets the routing type.
+    /// Sets the routing type. Should not be used unless to explicitly
+    /// override the IANA assigned value.
+    #[doc(hidden)]
     #[inline]
     pub fn set_routing_type(&mut self, routing_type: u8) {
         self.header_mut().routing_type = routing_type;
@@ -161,12 +169,6 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
         self.header_mut().last_entry = last_entry;
     }
 
-    /// Returns the flags. All are currently unused.
-    #[inline]
-    pub fn flags(&self) -> u8 {
-        self.header().flags
-    }
-
     /// Returns the tag that marks a packet as part of a class or group of
     /// packets.
     #[inline]
@@ -194,7 +196,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     /// checksum calculations, as the last segment is used as part of the
     /// pseudo header.
     #[inline]
-    pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Result<()> {
+    pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Fallible<()> {
         if !segments.is_empty() {
             let old_len = self.last_entry() + 1;
             let new_len = segments.len() as u8;
@@ -275,7 +277,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self> {
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
         ensure!(
             envelope.next_header() == ProtocolNumbers::Ipv6Route,
             ParseError::new("not an IPv6 routing packet.")
@@ -307,7 +309,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Result<Self> {
+    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -333,7 +335,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     }
 
     #[inline]
-    fn remove(mut self) -> Result<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         let next_header = self.next_header();
@@ -350,12 +352,12 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
 impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     #[inline]
-    fn next_proto(&self) -> ProtocolNumber {
+    fn next_protocol(&self) -> ProtocolNumber {
         self.next_header()
     }
 
     #[inline]
-    fn set_next_proto(&mut self, proto: ProtocolNumber) {
+    fn set_next_protocol(&mut self, proto: ProtocolNumber) {
         self.set_next_header(proto);
     }
 
@@ -365,7 +367,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Result<()> {
+    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
         self.envelope_mut().set_src(src)
     }
 
@@ -375,7 +377,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
         if let IpAddr::V6(v6_dst) = dst {
             let mut segments = vec![v6_dst];
             for segment in self.segments().iter().skip(1) {
@@ -425,7 +427,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Result<()> {
+    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
         self.envelope_mut().truncate(mtu)
     }
 }
@@ -447,10 +449,12 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
 #[fail(display = "Segment list length must be greater than 0")]
 pub struct BadSegmentsError;
 
-/// IPv6 segment routing header.
+/// IPv6 segment routing header accessible through [`SegmentRouting`].
 ///
 /// The segment routing header contains only the fixed portion of the
 /// header. `segment_list` and `tlv` are parsed separately.
+///
+/// [`SegmentRouting`]: SegmentRouting
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 pub struct SegmentRoutingHeader {
@@ -505,7 +509,6 @@ mod tests {
         assert_eq!(4, srh.routing_type());
         assert_eq!(0, srh.segments_left());
         assert_eq!(2, srh.last_entry());
-        assert_eq!(0, srh.flags());
         assert_eq!(0, srh.tag());
 
         let segments = srh.segments();

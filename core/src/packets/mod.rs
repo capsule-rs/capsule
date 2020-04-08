@@ -30,8 +30,8 @@ pub use self::ethernet::*;
 pub use self::tcp::*;
 pub use self::udp::*;
 
-use crate::{Mbuf, Result, SizeOf};
-use failure::Fail;
+use crate::{Mbuf, SizeOf};
+use failure::{Fail, Fallible};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -115,7 +115,7 @@ pub trait Packet: Clone {
     /// ownership, use `Packet::peek` instead to gain immutable access
     /// to the packet payload.
     #[inline]
-    fn parse<T: Packet<Envelope = Self>>(self) -> Result<T>
+    fn parse<T: Packet<Envelope = Self>>(self) -> Fallible<T>
     where
         Self: Sized,
     {
@@ -124,7 +124,7 @@ pub trait Packet: Clone {
 
     /// The public `parse::<T>` delegates to this function.
     #[doc(hidden)]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self>
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self>
     where
         Self: Sized;
 
@@ -133,7 +133,7 @@ pub trait Packet: Clone {
     /// `Packet::peek` returns an immutable reference to the payload. Use
     /// `Packet::parse` instead to gain mutable access to the packet payload.
     #[inline]
-    fn peek<'a, T: Packet<Envelope = Self>>(&'a self) -> Result<Immutable<'a, T>>
+    fn peek<'a, T: Packet<Envelope = Self>>(&'a self) -> Fallible<Immutable<'a, T>>
     where
         Self: Sized,
     {
@@ -142,7 +142,7 @@ pub trait Packet: Clone {
 
     /// Pushes a new packet `T` as the payload.
     #[inline]
-    fn push<T: Packet<Envelope = Self>>(self) -> Result<T>
+    fn push<T: Packet<Envelope = Self>>(self) -> Fallible<T>
     where
         Self: Sized,
     {
@@ -151,7 +151,7 @@ pub trait Packet: Clone {
 
     /// The public `push::<T>` delegates to this function.
     #[doc(hidden)]
-    fn do_push(envelope: Self::Envelope) -> Result<Self>
+    fn do_push(envelope: Self::Envelope) -> Fallible<Self>
     where
         Self: Sized;
 
@@ -159,7 +159,7 @@ pub trait Packet: Clone {
     ///
     /// The packet's payload becomes the payload of its envelope. The
     /// result of the removal is not guaranteed to be a valid packet.
-    fn remove(self) -> Result<Self::Envelope>
+    fn remove(self) -> Fallible<Self::Envelope>
     where
         Self: Sized;
 

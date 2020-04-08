@@ -18,7 +18,7 @@
 
 use super::{Batch, Disposition};
 use crate::packets::Packet;
-use crate::Result;
+use failure::Fallible;
 
 /// A batch that maps the packets of the underlying batch.
 ///
@@ -27,7 +27,7 @@ use crate::Result;
 #[allow(missing_debug_implementations)]
 pub struct Map<B: Batch, T: Packet, F>
 where
-    F: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Fallible<T>,
 {
     batch: B,
     f: F,
@@ -35,7 +35,7 @@ where
 
 impl<B: Batch, T: Packet, F> Map<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Fallible<T>,
 {
     /// Creates a new `Map` batch.
     #[inline]
@@ -46,7 +46,7 @@ where
 
 impl<B: Batch, T: Packet, F> Batch for Map<B, T, F>
 where
-    F: FnMut(B::Item) -> Result<T>,
+    F: FnMut(B::Item) -> Fallible<T>,
 {
     type Item = T;
 

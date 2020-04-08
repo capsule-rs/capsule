@@ -18,8 +18,8 @@
 
 use super::SocketId;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
-use crate::{debug, info, Result};
-use failure::Fail;
+use crate::{debug, info};
+use failure::{Fail, Fallible};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
@@ -50,7 +50,7 @@ impl Mempool {
     /// # Errors
     ///
     /// If allocation fails, then `DpdkError` is returned.
-    pub(crate) fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
+    pub(crate) fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Fallible<Self> {
         static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
         let n = MEMPOOL_COUNT.fetch_add(1, Ordering::Relaxed);
         let name = format!("mempool{}", n);
@@ -156,7 +156,7 @@ impl<'a> MempoolMap<'a> {
     /// # Errors
     ///
     /// If the value is not found, `MempoolNotFound` is returned.
-    pub(crate) fn get_raw(&mut self, socket_id: SocketId) -> Result<&mut ffi::rte_mempool> {
+    pub(crate) fn get_raw(&mut self, socket_id: SocketId) -> Fallible<&mut ffi::rte_mempool> {
         self.inner
             .get_mut(&socket_id)
             .ok_or_else(|| MempoolNotFound(socket_id).into())

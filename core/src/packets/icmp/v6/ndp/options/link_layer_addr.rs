@@ -19,7 +19,8 @@
 use super::{NdpOption, SOURCE_LINK_LAYER_ADDR, TARGET_LINK_LAYER_ADDR};
 use crate::net::MacAddr;
 use crate::packets::ParseError;
-use crate::{ensure, Mbuf, Result, SizeOf};
+use crate::{ensure, Mbuf, SizeOf};
+use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -55,7 +56,7 @@ pub struct LinkLayerAddress {
 impl LinkLayerAddress {
     /// Parses the link-layer address option from the message buffer at offset.
     #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Result<LinkLayerAddress> {
+    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<LinkLayerAddress> {
         let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
 
         ensure!(
@@ -88,14 +89,16 @@ impl LinkLayerAddress {
         self.fields().option_type
     }
 
-    /// Sets the option type.
+    /// Sets the option type to source link-layer address.
     #[inline]
-    pub fn set_option_type(&mut self, option_type: u8) {
-        if option_type == SOURCE_LINK_LAYER_ADDR || option_type == TARGET_LINK_LAYER_ADDR {
-            self.fields_mut().option_type = option_type
-        } else {
-            //TODO: determine what to do when option_type is set incorrectly
-        }
+    pub fn set_option_type_source(&mut self) {
+        self.fields_mut().option_type = SOURCE_LINK_LAYER_ADDR;
+    }
+
+    /// Sets the option type to target link-layer address.
+    #[inline]
+    pub fn set_option_type_target(&mut self) {
+        self.fields_mut().option_type = TARGET_LINK_LAYER_ADDR;
     }
 
     /// Returns the length of the option measured in units of 8 octets.
@@ -129,7 +132,7 @@ impl fmt::Debug for LinkLayerAddress {
 
 impl NdpOption for LinkLayerAddress {
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Result<Self>
+    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
     where
         Self: Sized,
     {

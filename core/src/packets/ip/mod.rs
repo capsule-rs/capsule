@@ -23,8 +23,7 @@ pub mod v6;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::Packet;
-use crate::Result;
-use failure::Fail;
+use failure::{Fail, Fallible};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -98,13 +97,13 @@ pub trait IpPacket: Packet {
     ///
     /// For IPv4 headers, this should be the `protocol` field.
     /// For IPv6 and extension headers, this should be the `next header` field.
-    fn next_proto(&self) -> ProtocolNumber;
+    fn next_protocol(&self) -> ProtocolNumber;
 
     /// Sets the protocol number of the header immediately follows.
     ///
     /// For IPv4 headers, this should be the `protocol` field.
     /// For IPv6 and extension headers, this should be the `next header` field.
-    fn set_next_proto(&mut self, proto: ProtocolNumber);
+    fn set_next_protocol(&mut self, proto: ProtocolNumber);
 
     /// Returns the source IP address
     fn src(&self) -> IpAddr;
@@ -113,7 +112,7 @@ pub trait IpPacket: Packet {
     ///
     /// This lets an upper layer packet like TCP set the source IP address.
     /// on a lower layer packet.
-    fn set_src(&mut self, src: IpAddr) -> Result<()>;
+    fn set_src(&mut self, src: IpAddr) -> Fallible<()>;
 
     /// Returns the destination IP address
     fn dst(&self) -> IpAddr;
@@ -122,16 +121,17 @@ pub trait IpPacket: Packet {
     ///
     /// This lets an upper layer packet like TCP set the destination IP address
     /// on a lower layer packet.
-    fn set_dst(&mut self, dst: IpAddr) -> Result<()>;
+    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()>;
 
     /// Returns the pseudo-header for layer 4 checksum computation.
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader;
 
     /// Truncates the IP packet to MTU. The data exceeds MTU is lost.
-    fn truncate(&mut self, mtu: usize) -> Result<()>;
+    fn truncate(&mut self, mtu: usize) -> Fallible<()>;
 }
 
-/// 5-tuple IP connection identifier.
+/// The common attributes (5-tuple) used to identify an IP based network
+/// connection.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Flow {
@@ -155,7 +155,7 @@ impl Default for Flow {
 }
 
 impl Flow {
-    /// Returns a new IP flow.
+    /// Creates a new IP flow.
     pub fn new(
         src_ip: IpAddr,
         dst_ip: IpAddr,
@@ -257,7 +257,7 @@ impl fmt::Debug for Flow {
     }
 }
 
-/// IpPacket-related errors.
+/// IP packet related errors.
 #[derive(Debug, Fail)]
 pub enum IpPacketError {
     /// Error indicating mixing IPv4 and IPv6 addresses in a flow.

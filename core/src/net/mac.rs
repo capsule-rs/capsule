@@ -67,7 +67,7 @@ pub struct MacParseError(String);
 impl FromStr for MacAddr {
     type Err = MacParseError;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let u8s = s
             .split(|c| c == ':' || c == '-')
             .map(|s| u8::from_str_radix(s, 16))

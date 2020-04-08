@@ -21,7 +21,8 @@ use capsule::config::load_config;
 use capsule::metrics;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet, Tcp};
-use capsule::{batch, Mbuf, PortQueue, Result, Runtime};
+use capsule::{batch, Mbuf, PortQueue, Runtime};
+use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
 use metrics_runtime::observers::YamlBuilder;
 use std::collections::HashMap;
@@ -72,7 +73,7 @@ fn print_stats() {
     println!("{}", observer.drain());
 }
 
-fn main() -> Result<()> {
+fn main() -> Fallible<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

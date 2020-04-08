@@ -17,7 +17,8 @@
 */
 
 use crate::packets::{Header, Packet};
-use crate::{Mbuf, Result};
+use crate::Mbuf;
+use failure::Fallible;
 
 // Unit header use to implement `Packet` trait for `Mbuf`.
 impl Header for () {}
@@ -73,7 +74,7 @@ impl Packet for Mbuf {
 
     #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Result<Self>
+    fn do_parse(envelope: Self::Envelope) -> Fallible<Self>
     where
         Self: Sized,
     {
@@ -82,7 +83,7 @@ impl Packet for Mbuf {
 
     #[doc(hidden)]
     #[inline]
-    fn do_push(envelope: Self::Envelope) -> Result<Self>
+    fn do_push(envelope: Self::Envelope) -> Fallible<Self>
     where
         Self: Sized,
     {
@@ -90,7 +91,7 @@ impl Packet for Mbuf {
     }
 
     #[inline]
-    fn remove(self) -> Result<Self::Envelope> {
+    fn remove(self) -> Fallible<Self::Envelope> {
         Ok(self)
     }
 
