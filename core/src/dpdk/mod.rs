@@ -203,3 +203,31 @@ fn eth_macaddr_get(port_id: u16) -> MacAddr {
     }
     addr.addr_bytes.into()
 }
+
+/// Frees the `rte_mbuf` in bulk.
+pub(crate) fn mbuf_free_bulk(mbufs: Vec<*mut ffi::rte_mbuf>) {
+    assert!(!mbufs.is_empty());
+
+    let mut to_free = Vec::with_capacity(mbufs.len());
+    let pool = unsafe { (*mbufs[0]).pool };
+
+    for mbuf in mbufs.into_iter() {
+        if pool == unsafe { (*mbuf).pool } {
+            to_free.push(mbuf as *mut raw::c_void);
+        } else {
+            unsafe {
+                let len = to_free.len();
+                ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
+                to_free.set_len(0);
+            }
+
+            to_free.push(mbuf as *mut raw::c_void);
+        }
+    }
+
+    unsafe {
+        let len = to_free.len();
+        ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
+        to_free.set_len(0);
+    }
+}

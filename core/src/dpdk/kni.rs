@@ -89,10 +89,11 @@ impl KniRx {
         };
 
         let mbufs = unsafe {
-            // does a no-copy conversion to avoid extra allocation.
-            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
+            ptrs.set_len(len as usize);
+            ptrs.into_iter()
+                .map(|ptr| Mbuf::from_ptr(ptr))
+                .collect::<Vec<_>>()
         };
-        mem::forget(ptrs);
 
         unsafe {
             // checks if there are any link change requests, and handle them.
@@ -173,39 +174,32 @@ impl KniTx {
     }
 
     /// Sends the packets to the kernel.
-    pub(crate) fn transmit(&mut self, mut packets: Vec<Mbuf>) {
+    pub(crate) fn transmit(&mut self, packets: Vec<Mbuf>) {
+        let mut ptrs = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
+
         loop {
-            let to_send = packets.len() as raw::c_uint;
-            let sent = unsafe {
-                ffi::rte_kni_tx_burst(
-                    self.raw.as_mut(),
-                    // convert to a pointer to an array of `rte_mbuf` pointers
-                    packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
-                    to_send,
-                )
-            };
+            let to_send = ptrs.len() as raw::c_uint;
+            let sent =
+                unsafe { ffi::rte_kni_tx_burst(self.raw.as_mut(), ptrs.as_mut_ptr(), to_send) };
 
             if sent > 0 {
                 #[cfg(feature = "metrics")]
                 {
                     self.packets.record(sent as u64);
 
-                    let bytes: usize = packets[..sent as usize].iter().map(Mbuf::data_len).sum();
-                    self.octets.record(bytes as u64);
+                    let bytes: u64 = ptrs[..sent as usize]
+                        .iter()
+                        .map(|&ptr| unsafe { (*ptr).data_len as u64 })
+                        .sum();
+                    self.octets.record(bytes);
                 }
 
                 if to_send - sent > 0 {
                     // still have packets not sent. tx queue is full but still making
                     // progress. we will keep trying until all packets are sent. drains
                     // the ones already sent first and try again on the rest.
-                    let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
-
-                    // ownership given to `rte_kni_tx_burst`, don't free them.
-                    Mbuf::forget_bulk(drained);
+                    let _ = ptrs.drain(..sent as usize);
                 } else {
-                    // everything sent and ownership given to `rte_kni_tx_burst`, don't
-                    // free them.
-                    Mbuf::forget_bulk(packets);
                     break;
                 }
             } else {
@@ -214,7 +208,7 @@ impl KniTx {
                 #[cfg(feature = "metrics")]
                 self.dropped.record(to_send as u64);
 
-                Mbuf::free_bulk(packets);
+                super::mbuf_free_bulk(ptrs);
                 break;
             }
         }
