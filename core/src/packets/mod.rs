@@ -56,17 +56,23 @@ pub trait Header: SizeOf {}
 #[derive(Clone, Debug)]
 pub struct Internal(());
 
-/// A trait network protocols implement to become typed packets.
+/// A trait network protocols implement to integrate with other protocols.
 pub trait PacketBase {
     /// Returns a copy of the packet.
     ///
-    /// The underlying byte buffer is not cloned. Only the references to
-    /// that buffer is cloned. [`Packet::peek`] converts the clones into
-    /// [`Immutable`] packets.
+    /// # Safety
+    ///
+    /// The underlying byte buffer is not cloned. The original and the clone
+    /// will share the same buffer. Both copies are independently mutable.
+    /// Changes made through one copy could completely invalidate the other.
+    ///
+    /// [`Packet::peek`] addresses this safety issue by wrapping the clone in
+    /// a [`Immutable`] and making the clone behave as an immutable borrow
+    /// of the original.
     ///
     /// [`Packet::peek`]: Packet::peek
-    /// [`Immutable] Immutable
-    fn clone(&self, internal: Internal) -> Self;
+    /// [`Immutable`] Immutable
+    unsafe fn clone(&self, internal: Internal) -> Self;
 }
 
 /// Common behaviors shared by all typed packets.
@@ -162,7 +168,8 @@ pub trait Packet: PacketBase {
     where
         Self: Sized,
     {
-        self.clone(Internal(())).parse::<T>().map(Immutable::new)
+        let clone = unsafe { self.clone(Internal(())) };
+        clone.parse::<T>().map(Immutable::new)
     }
 
     /// Pushes a new packet `T` as the payload.

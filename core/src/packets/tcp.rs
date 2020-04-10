@@ -478,7 +478,7 @@ impl<E: IpPacket> fmt::Debug for Tcp<E> {
 }
 
 impl<E: IpPacket> PacketBase for Tcp<E> {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Tcp::<E> {
             envelope: self.envelope.clone(internal),
             header: self.header,

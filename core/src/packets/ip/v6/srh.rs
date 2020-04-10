@@ -239,7 +239,7 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
 }
 
 impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         SegmentRouting::<E> {
             envelope: self.envelope.clone(internal),
             header: self.header,

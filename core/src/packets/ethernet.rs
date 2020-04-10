@@ -215,7 +215,7 @@ impl fmt::Debug for Ethernet {
 }
 
 impl PacketBase for Ethernet {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Ethernet {
             envelope: self.envelope.clone(internal),
             header: self.header,

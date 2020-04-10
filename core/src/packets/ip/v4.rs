@@ -374,7 +374,7 @@ impl fmt::Debug for Ipv4 {
 }
 
 impl PacketBase for Ipv4 {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Ipv4 {
             envelope: self.envelope.clone(internal),
             header: self.header,

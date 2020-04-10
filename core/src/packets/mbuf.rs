@@ -24,7 +24,7 @@ use failure::Fallible;
 impl Header for () {}
 
 impl PacketBase for Mbuf {
-    fn clone(&self, _internal: Internal) -> Self {
+    unsafe fn clone(&self, _internal: Internal) -> Self {
         self.shallow_clone()
     }
 }

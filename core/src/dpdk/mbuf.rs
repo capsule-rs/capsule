@@ -376,10 +376,16 @@ impl Mbuf {
     }
 
     /// Clones the reference to the underlying message buffer.
-    pub(crate) fn shallow_clone(&self) -> Self {
+    ///
+    /// Because the original and the clone share the same message buffer,
+    /// the buffer is mutable through both instances. Changes made through
+    /// one copy could completely invalidate the other and make it unsafe
+    /// to use.
+    pub(crate) unsafe fn shallow_clone(&self) -> Self {
         Mbuf {
             raw: self.raw,
-            // clones shouldn't return the buffer back to the pool.
+            // clones shouldn't return the buffer back to the pool when
+            // they are dropped.
             should_free: false,
         }
     }

@@ -219,7 +219,7 @@ impl fmt::Debug for Ipv6 {
 }
 
 impl PacketBase for Ipv6 {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Ipv6 {
             envelope: self.envelope.clone(internal),
             header: self.header,

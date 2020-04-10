@@ -34,7 +34,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
         }
 
         impl<E: Ipv6Packet> crate::packets::PacketBase for crate::packets::icmp::v6::Icmpv6<E, #name> {
-            fn clone(&self, internal: crate::packets::Internal) -> Self {
+            unsafe fn clone(&self, internal: crate::packets::Internal) -> Self {
                 Icmpv6::<E, #name> {
                     envelope: self.envelope.clone(internal),
                     header: self.header,
@@ -165,7 +165,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
         }
 
         impl crate::packets::PacketBase for Icmpv4<#name> {
-            fn clone(&self, internal: crate::packets::Internal) -> Self {
+            unsafe fn clone(&self, internal: crate::packets::Internal) -> Self {
                 Icmpv4::<#name> {
                     envelope: self.envelope.clone(internal),
                     header: self.header,

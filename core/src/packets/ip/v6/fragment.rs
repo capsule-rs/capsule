@@ -130,7 +130,7 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
 }
 
 impl<E: Ipv6Packet> PacketBase for Fragment<E> {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Fragment::<E> {
             envelope: self.envelope.clone(internal),
             header: self.header,

@@ -107,7 +107,7 @@ impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Icmpv6::<E, ()> {
             envelope: self.envelope.clone(internal),
             header: self.header,

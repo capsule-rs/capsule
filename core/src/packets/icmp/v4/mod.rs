@@ -99,7 +99,7 @@ impl Icmpv4Packet<()> for Icmpv4<()> {
 }
 
 impl PacketBase for Icmpv4<()> {
-    fn clone(&self, internal: Internal) -> Self {
+    unsafe fn clone(&self, internal: Internal) -> Self {
         Icmpv4::<()> {
             envelope: self.envelope.clone(internal),
             header: self.header,
