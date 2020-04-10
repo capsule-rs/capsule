@@ -219,6 +219,45 @@ impl fmt::Debug for Ipv6 {
 }
 
 impl PacketBase for Ipv6 {
+    type Header = Ipv6Header;
+    type Envelope = Ethernet;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.ether_type() == EtherTypes::Ipv6,
+            ParseError::new("not an IPv6 packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        Ok(Ipv6 {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+
+        envelope.set_ether_type(EtherTypes::Ipv6);
+
+        Ok(Ipv6 {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Ipv6 {
             envelope: self.envelope.clone(internal),
@@ -229,9 +268,6 @@ impl PacketBase for Ipv6 {
 }
 
 impl Packet for Ipv6 {
-    type Header = Ipv6Header;
-    type Envelope = Ethernet;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -257,43 +293,6 @@ impl Packet for Ipv6 {
     #[inline]
     fn offset(&self) -> usize {
         self.offset
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.ether_type() == EtherTypes::Ipv6,
-            ParseError::new("not an IPv6 packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-
-        Ok(Ipv6 {
-            envelope,
-            header,
-            offset,
-        })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-
-        envelope.set_ether_type(EtherTypes::Ipv6);
-
-        Ok(Ipv6 {
-            envelope,
-            header,
-            offset,
-        })
     }
 
     #[inline]

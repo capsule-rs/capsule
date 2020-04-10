@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! Common behaviors for all packet types and their associated headers.
+//! Packet types for reading and writing various network protocols.
 
 pub mod checksum;
 mod ethernet;
@@ -36,12 +36,10 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-/// Packet header marker trait.
+/// Marker trait used as a bound for [`PacketBase::Header`].
 ///
-/// Some packet headers are variable in length, such as the IPv6
-/// segment routing header. The fixed portion can be statically
-/// defined, but the variable portion has to be parsed separately.
-pub trait Header: SizeOf {}
+/// [`PacketBase::Header`]:  PacketBase::Header
+pub trait Header: Default + SizeOf {}
 
 /// An argument to restrict users from calling functions on the [`PacketBase`]
 /// trait.
@@ -58,6 +56,67 @@ pub struct Internal(());
 
 /// A trait network protocols implement to integrate with other protocols.
 pub trait PacketBase {
+    /// The type of the packet header.
+    ///
+    /// The header fields are efficiently parsed by transmuting from a `u8`
+    /// slice of equal size. The fields of the struct should follow the
+    /// exact layout in the corresponding specification. The struct itself
+    /// should use the [C represenation] without [padding] between fields.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #[repr(C, packed)]
+    /// pub struct EthernetHeader {
+    ///     ...
+    /// }
+    /// ```
+    ///
+    /// The fields are in network byte order, aka big endian. When reading
+    /// or writing values larger than a single byte, a conversion is necessary
+    /// to translate to and from host byte order.
+    ///
+    /// Some packet headers are variable in length, such as the IPv6 segment
+    /// routing header. Only the fixed portion of the header can be statically
+    /// defined in the struct and parsed through transmute. The variable
+    /// portion needs to be parsed separately.
+    ///
+    /// [C representation]: (https://doc.rust-lang.org/reference/type-layout.html#the-c-representation)
+    /// [padding]: (https://doc.rust-lang.org/reference/type-layout.html#the-alignment-modifiers)
+    type Header: Header;
+
+    /// The proceeding packet type that encapsulates this packet.
+    ///
+    /// The envelope behaves as a constraint to enforce strict ordering
+    /// between packet types. For example, an [`IPv4`] packet must be
+    /// encapsulated by an [`Ethernet`] packet.
+    ///
+    /// [`Ethernet`]: Ethernet
+    /// [`IPv4`]: Ipv4
+    type Envelope: Packet;
+
+    /// Parses the envelope's payload as this packet type.
+    ///
+    /// The implementation should perform the necessary buffer boundary
+    /// checks and validate the invariants if any. For example, before parsing
+    /// the [`Ethernet`]'s payload as a [`IPv4`] packet, there should be a
+    /// check to ensure that [`ether_type`] is set correctly.
+    ///
+    /// [`Ethernet`]: Ethernet
+    /// [`IPv4`]: Ipv4
+    /// [`ether_type`]: Ethernet::ether_type
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self>
+    where
+        Self: Sized;
+
+    /// Prepends a new packet at the start of the envelope's payload.
+    ///
+    /// When the packet is inserted into an envelope with an existing payload,
+    /// the original payload becomes the payload of the new packet.
+    fn try_push(envelope: Self::Envelope) -> Fallible<Self>
+    where
+        Self: Sized;
+
     /// Returns a copy of the packet.
     ///
     /// # Safety
@@ -78,10 +137,10 @@ pub trait PacketBase {
 /// Common behaviors shared by all typed packets.
 #[allow(clippy::len_without_is_empty)]
 pub trait Packet: PacketBase {
-    /// The header type of the packet.
-    type Header: Header;
-    /// The outer packet type that encapsulates the packet.
-    type Envelope: Packet;
+    // /// The header type of the packet.
+    // type Header: Header;
+    // /// The outer packet type that encapsulates the packet.
+    // type Envelope: Packet;
 
     /// Returns a reference to the DPDK message buffer.
     #[doc(hidden)]
@@ -150,14 +209,8 @@ pub trait Packet: PacketBase {
     where
         Self: Sized,
     {
-        T::do_parse(self)
+        T::try_parse(self)
     }
-
-    /// The public `parse::<T>` delegates to this function.
-    #[doc(hidden)]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self>
-    where
-        Self: Sized;
 
     /// Peeks into the payload as packet of `T`.
     ///
@@ -178,14 +231,8 @@ pub trait Packet: PacketBase {
     where
         Self: Sized,
     {
-        T::do_push(self)
+        T::try_push(self)
     }
-
-    /// The public `push::<T>` delegates to this function.
-    #[doc(hidden)]
-    fn do_push(envelope: Self::Envelope) -> Fallible<Self>
-    where
-        Self: Sized;
 
     /// Removes this packet's header from the message buffer.
     ///

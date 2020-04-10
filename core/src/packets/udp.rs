@@ -212,6 +212,45 @@ impl<E: IpPacket> fmt::Debug for Udp<E> {
 }
 
 impl<E: IpPacket> PacketBase for Udp<E> {
+    type Envelope = E;
+    type Header = UdpHeader;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_protocol() == ProtocolNumbers::Udp,
+            ParseError::new("not a UDP packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        Ok(Udp {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+
+        envelope.set_next_protocol(ProtocolNumbers::Udp);
+
+        Ok(Udp {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Udp::<E> {
             envelope: self.envelope.clone(internal),
@@ -222,9 +261,6 @@ impl<E: IpPacket> PacketBase for Udp<E> {
 }
 
 impl<E: IpPacket> Packet for Udp<E> {
-    type Envelope = E;
-    type Header = UdpHeader;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -250,43 +286,6 @@ impl<E: IpPacket> Packet for Udp<E> {
     #[inline]
     fn offset(&self) -> usize {
         self.offset
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Udp,
-            ParseError::new("not a UDP packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-
-        Ok(Udp {
-            envelope,
-            header,
-            offset,
-        })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-
-        envelope.set_next_protocol(ProtocolNumbers::Udp);
-
-        Ok(Udp {
-            envelope,
-            header,
-            offset,
-        })
     }
 
     #[inline]

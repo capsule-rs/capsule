@@ -16,18 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::{Header, Packet};
+use crate::packets::Packet;
 use crate::Mbuf;
 use failure::Fallible;
 
-// Unit header use to implement `Packet` trait for `Mbuf`.
-impl Header for () {}
-
 // make the message buffer behave like a packet.
 impl Packet for Mbuf {
-    type Header = ();
-    type Envelope = Mbuf;
-
     #[doc(hidden)]
     #[inline]
     fn mbuf(&self) -> &Mbuf {
@@ -70,24 +64,6 @@ impl Packet for Mbuf {
     #[inline]
     fn header_len(&self) -> usize {
         0
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        Ok(envelope)
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(envelope: Self::Envelope) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        Ok(envelope)
     }
 
     #[inline]

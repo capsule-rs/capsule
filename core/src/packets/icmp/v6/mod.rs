@@ -107,6 +107,54 @@ impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
+    type Header = Icmpv6Header;
+    type Envelope = E;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_protocol() == ProtocolNumbers::Icmpv6,
+            ParseError::new("not an ICMPv6 packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
+
+        Ok(Icmpv6 {
+            envelope,
+            header,
+            payload,
+            offset,
+        })
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
+
+        let mut packet = Icmpv6 {
+            envelope,
+            header,
+            payload,
+            offset,
+        };
+
+        packet.header_mut().msg_type = <()>::msg_type().0;
+        packet
+            .envelope_mut()
+            .set_next_header(ProtocolNumbers::Icmpv6);
+
+        Ok(packet)
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Icmpv6::<E, ()> {
             envelope: self.envelope.clone(internal),
@@ -118,9 +166,6 @@ impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
-    type Header = Icmpv6Header;
-    type Envelope = E;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -146,51 +191,6 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
     #[inline]
     fn offset(&self) -> usize {
         self.offset
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Icmpv6,
-            ParseError::new("not an ICMPv6 packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
-
-        Ok(Icmpv6 {
-            envelope,
-            header,
-            payload,
-            offset,
-        })
-    }
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
-
-        let mut packet = Icmpv6 {
-            envelope,
-            header,
-            payload,
-            offset,
-        };
-
-        packet.header_mut().msg_type = <()>::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_header(ProtocolNumbers::Icmpv6);
-
-        Ok(packet)
     }
 
     #[inline]

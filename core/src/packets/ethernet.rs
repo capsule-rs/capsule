@@ -215,6 +215,49 @@ impl fmt::Debug for Ethernet {
 }
 
 impl PacketBase for Ethernet {
+    type Header = EthernetHeader;
+    type Envelope = Mbuf;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        let packet = Ethernet {
+            envelope,
+            header,
+            offset,
+        };
+
+        // we've only parsed 14 bytes as the ethernet header, in case of
+        // vlan, we need to make sure there's enough data for the whole
+        // header including tags, otherwise accessing the union type in the
+        // header will cause a panic.
+        ensure!(
+            packet.mbuf().data_len() >= packet.header_len(),
+            BufferError::OutOfBuffer(packet.header_len(), packet.mbuf().data_len())
+        );
+
+        Ok(packet)
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+
+        Ok(Ethernet {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Ethernet {
             envelope: self.envelope.clone(internal),
@@ -225,9 +268,6 @@ impl PacketBase for Ethernet {
 }
 
 impl Packet for Ethernet {
-    type Header = EthernetHeader;
-    type Envelope = Mbuf;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -264,47 +304,6 @@ impl Packet for Ethernet {
         } else {
             Self::Header::size_of()
         }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-
-        let packet = Ethernet {
-            envelope,
-            header,
-            offset,
-        };
-
-        // We've only parsed 14 bytes as the Ethernet header, in case of
-        // vlan, we need to make sure there's enough data for the whole
-        // header including tags, otherwise accessing the union type in the
-        // header will cause a panic.
-        ensure!(
-            packet.mbuf().data_len() >= packet.header_len(),
-            BufferError::OutOfBuffer(packet.header_len(), packet.mbuf().data_len())
-        );
-
-        Ok(packet)
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-
-        Ok(Ethernet {
-            envelope,
-            header,
-            offset,
-        })
     }
 
     #[inline]

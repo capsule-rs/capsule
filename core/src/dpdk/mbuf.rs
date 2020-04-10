@@ -18,7 +18,7 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
-use crate::packets::{Internal, PacketBase};
+use crate::packets::{Header, Internal, PacketBase};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -410,7 +410,24 @@ impl Drop for Mbuf {
 // can go across thread boundaries.
 unsafe impl Send for Mbuf {}
 
+// need a zero sized fake header so we can implement `PacketBase` on `Mbuf`.
+impl Header for () {}
+
 impl PacketBase for Mbuf {
+    type Header = ();
+    type Envelope = Mbuf;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
+    fn try_push(envelope: Self::Envelope) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
     unsafe fn clone(&self, _internal: Internal) -> Self {
         Mbuf {
             raw: self.raw,

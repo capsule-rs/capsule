@@ -130,6 +130,45 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
 }
 
 impl<E: Ipv6Packet> PacketBase for Fragment<E> {
+    type Header = FragmentHeader;
+    type Envelope = E;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        Ok(Fragment {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+
+        let mut packet = Fragment {
+            envelope,
+            header,
+            offset,
+        };
+
+        packet.set_next_header(packet.envelope().next_header());
+        packet
+            .envelope_mut()
+            .set_next_header(ProtocolNumbers::Ipv6Frag);
+
+        Ok(packet)
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Fragment::<E> {
             envelope: self.envelope.clone(internal),
@@ -140,9 +179,6 @@ impl<E: Ipv6Packet> PacketBase for Fragment<E> {
 }
 
 impl<E: Ipv6Packet> Packet for Fragment<E> {
-    type Header = FragmentHeader;
-    type Envelope = E;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -173,43 +209,6 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
     #[inline]
     fn header_len(&self) -> usize {
         Self::Header::size_of()
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-
-        Ok(Fragment {
-            envelope,
-            header,
-            offset,
-        })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-
-        let mut packet = Fragment {
-            envelope,
-            header,
-            offset,
-        };
-
-        packet.set_next_header(packet.envelope().next_header());
-        packet
-            .envelope_mut()
-            .set_next_header(ProtocolNumbers::Ipv6Frag);
-
-        Ok(packet)
     }
 
     #[inline]

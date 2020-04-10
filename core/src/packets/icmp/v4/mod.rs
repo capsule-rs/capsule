@@ -99,6 +99,54 @@ impl Icmpv4Packet<()> for Icmpv4<()> {
 }
 
 impl PacketBase for Icmpv4<()> {
+    type Header = Icmpv4Header;
+    type Envelope = Ipv4;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
+            ParseError::new("not an ICMPv4 packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
+
+        Ok(Icmpv4 {
+            envelope,
+            header,
+            payload,
+            offset,
+        })
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
+
+        let mut packet = Icmpv4 {
+            envelope,
+            header,
+            payload,
+            offset,
+        };
+
+        packet.header_mut().msg_type = <()>::msg_type().0;
+        packet
+            .envelope_mut()
+            .set_next_protocol(ProtocolNumbers::Icmpv4);
+
+        Ok(packet)
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         Icmpv4::<()> {
             envelope: self.envelope.clone(internal),
@@ -110,9 +158,6 @@ impl PacketBase for Icmpv4<()> {
 }
 
 impl Packet for Icmpv4<()> {
-    type Header = Icmpv4Header;
-    type Envelope = Ipv4;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -138,52 +183,6 @@ impl Packet for Icmpv4<()> {
     #[inline]
     fn offset(&self) -> usize {
         self.offset
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
-            ParseError::new("not an ICMPv4 packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
-
-        Ok(Icmpv4 {
-            envelope,
-            header,
-            payload,
-            offset,
-        })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
-
-        let mut packet = Icmpv4 {
-            envelope,
-            header,
-            payload,
-            offset,
-        };
-
-        packet.header_mut().msg_type = <()>::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_protocol(ProtocolNumbers::Icmpv4);
-
-        Ok(packet)
     }
 
     #[inline]

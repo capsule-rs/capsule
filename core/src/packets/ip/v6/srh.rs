@@ -239,6 +239,67 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
 }
 
 impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
+    type Header = SegmentRoutingHeader;
+    type Envelope = E;
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_header() == ProtocolNumbers::Ipv6Route,
+            ParseError::new("not an IPv6 routing packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data::<Self::Header>(offset)?;
+
+        let hdr_ext_len = unsafe { header.as_ref().hdr_ext_len };
+        let segments_len = unsafe { header.as_ref().last_entry + 1 };
+
+        if hdr_ext_len != 0 && (2 * segments_len == hdr_ext_len) {
+            let segments = mbuf.read_data_slice::<Ipv6Addr>(
+                offset + SegmentRoutingHeader::size_of(),
+                segments_len as usize,
+            )?;
+
+            Ok(SegmentRouting {
+                envelope,
+                header,
+                segments,
+                offset,
+            })
+        } else {
+            Err(ParseError::new("Packet has inconsistent segment list length.").into())
+        }
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        // adds a default segment list of one element.
+        mbuf.extend(offset, Self::Header::size_of() + Ipv6Addr::size_of())?;
+        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        let segments =
+            mbuf.write_data_slice(offset + Self::Header::size_of(), &[Ipv6Addr::UNSPECIFIED])?;
+
+        let mut packet = SegmentRouting {
+            envelope,
+            header,
+            segments,
+            offset,
+        };
+
+        packet.set_next_header(packet.envelope().next_header());
+        packet
+            .envelope_mut()
+            .set_next_header(ProtocolNumbers::Ipv6Route);
+
+        Ok(packet)
+    }
+
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         SegmentRouting::<E> {
             envelope: self.envelope.clone(internal),
@@ -250,9 +311,6 @@ impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
 }
 
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
-    type Header = SegmentRoutingHeader;
-    type Envelope = E;
-
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
         &self.envelope
@@ -283,65 +341,6 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     #[inline]
     fn header_len(&self) -> usize {
         Self::Header::size_of() + self.segments().len() * Ipv6Addr::size_of()
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_header() == ProtocolNumbers::Ipv6Route,
-            ParseError::new("not an IPv6 routing packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data::<Self::Header>(offset)?;
-
-        let hdr_ext_len = unsafe { header.as_ref().hdr_ext_len };
-        let segments_len = unsafe { header.as_ref().last_entry + 1 };
-
-        if hdr_ext_len != 0 && (2 * segments_len == hdr_ext_len) {
-            let segments = mbuf.read_data_slice::<Ipv6Addr>(
-                offset + SegmentRoutingHeader::size_of(),
-                segments_len as usize,
-            )?;
-
-            Ok(SegmentRouting {
-                envelope,
-                header,
-                segments,
-                offset,
-            })
-        } else {
-            Err(ParseError::new("Packet has inconsistent segment list length.").into())
-        }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        // adds a default segment list of one element.
-        mbuf.extend(offset, Self::Header::size_of() + Ipv6Addr::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let segments =
-            mbuf.write_data_slice(offset + Self::Header::size_of(), &[Ipv6Addr::UNSPECIFIED])?;
-
-        let mut packet = SegmentRouting {
-            envelope,
-            header,
-            segments,
-            offset,
-        };
-
-        packet.set_next_header(packet.envelope().next_header());
-        packet
-            .envelope_mut()
-            .set_next_header(ProtocolNumbers::Ipv6Route);
-
-        Ok(packet)
     }
 
     #[inline]
