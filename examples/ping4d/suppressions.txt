@@ -1,0 +1,2 @@
+# This is a known leak.
+leak:vmbus_scan_one

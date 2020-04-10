@@ -144,10 +144,12 @@ jobs:
     runs-on: ubuntu-18.04
     strategy:
       matrix:
-        rust-toolchain: [stable, nightly]
+        rust-toolchain: [stable, beta, nightly]
         # Allow failures on nightly, it's just informative
         include:
           - rust: stable
+            can-fail: false
+          - rust: beta
             can-fail: false
           - rust: nightly
             can-fail: true
@@ -263,6 +265,40 @@ jobs:
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  sanitize:
+    runs-on: ubuntu-18.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: set-hugepages
+        run: |
+          sudo sysctl -w vm.nr_hugepages=1024
+          cat /proc/meminfo | grep Huge
+
+      - name: cargo-run-ping4d-with-address-sanitizer
+        run: |
+          docker run --rm --privileged --network=host \
+            -w /home/capsule/examples/ping4d \
+            -v /dev/hugepages:/dev/hugepages \
+            -v `pwd`:/home/capsule \
+            --env RUSTFLAGS="-Z sanitizer=address" \
+            --env ASAN_OPTIONS=detect_leaks=1 \
+            --env LSAN_OPTIONS=suppressions=suppressions.txt \
+            getcapsule/sandbox \
+            /bin/bash -c "rustup install nightly && rustup default nightly \
+            && cargo run --target x86_64-unknown-linux-gnu -- -f ping4d.toml"
+
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: '*${{ github.workflow }}* @ sanitize'
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-18.04
 
@@ -288,7 +324,7 @@ jobs:
 
   slack-pr:
     if: github.event_name == 'pull_request'
-    needs: [audit, bench-pr, check, coverage, format, lint, test]
+    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -303,7 +339,7 @@ jobs:
 
   slack:
     if: github.event_name == 'push'
-    needs: [audit, bench, check, coverage, format, lint, test]
+    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -318,7 +354,7 @@ jobs:
 
   discord-pr:
     if: github.event_name == 'pull_request'
-    needs: [audit, bench-pr, check, coverage, format, lint, test]
+    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it
@@ -330,7 +366,7 @@ jobs:
 
   discord:
     if: github.event_name == 'push'
-    needs: [audit, bench, check, coverage, format, lint, test]
+    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it

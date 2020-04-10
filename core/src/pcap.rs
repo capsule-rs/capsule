@@ -191,6 +191,10 @@ mod tests {
             ret += unsafe { (*header).caplen }
         }
 
+        unsafe {
+            ffi::pcap_close(handle);
+        }
+
         ret
     }
 
