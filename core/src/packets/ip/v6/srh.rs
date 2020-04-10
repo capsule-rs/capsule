@@ -19,7 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{CondRc, Header, Packet, ParseError};
+use crate::packets::{Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -103,9 +103,8 @@ use std::ptr::NonNull;
 ///
 /// [`IETF Draft`]: https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-26#section-2
 /// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-4.4
-#[derive(Clone)]
 pub struct SegmentRouting<E: Ipv6Packet> {
-    envelope: CondRc<E>,
+    envelope: E,
     header: NonNull<SegmentRoutingHeader>,
     segments: NonNull<[Ipv6Addr]>,
     offset: usize,
@@ -239,6 +238,17 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
     }
 }
 
+impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        SegmentRouting::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            segments: self.segments,
+            offset: self.offset,
+        }
+    }
+}
+
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     type Header = SegmentRoutingHeader;
     type Envelope = E;
@@ -297,7 +307,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
             )?;
 
             Ok(SegmentRouting {
-                envelope: CondRc::new(envelope),
+                envelope,
                 header,
                 segments,
                 offset,
@@ -320,7 +330,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
             mbuf.write_data_slice(offset + Self::Header::size_of(), &[Ipv6Addr::UNSPECIFIED])?;
 
         let mut packet = SegmentRouting {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             segments,
             offset,
@@ -341,12 +351,12 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         let next_header = self.next_header();
         self.mbuf_mut().shrink(offset, len)?;
         self.envelope_mut().set_next_header(next_header);
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 

@@ -27,7 +27,6 @@ use crate::{debug, ensure, info, warn};
 use failure::{Fail, Fallible};
 use std::collections::HashMap;
 use std::fmt;
-use std::mem;
 use std::os::raw;
 use std::ptr;
 
@@ -136,30 +135,25 @@ impl PortQueue {
         #[cfg(feature = "metrics")]
         self.received.as_ref().unwrap().record(len as u64);
 
-        let mbufs = unsafe {
-            // does a no-copy conversion to avoid extra allocation.
-            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len as usize, RX_BURST_MAX)
-        };
-
         #[cfg(feature = "pcap-dump")]
-        pcap::append_and_write(self.port_id, CoreId::current(), "rx", &mbufs);
+        pcap::append_and_write(self.port_id, CoreId::current(), "rx", &ptrs);
 
-        mem::forget(ptrs);
-        mbufs
+        unsafe {
+            ptrs.set_len(len as usize);
+            ptrs.into_iter()
+                .map(|ptr| Mbuf::from_ptr(ptr))
+                .collect::<Vec<_>>()
+        }
     }
 
     /// Sends the packets to the transmit queue.
-    pub(crate) fn transmit(&self, mut packets: Vec<Mbuf>) {
+    pub(crate) fn transmit(&self, packets: Vec<Mbuf>) {
+        let mut ptrs = packets.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
+
         loop {
-            let to_send = packets.len() as u16;
+            let to_send = ptrs.len() as u16;
             let sent = unsafe {
-                ffi::_rte_eth_tx_burst(
-                    self.port_id.0,
-                    self.txq.0,
-                    // convert to a pointer to an array of `rte_mbuf` pointers
-                    packets.as_mut_ptr() as *mut *mut ffi::rte_mbuf,
-                    to_send,
-                )
+                ffi::_rte_eth_tx_burst(self.port_id.0, self.txq.0, ptrs.as_mut_ptr(), to_send)
             };
 
             if sent > 0 {
@@ -170,29 +164,23 @@ impl PortQueue {
                     // still have packets not sent. tx queue is full but still making
                     // progress. we will keep trying until all packets are sent. drains
                     // the ones already sent first and try again on the rest.
-                    let drained = packets.drain(..sent as usize).collect::<Vec<_>>();
+                    let _drained = ptrs.drain(..sent as usize).collect::<Vec<_>>();
 
                     #[cfg(feature = "pcap-dump")]
-                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &drained);
-
-                    // ownership given to `rte_eth_tx_burst`, don't free them.
-                    Mbuf::forget_bulk(drained);
+                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &_drained);
                 } else {
                     #[cfg(feature = "pcap-dump")]
-                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &packets);
+                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &ptrs);
 
-                    // everything sent and ownership given to `rte_eth_tx_burst`, don't
-                    // free them.
-                    Mbuf::forget_bulk(packets);
                     break;
                 }
             } else {
                 // tx queue is full and we can't make progress, start dropping packets
                 // to avoid potentially stuck in an endless loop.
                 #[cfg(feature = "metrics")]
-                self.dropped.as_ref().unwrap().record(packets.len() as u64);
+                self.dropped.as_ref().unwrap().record(ptrs.len() as u64);
 
-                Mbuf::free_bulk(packets);
+                super::mbuf_free_bulk(ptrs);
                 break;
             }
         }

@@ -18,11 +18,10 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
+use crate::packets::{Internal, PacketBase};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
-use std::convert::From;
 use std::fmt;
-use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
@@ -107,6 +106,11 @@ pub(crate) enum BufferError {
 /// of a single Mbuf segment (`RTE_MBUF_DEFAULT_DATAROOM` = 2048).
 pub struct Mbuf {
     raw: NonNull<ffi::rte_mbuf>,
+    // indicating whether to return the buffer back to the mempool when
+    // it goes out of scope. for example, cloned copies should not free
+    // the buffer; or when the ownership of the pointer is given back to
+    // DPDK on transmit.
+    should_free: bool,
 }
 
 impl Mbuf {
@@ -119,7 +123,10 @@ impl Mbuf {
     pub fn new() -> Fallible<Self> {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
-        Ok(raw.into())
+        Ok(Mbuf {
+            raw,
+            should_free: true,
+        })
     }
 
     /// Creates a new message buffer from a byte array.
@@ -129,6 +136,15 @@ impl Mbuf {
         mbuf.extend(0, data.len())?;
         mbuf.write_data_slice(0, data)?;
         Ok(mbuf)
+    }
+
+    /// Creates a new `Mbuf` from a raw pointer.
+    #[inline]
+    pub(crate) unsafe fn from_ptr(ptr: *mut ffi::rte_mbuf) -> Self {
+        Mbuf {
+            raw: NonNull::new_unchecked(ptr),
+            should_free: true,
+        }
     }
 
     /// Returns the raw struct needed for FFI calls.
@@ -333,9 +349,10 @@ impl Mbuf {
     /// The `Mbuf` is consumed. It is the caller's the responsibility to
     /// free the raw pointer after use. Otherwise the buffer is leaked.
     #[inline]
-    pub(crate) fn into_ptr(self) -> *mut ffi::rte_mbuf {
+    pub(crate) fn into_ptr(mut self) -> *mut ffi::rte_mbuf {
         let ptr = self.raw.as_ptr();
-        mem::forget(self);
+        // no longer has ownership, don't return the buffer back to the pool.
+        self.should_free = false;
         ptr
     }
 
@@ -348,58 +365,19 @@ impl Mbuf {
             ffi::_rte_pktmbuf_alloc_bulk(mempool, ptrs.as_mut_ptr(), len as raw::c_uint)
                 .to_result()?;
 
-            // does a no-copy conversion to avoid extra allocation.
-            Vec::from_raw_parts(ptrs.as_mut_ptr() as *mut Mbuf, len, len)
+            ptrs.set_len(len);
+            ptrs.into_iter()
+                .map(|ptr| Mbuf::from_ptr(ptr))
+                .collect::<Vec<_>>()
         };
 
-        mem::forget(ptrs);
         Ok(mbufs)
     }
 
     /// Frees the message buffers in bulk.
     pub(crate) fn free_bulk(mbufs: Vec<Mbuf>) {
-        assert!(!mbufs.is_empty());
-
-        let mut to_free = Vec::with_capacity(mbufs.len());
-        let pool = mbufs[0].raw().pool;
-
-        for mbuf in mbufs.into_iter() {
-            if pool == mbuf.raw().pool {
-                to_free.push(mbuf.into_ptr() as *mut raw::c_void);
-            } else {
-                unsafe {
-                    let len = to_free.len();
-                    ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
-                    to_free.set_len(0);
-                }
-
-                to_free.push(mbuf.into_ptr() as *mut raw::c_void);
-            }
-        }
-
-        unsafe {
-            let len = to_free.len();
-            ffi::_rte_mempool_put_bulk(pool, to_free.as_ptr(), len as u32);
-            to_free.set_len(0);
-        }
-    }
-
-    /// Forgets the message buffers in bulk.
-    ///
-    /// Used when the ownership of the underlying message buffers is passed
-    /// to DPDK. DPDK is responsible for eventually freeing them and return
-    /// them back to the mempool.
-    pub(crate) fn forget_bulk(mut mbufs: Vec<Mbuf>) {
-        while let Some(mbuf) = mbufs.pop() {
-            mem::forget(mbuf);
-        }
-    }
-}
-
-impl From<NonNull<ffi::rte_mbuf>> for Mbuf {
-    #[inline]
-    fn from(raw: NonNull<ffi::rte_mbuf>) -> Self {
-        Mbuf { raw }
+        let ptrs = mbufs.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
+        super::mbuf_free_bulk(ptrs);
     }
 }
 
@@ -415,19 +393,14 @@ impl fmt::Debug for Mbuf {
     }
 }
 
-// TODO: revisit clone/drop and ref count.
-impl Clone for Mbuf {
-    fn clone(&self) -> Self {
-        self.raw.into()
-    }
-}
-
 impl Drop for Mbuf {
     fn drop(&mut self) {
-        trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
+        if self.should_free {
+            trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
 
-        unsafe {
-            ffi::_rte_pktmbuf_free(self.raw_mut());
+            unsafe {
+                ffi::_rte_pktmbuf_free(self.raw_mut());
+            }
         }
     }
 }
@@ -436,6 +409,17 @@ impl Drop for Mbuf {
 // to be not sendable. explicitly implement the `Send` trait to ensure it
 // can go across thread boundaries.
 unsafe impl Send for Mbuf {}
+
+impl PacketBase for Mbuf {
+    unsafe fn clone(&self, _internal: Internal) -> Self {
+        Mbuf {
+            raw: self.raw,
+            // clones shouldn't return the buffer back to the pool when
+            // they are dropped.
+            should_free: false,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -605,5 +589,15 @@ mod tests {
 
         // read exceeds buffer should err
         assert!(mbuf.read_data_slice::<u8>(10, 16).is_err());
+    }
+
+    #[capsule::test]
+    fn alloc_bulk() {
+        let mbufs = Mbuf::alloc_bulk(8).unwrap();
+        assert_eq!(8, mbufs.len());
+
+        for mbuf in mbufs {
+            assert_eq!(0, mbuf.data_len());
+        }
     }
 }

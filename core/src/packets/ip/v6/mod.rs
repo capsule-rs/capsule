@@ -26,7 +26,7 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
-use crate::packets::{CondRc, EtherTypes, Ethernet, Header, Packet, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -94,9 +94,8 @@ const FLOW: u32 = 0xfffff;
 /// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-3
 /// [`IETF RFC 2474`]: https://tools.ietf.org/html/rfc2474
 /// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
-#[derive(Clone)]
 pub struct Ipv6 {
-    envelope: CondRc<Ethernet>,
+    envelope: Ethernet,
     header: NonNull<Ipv6Header>,
     offset: usize,
 }
@@ -219,6 +218,16 @@ impl fmt::Debug for Ipv6 {
     }
 }
 
+impl PacketBase for Ipv6 {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Ipv6 {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+}
+
 impl Packet for Ipv6 {
     type Header = Ipv6Header;
     type Envelope = Ethernet;
@@ -263,7 +272,7 @@ impl Packet for Ipv6 {
         let header = mbuf.read_data(offset)?;
 
         Ok(Ipv6 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -281,7 +290,7 @@ impl Packet for Ipv6 {
         envelope.set_ether_type(EtherTypes::Ipv6);
 
         Ok(Ipv6 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -292,7 +301,7 @@ impl Packet for Ipv6 {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
@@ -304,7 +313,7 @@ impl Packet for Ipv6 {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 

@@ -18,7 +18,7 @@
 
 use crate::dpdk::BufferError;
 use crate::net::MacAddr;
-use crate::packets::{CondRc, Header, Packet};
+use crate::packets::{Header, Internal, Packet, PacketBase};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -115,9 +115,8 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///
 /// [`IEEE 802.1Q`]: https://en.wikipedia.org/wiki/IEEE_802.1Q
 /// [`IEEE 802.1ad`]: https://en.wikipedia.org/wiki/IEEE_802.1ad
-#[derive(Clone)]
 pub struct Ethernet {
-    envelope: CondRc<Mbuf>,
+    envelope: Mbuf,
     header: NonNull<EthernetHeader>,
     offset: usize,
 }
@@ -215,6 +214,16 @@ impl fmt::Debug for Ethernet {
     }
 }
 
+impl PacketBase for Ethernet {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Ethernet {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+}
+
 impl Packet for Ethernet {
     type Header = EthernetHeader;
     type Envelope = Mbuf;
@@ -265,7 +274,7 @@ impl Packet for Ethernet {
         let header = mbuf.read_data(offset)?;
 
         let packet = Ethernet {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         };
@@ -292,7 +301,7 @@ impl Packet for Ethernet {
         let header = mbuf.write_data(offset, &Self::Header::default())?;
 
         Ok(Ethernet {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             offset,
         })
@@ -303,12 +312,12 @@ impl Packet for Ethernet {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 

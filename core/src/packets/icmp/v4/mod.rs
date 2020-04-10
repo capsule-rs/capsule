@@ -26,7 +26,7 @@ pub use self::echo_request::*;
 
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, CondRc, Header, Packet, ParseError};
+use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -68,9 +68,8 @@ use std::ptr::NonNull;
 ///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
 /// [`Icmpv4Payload`]: Icmpv4Payload
-#[derive(Clone)]
 pub struct Icmpv4<P: Icmpv4Payload> {
-    envelope: CondRc<Ipv4>,
+    envelope: Ipv4,
     header: NonNull<Icmpv4Header>,
     payload: NonNull<P>,
     offset: usize,
@@ -96,6 +95,17 @@ impl Icmpv4Packet<()> for Icmpv4<()> {
 
     fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
+    }
+}
+
+impl PacketBase for Icmpv4<()> {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Icmpv4::<()> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            payload: self.payload,
+            offset: self.offset,
+        }
     }
 }
 
@@ -144,7 +154,7 @@ impl Packet for Icmpv4<()> {
         let payload = mbuf.read_data(offset + Self::Header::size_of())?;
 
         Ok(Icmpv4 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             payload,
             offset,
@@ -162,7 +172,7 @@ impl Packet for Icmpv4<()> {
         let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
 
         let mut packet = Icmpv4 {
-            envelope: CondRc::new(envelope),
+            envelope,
             header,
             payload,
             offset,
@@ -181,7 +191,7 @@ impl Packet for Icmpv4<()> {
         let offset = self.offset();
         let len = self.header_len();
         self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope.into_owned())
+        Ok(self.envelope)
     }
 
     #[inline]
@@ -192,7 +202,7 @@ impl Packet for Icmpv4<()> {
 
     #[inline]
     fn deparse(self) -> Self::Envelope {
-        self.envelope.into_owned()
+        self.envelope
     }
 }
 
