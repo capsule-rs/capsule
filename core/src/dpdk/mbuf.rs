@@ -18,6 +18,7 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
+use crate::packets::{Internal, PacketBase};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -105,6 +106,10 @@ pub(crate) enum BufferError {
 /// of a single Mbuf segment (`RTE_MBUF_DEFAULT_DATAROOM` = 2048).
 pub struct Mbuf {
     raw: NonNull<ffi::rte_mbuf>,
+    // indicating whether to return the buffer back to the mempool when
+    // it goes out of scope. for example, cloned copies should not free
+    // the buffer; or when the ownership of the pointer is given back to
+    // DPDK on transmit.
     should_free: bool,
 }
 
@@ -374,21 +379,6 @@ impl Mbuf {
         let ptrs = mbufs.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
         super::mbuf_free_bulk(ptrs);
     }
-
-    /// Clones the reference to the underlying message buffer.
-    ///
-    /// Because the original and the clone share the same message buffer,
-    /// the buffer is mutable through both instances. Changes made through
-    /// one copy could completely invalidate the other and make it unsafe
-    /// to use.
-    pub(crate) unsafe fn shallow_clone(&self) -> Self {
-        Mbuf {
-            raw: self.raw,
-            // clones shouldn't return the buffer back to the pool when
-            // they are dropped.
-            should_free: false,
-        }
-    }
 }
 
 impl fmt::Debug for Mbuf {
@@ -419,6 +409,17 @@ impl Drop for Mbuf {
 // to be not sendable. explicitly implement the `Send` trait to ensure it
 // can go across thread boundaries.
 unsafe impl Send for Mbuf {}
+
+impl PacketBase for Mbuf {
+    unsafe fn clone(&self, _internal: Internal) -> Self {
+        Mbuf {
+            raw: self.raw,
+            // clones shouldn't return the buffer back to the pool when
+            // they are dropped.
+            should_free: false,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

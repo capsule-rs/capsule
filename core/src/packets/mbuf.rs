@@ -16,18 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::{Header, Internal, Packet, PacketBase};
+use crate::packets::{Header, Packet};
 use crate::Mbuf;
 use failure::Fallible;
 
 // Unit header use to implement `Packet` trait for `Mbuf`.
 impl Header for () {}
-
-impl PacketBase for Mbuf {
-    unsafe fn clone(&self, _internal: Internal) -> Self {
-        self.shallow_clone()
-    }
-}
 
 // make the message buffer behave like a packet.
 impl Packet for Mbuf {
