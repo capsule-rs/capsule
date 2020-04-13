@@ -18,7 +18,7 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
-use crate::packets::{Header, Internal, PacketBase};
+use crate::packets::{Internal, PacketBase};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -410,21 +410,42 @@ impl Drop for Mbuf {
 // can go across thread boundaries.
 unsafe impl Send for Mbuf {}
 
-// need a zero sized fake header so we can implement `PacketBase` on `Mbuf`.
-impl Header for () {}
-
 impl PacketBase for Mbuf {
-    type Header = ();
     type Envelope = Mbuf;
 
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        Ok(envelope)
+    fn envelope0(&self) -> &Self::Envelope {
+        self
     }
 
     #[inline]
-    fn try_push(envelope: Self::Envelope) -> Fallible<Self> {
-        Ok(envelope)
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        self
+    }
+
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self
+    }
+
+    #[inline]
+    fn mbuf(&self) -> &Mbuf {
+        self
+    }
+
+    #[inline]
+    fn mbuf_mut(&mut self) -> &mut Mbuf {
+        self
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        0
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        0
     }
 
     #[inline]
@@ -436,6 +457,32 @@ impl PacketBase for Mbuf {
             should_free: false,
         }
     }
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
+    fn try_push(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
+    fn try_remove(self, _internal: Internal) -> Fallible<Self::Envelope> {
+        Ok(self)
+    }
+
+    #[inline]
+    fn reset0(self) -> Mbuf {
+        self
+    }
+
+    #[inline]
+    fn fix_invariants(&mut self, _internal: Internal) {}
+
+    #[inline]
+    fn cascade0(&mut self) {}
 }
 
 #[cfg(test)]

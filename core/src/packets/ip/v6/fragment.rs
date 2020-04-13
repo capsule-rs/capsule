@@ -19,7 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{Header, Internal, Packet, PacketBase};
+use crate::packets::{Internal, PacketBase};
 use crate::SizeOf;
 use failure::Fallible;
 use std::fmt;
@@ -76,6 +76,16 @@ pub struct Fragment<E: Ipv6Packet> {
 }
 
 impl<E: Ipv6Packet> Fragment<E> {
+    #[inline]
+    fn header(&self) -> &FragmentHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut FragmentHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the offset of the data following this header relative to the
     /// start of the fragmentable part of the original packet. It is measured
     /// in units of 8 octets or 64 bits.
@@ -130,8 +140,41 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
 }
 
 impl<E: Ipv6Packet> PacketBase for Fragment<E> {
-    type Header = FragmentHeader;
     type Envelope = E;
+
+    #[inline]
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        FragmentHeader::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Fragment::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
 
     #[inline]
     fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
@@ -147,12 +190,12 @@ impl<E: Ipv6Packet> PacketBase for Fragment<E> {
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, FragmentHeader::size_of())?;
+        let header = mbuf.write_data(offset, &FragmentHeader::default())?;
 
         let mut packet = Fragment {
             envelope,
@@ -160,71 +203,26 @@ impl<E: Ipv6Packet> PacketBase for Fragment<E> {
             offset,
         };
 
-        packet.set_next_header(packet.envelope().next_header());
+        packet.set_next_header(packet.envelope0().next_header());
         packet
-            .envelope_mut()
+            .envelope_mut0()
             .set_next_header(ProtocolNumbers::Ipv6Frag);
 
         Ok(packet)
     }
 
     #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Fragment::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
-impl<E: Ipv6Packet> Packet for Fragment<E> {
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size_of()
-    }
-
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
+    fn try_remove(mut self, _internal: Internal) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         let next_header = self.next_header();
         self.mbuf_mut().shrink(offset, len)?;
-        self.envelope_mut().set_next_header(next_header);
+        self.envelope_mut0().set_next_header(next_header);
         Ok(self.envelope)
     }
 
     #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
-    }
+    fn fix_invariants(&mut self, _internal: Internal) {}
 }
 
 impl<E: Ipv6Packet> IpPacket for Fragment<E> {
@@ -240,32 +238,32 @@ impl<E: Ipv6Packet> IpPacket for Fragment<E> {
 
     #[inline]
     fn src(&self) -> IpAddr {
-        self.envelope().src()
+        self.envelope0().src()
     }
 
     #[inline]
     fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
-        self.envelope_mut().set_src(src)
+        self.envelope_mut0().set_src(src)
     }
 
     #[inline]
     fn dst(&self) -> IpAddr {
-        self.envelope().dst()
+        self.envelope0().dst()
     }
 
     #[inline]
     fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
-        self.envelope_mut().set_dst(dst)
+        self.envelope_mut0().set_dst(dst)
     }
 
     #[inline]
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader {
-        self.envelope().pseudo_header(packet_len, protocol)
+        self.envelope0().pseudo_header(packet_len, protocol)
     }
 
     #[inline]
     fn truncate(&mut self, mtu: usize) -> Fallible<()> {
-        self.envelope_mut().truncate(mtu)
+        self.envelope_mut0().truncate(mtu)
     }
 }
 
@@ -281,25 +279,21 @@ impl<E: Ipv6Packet> Ipv6Packet for Fragment<E> {
     }
 }
 
-/// IPv6 fragment extension header accessible through [`Fragment`].
-///
-/// [`Fragment`]: Fragment
+/// IPv6 fragment extension header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
-pub struct FragmentHeader {
+struct FragmentHeader {
     next_header: u8,
     reserved: u8,
     frag_res_m: u16,
     identification: u32,
 }
 
-impl Header for FragmentHeader {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
+    use crate::packets::{Ethernet, Packet};
     use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 

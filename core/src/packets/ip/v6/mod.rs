@@ -26,7 +26,7 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
-use crate::packets::{EtherTypes, Ethernet, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -101,6 +101,16 @@ pub struct Ipv6 {
 }
 
 impl Ipv6 {
+    #[inline]
+    fn header(&self) -> &Ipv6Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Ipv6Header {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the protocol version. Should always be `6`.
     #[inline]
     pub fn version(&self) -> u8 {
@@ -219,8 +229,41 @@ impl fmt::Debug for Ipv6 {
 }
 
 impl PacketBase for Ipv6 {
-    type Header = Ipv6Header;
     type Envelope = Ethernet;
+
+    #[inline]
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        Ipv6Header::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Ipv6 {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
 
     #[inline]
     fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
@@ -241,12 +284,12 @@ impl PacketBase for Ipv6 {
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, Ipv6Header::size_of())?;
+        let header = mbuf.write_data(offset, &Ipv6Header::default())?;
 
         envelope.set_ether_type(EtherTypes::Ipv6);
 
@@ -258,61 +301,9 @@ impl PacketBase for Ipv6 {
     }
 
     #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ipv6 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
-impl Packet for Ipv6 {
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
-
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self, _internal: Internal) {
         let len = self.payload_len() as u16;
         self.set_payload_length(len);
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
     }
 }
 
@@ -403,12 +394,10 @@ pub trait Ipv6Packet: IpPacket {
     fn set_next_header(&mut self, next_header: ProtocolNumber);
 }
 
-/// IPv6 header accessible through [`Ipv6`].
-///
-/// [`Ipv6`]: Ipv6
+/// IPv6 header.
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
-pub struct Ipv6Header {
+struct Ipv6Header {
     version_to_flow_label: u32,
     payload_length: u16,
     next_header: u8,
@@ -430,12 +419,11 @@ impl Default for Ipv6Header {
     }
 }
 
-impl Header for Ipv6Header {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::packets::Packet;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 

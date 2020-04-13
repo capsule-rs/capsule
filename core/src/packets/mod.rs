@@ -20,9 +20,8 @@
 
 pub mod checksum;
 mod ethernet;
-pub mod icmp;
+//pub mod icmp;
 pub mod ip;
-mod mbuf;
 mod tcp;
 mod udp;
 
@@ -30,16 +29,11 @@ pub use self::ethernet::*;
 pub use self::tcp::*;
 pub use self::udp::*;
 
-use crate::{Mbuf, SizeOf};
+use crate::Mbuf;
 use failure::{Fail, Fallible};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
-
-/// Marker trait used as a bound for [`PacketBase::Header`].
-///
-/// [`PacketBase::Header`]:  PacketBase::Header
-pub trait Header: Default + SizeOf {}
 
 /// An argument to restrict users from calling functions on the [`PacketBase`]
 /// trait.
@@ -55,36 +49,15 @@ pub trait Header: Default + SizeOf {}
 pub struct Internal(());
 
 /// A trait network protocols implement to integrate with other protocols.
+///
+/// Only use this trait to implement a new network protocol. The trait is
+/// not intended to be used directly. Many functions are restricted and are
+/// only callable from within the crate. Most applications should use the
+/// [`Packet`] trait instead.
+///
+/// [`Packet`]: Packet
+//#[allow(clippy::len_without_is_empty)]
 pub trait PacketBase {
-    /// The type of the packet header.
-    ///
-    /// The header fields are efficiently parsed by transmuting from a `u8`
-    /// slice of equal size. The fields of the struct should follow the
-    /// exact layout in the corresponding specification. The struct itself
-    /// should use the [C represenation] without [padding] between fields.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// #[repr(C, packed)]
-    /// pub struct EthernetHeader {
-    ///     ...
-    /// }
-    /// ```
-    ///
-    /// The fields are in network byte order, aka big endian. When reading
-    /// or writing values larger than a single byte, a conversion is necessary
-    /// to translate to and from host byte order.
-    ///
-    /// Some packet headers are variable in length, such as the IPv6 segment
-    /// routing header. Only the fixed portion of the header can be statically
-    /// defined in the struct and parsed through transmute. The variable
-    /// portion needs to be parsed separately.
-    ///
-    /// [C representation]: (https://doc.rust-lang.org/reference/type-layout.html#the-c-representation)
-    /// [padding]: (https://doc.rust-lang.org/reference/type-layout.html#the-alignment-modifiers)
-    type Header: Header;
-
     /// The proceeding packet type that encapsulates this packet.
     ///
     /// The envelope behaves as a constraint to enforce strict ordering
@@ -95,27 +68,52 @@ pub trait PacketBase {
     /// [`IPv4`]: Ipv4
     type Envelope: Packet;
 
-    /// Parses the envelope's payload as this packet type.
-    ///
-    /// The implementation should perform the necessary buffer boundary
-    /// checks and validate the invariants if any. For example, before parsing
-    /// the [`Ethernet`]'s payload as a [`IPv4`] packet, there should be a
-    /// check to ensure that [`ether_type`] is set correctly.
-    ///
-    /// [`Ethernet`]: Ethernet
-    /// [`IPv4`]: Ipv4
-    /// [`ether_type`]: Ethernet::ether_type
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self>
+    /// Returns a reference to the envelope.
+    fn envelope0(&self) -> &Self::Envelope;
+
+    /// Returns a mutable reference to the envelope.
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope;
+
+    /// Returns the envelope.
+    fn into_envelope(self) -> Self::Envelope
     where
         Self: Sized;
 
-    /// Prepends a new packet at the start of the envelope's payload.
-    ///
-    /// When the packet is inserted into an envelope with an existing payload,
-    /// the original payload becomes the payload of the new packet.
-    fn try_push(envelope: Self::Envelope) -> Fallible<Self>
-    where
-        Self: Sized;
+    /// Returns a reference to the raw message buffer.
+    #[inline]
+    fn mbuf(&self) -> &Mbuf {
+        self.envelope0().mbuf()
+    }
+
+    /// Returns a mutable reference to the raw message buffer.
+    #[inline]
+    fn mbuf_mut(&mut self) -> &mut Mbuf {
+        self.envelope_mut0().mbuf_mut()
+    }
+
+    /// Returns the buffer offset where the packet begins.
+    fn offset(&self) -> usize;
+
+    /// Returns the length of the packet header.
+    fn header_len(&self) -> usize;
+
+    /// Returns the length of the packet with the payload.
+    #[inline]
+    fn len(&self) -> usize {
+        self.mbuf().data_len() - self.offset()
+    }
+
+    /// Returns the buffer offset where the packet payload begins.
+    #[inline]
+    fn payload_offset(&self) -> usize {
+        self.offset() + self.header_len()
+    }
+
+    /// Returns the length of the packet payload.
+    #[inline]
+    fn payload_len(&self) -> usize {
+        self.len() - self.header_len()
+    }
 
     /// Returns a copy of the packet.
     ///
@@ -132,71 +130,73 @@ pub trait PacketBase {
     /// [`Packet::peek`]: Packet::peek
     /// [`Immutable`] Immutable
     unsafe fn clone(&self, internal: Internal) -> Self;
+
+    /// Parses the envelope's payload as this packet type.
+    ///
+    /// The implementation should perform the necessary buffer boundary
+    /// checks and validate the invariants if any. For example, before parsing
+    /// the [`Ethernet`]'s payload as a [`IPv4`] packet, there should be a
+    /// check to assert that [`ether_type`] matches the expectation.
+    ///
+    /// [`Ethernet`]: Ethernet
+    /// [`IPv4`]: Ipv4
+    /// [`ether_type`]: Ethernet::ether_type
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self>
+    where
+        Self: Sized;
+
+    /// Prepends packet at the start of the envelope's payload.
+    ///
+    /// When the packet is inserted into an envelope with an existing payload,
+    /// the original payload becomes the payload of the new packet.
+    fn try_push(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
+    where
+        Self: Sized;
+
+    /// Removes the packet from the message buffer.
+    ///
+    /// The current payload of the packet becomes the payload of the envelope.
+    #[inline]
+    fn try_remove(mut self, _internal: Internal) -> Fallible<Self::Envelope>
+    where
+        Self: Sized,
+    {
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
+        Ok(self.into_envelope())
+    }
+
+    /// Resets the parsed packet back to raw packet.
+    #[inline]
+    fn reset0(self) -> Mbuf
+    where
+        Self: Sized,
+    {
+        self.into_envelope().reset0()
+    }
+
+    /// Maintains the packet invariants after parts of it have been modified.
+    fn fix_invariants(&mut self, internal: Internal);
+
+    /// Cascades the changes recursively through the layers.
+    #[inline]
+    fn cascade0(&mut self) {
+        self.fix_invariants(Internal(()));
+        self.envelope_mut0().cascade0();
+    }
 }
 
 /// Common behaviors shared by all typed packets.
-#[allow(clippy::len_without_is_empty)]
 pub trait Packet: PacketBase {
-    // /// The header type of the packet.
-    // type Header: Header;
-    // /// The outer packet type that encapsulates the packet.
-    // type Envelope: Packet;
-
-    /// Returns a reference to the DPDK message buffer.
-    #[doc(hidden)]
-    #[inline]
-    fn mbuf(&self) -> &Mbuf {
-        self.envelope().mbuf()
+    /// Returns a reference to the envelope.
+    fn envelope(&self) -> &Self::Envelope {
+        self.envelope0()
     }
 
-    /// Returns a mutable reference to the DPDK message buffer.
-    #[doc(hidden)]
-    #[inline]
-    fn mbuf_mut(&mut self) -> &mut Mbuf {
-        self.envelope_mut().mbuf_mut()
-    }
-
-    /// Returns a reference to the encapsulating packet.
-    fn envelope(&self) -> &Self::Envelope;
-
-    /// Returns a mutable reference to the encapsulating packet.
-    fn envelope_mut(&mut self) -> &mut Self::Envelope;
-
-    /// Returns a reference to the packet header.
-    #[doc(hidden)]
-    fn header(&self) -> &Self::Header;
-
-    /// Returns a mutable reference to the packet header.
-    #[doc(hidden)]
-    fn header_mut(&mut self) -> &mut Self::Header;
-
-    /// Returns the buffer offset where the packet header begins.
-    fn offset(&self) -> usize;
-
-    /// Returns the length of the packet header.
-    ///
-    /// Includes both the fixed and variable portion of the header.
-    #[inline]
-    fn header_len(&self) -> usize {
-        Self::Header::size_of()
-    }
-
-    /// Returns the length of the packet.
-    #[inline]
-    fn len(&self) -> usize {
-        self.mbuf().data_len() - self.offset()
-    }
-
-    /// Returns the buffer offset where the packet payload begins.
-    #[inline]
-    fn payload_offset(&self) -> usize {
-        self.offset() + self.header_len()
-    }
-
-    /// Returns the length of the packet payload.
-    #[inline]
-    fn payload_len(&self) -> usize {
-        self.len() - self.header_len()
+    /// Returns a mutable reference to the envelope.
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
+        self.envelope_mut0()
     }
 
     /// Parses the payload as packet of `T`.
@@ -231,16 +231,38 @@ pub trait Packet: PacketBase {
     where
         Self: Sized,
     {
-        T::try_push(self)
+        T::try_push(self, Internal(()))
     }
 
     /// Removes this packet's header from the message buffer.
     ///
     /// The packet's payload becomes the payload of its envelope. The
     /// result of the removal is not guaranteed to be a valid packet.
+    #[inline]
     fn remove(self) -> Fallible<Self::Envelope>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.try_remove(Internal(()))
+    }
+
+    /// Deparses the packet and returns its envelope.
+    #[inline]
+    fn deparse(self) -> Self::Envelope
+    where
+        Self: Sized,
+    {
+        self.into_envelope()
+    }
+
+    /// Resets the parsed packet back to raw packet.
+    #[inline]
+    fn reset(self) -> Mbuf
+    where
+        Self: Sized,
+    {
+        self.reset0()
+    }
 
     /// Cascades the changes recursively through the layers.
     ///
@@ -249,20 +271,11 @@ pub trait Packet: PacketBase {
     /// such changes are propogated through all the layers.
     #[inline]
     fn cascade(&mut self) {
-        self.envelope_mut().cascade();
-    }
-
-    /// Deparses the packet and returns its envelope.
-    fn deparse(self) -> Self::Envelope;
-
-    /// Resets the parsed packet back to raw packet.
-    fn reset(self) -> Mbuf
-    where
-        Self: Sized,
-    {
-        self.deparse().reset()
+        self.cascade0();
     }
 }
+
+impl<T: PacketBase> Packet for T {}
 
 /// Immutable smart pointer to a packet.
 ///

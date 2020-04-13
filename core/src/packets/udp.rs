@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -77,6 +77,16 @@ pub struct Udp<E: IpPacket> {
 }
 
 impl<E: IpPacket> Udp<E> {
+    #[inline]
+    fn header(&self) -> &UdpHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut UdpHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
@@ -142,8 +152,8 @@ impl<E: IpPacket> Udp<E> {
     #[inline]
     pub fn flow(&self) -> Flow {
         Flow::new(
-            self.envelope().src(),
-            self.envelope().dst(),
+            self.envelope0().src(),
+            self.envelope0().dst(),
             self.src_port(),
             self.dst_port(),
             ProtocolNumbers::Udp,
@@ -157,9 +167,9 @@ impl<E: IpPacket> Udp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope().src();
+        let old_ip = self.envelope0().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
-        self.envelope_mut().set_src(src_ip)?;
+        self.envelope_mut0().set_src(src_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -171,9 +181,9 @@ impl<E: IpPacket> Udp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope().dst();
+        let old_ip = self.envelope0().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
-        self.envelope_mut().set_dst(dst_ip)?;
+        self.envelope_mut0().set_dst(dst_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -185,7 +195,7 @@ impl<E: IpPacket> Udp<E> {
         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
             let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
-                .envelope()
+                .envelope0()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Udp)
                 .sum();
             let checksum = checksum::compute(pseudo_header_sum, data);
@@ -213,7 +223,40 @@ impl<E: IpPacket> fmt::Debug for Udp<E> {
 
 impl<E: IpPacket> PacketBase for Udp<E> {
     type Envelope = E;
-    type Header = UdpHeader;
+
+    #[inline]
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        UdpHeader::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Udp::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
 
     #[inline]
     fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
@@ -234,12 +277,12 @@ impl<E: IpPacket> PacketBase for Udp<E> {
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, UdpHeader::size_of())?;
+        let header = mbuf.write_data(offset, &UdpHeader::default())?;
 
         envelope.set_next_protocol(ProtocolNumbers::Udp);
 
@@ -251,84 +294,28 @@ impl<E: IpPacket> PacketBase for Udp<E> {
     }
 
     #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Udp::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
-impl<E: IpPacket> Packet for Udp<E> {
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
-
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self, _internal: Internal) {
         let len = self.len() as u16;
         self.set_length(len);
         self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
     }
 }
 
-/// UDP header accessible through [`Udp`].
-///
-/// [`Udp`]: Udp
+/// UDP header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
-pub struct UdpHeader {
+struct UdpHeader {
     src_port: u16,
     dst_port: u16,
     length: u16,
     checksum: u16,
 }
 
-impl Header for UdpHeader {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Ethernet;
+    use crate::packets::{Ethernet, Packet};
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};

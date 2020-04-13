@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -121,6 +121,16 @@ pub struct Tcp<E: IpPacket> {
 }
 
 impl<E: IpPacket> Tcp<E> {
+    #[inline]
+    fn header(&self) -> &TcpHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut TcpHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
@@ -395,8 +405,8 @@ impl<E: IpPacket> Tcp<E> {
     #[inline]
     pub fn flow(&self) -> Flow {
         Flow::new(
-            self.envelope().src(),
-            self.envelope().dst(),
+            self.envelope0().src(),
+            self.envelope0().dst(),
             self.src_port(),
             self.dst_port(),
             ProtocolNumbers::Tcp,
@@ -410,9 +420,9 @@ impl<E: IpPacket> Tcp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope().src();
+        let old_ip = self.envelope0().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
-        self.envelope_mut().set_src(src_ip)?;
+        self.envelope_mut0().set_src(src_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -424,9 +434,9 @@ impl<E: IpPacket> Tcp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope().dst();
+        let old_ip = self.envelope0().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
-        self.envelope_mut().set_dst(dst_ip)?;
+        self.envelope_mut0().set_dst(dst_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -438,7 +448,7 @@ impl<E: IpPacket> Tcp<E> {
         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
             let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
-                .envelope()
+                .envelope0()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Tcp)
                 .sum();
             let checksum = checksum::compute(pseudo_header_sum, data);
@@ -479,7 +489,40 @@ impl<E: IpPacket> fmt::Debug for Tcp<E> {
 
 impl<E: IpPacket> PacketBase for Tcp<E> {
     type Envelope = E;
-    type Header = TcpHeader;
+
+    #[inline]
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        TcpHeader::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Tcp::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
 
     #[inline]
     fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
@@ -500,12 +543,12 @@ impl<E: IpPacket> PacketBase for Tcp<E> {
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, TcpHeader::size_of())?;
+        let header = mbuf.write_data(offset, &TcpHeader::default())?;
 
         envelope.set_next_protocol(ProtocolNumbers::Tcp);
 
@@ -517,72 +560,18 @@ impl<E: IpPacket> PacketBase for Tcp<E> {
     }
 
     #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Tcp::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
-impl<E: IpPacket> Packet for Tcp<E> {
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
-
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self, _internal: Internal) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
     }
 }
 
-/// TCP header accessible through [`Tcp`].
+/// TCP header.
 ///
 /// The header only include the fixed portion of the TCP header. Variable
 /// sized options are parsed separately.
-///
-/// [`Tcp`]: Tcp
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
-pub struct TcpHeader {
+struct TcpHeader {
     src_port: u16,
     dst_port: u16,
     seq_no: u32,
@@ -610,14 +599,12 @@ impl Default for TcpHeader {
     }
 }
 
-impl Header for TcpHeader {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::ip::v6::{Ipv6, SegmentRouting};
-    use crate::packets::Ethernet;
+    use crate::packets::{Ethernet, Packet};
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
