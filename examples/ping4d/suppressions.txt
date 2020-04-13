@@ -1,2 +1,4 @@
-# This is a known leak.
+# This file is used to suppress certain known leak-checks when running this
+# example as part of our CI build. More info can be found here:
+# https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer
 leak:vmbus_scan_one
