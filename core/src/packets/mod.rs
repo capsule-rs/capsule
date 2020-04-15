@@ -20,7 +20,7 @@
 
 pub mod checksum;
 mod ethernet;
-//pub mod icmp;
+pub mod icmp;
 pub mod ip;
 mod tcp;
 mod udp;
@@ -56,7 +56,7 @@ pub struct Internal(());
 /// [`Packet`] trait instead.
 ///
 /// [`Packet`]: Packet
-//#[allow(clippy::len_without_is_empty)]
+#[allow(clippy::len_without_is_empty)]
 pub trait PacketBase {
     /// The proceeding packet type that encapsulates this packet.
     ///

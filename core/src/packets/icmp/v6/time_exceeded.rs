@@ -18,7 +18,7 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
-use crate::packets::Packet;
+use crate::packets::PacketBase;
 use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 
@@ -55,13 +55,12 @@ impl Icmpv6Payload for TimeExceeded {
 
 impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {
     #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self) {
         // keeps as much of the invoking packet without exceeding the
         // minimum MTU, and ignores the error if there's nothing to
         // truncate.
-        let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
+        let _ = self.envelope_mut0().truncate(IPV6_MIN_MTU);
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

@@ -26,7 +26,7 @@ pub use self::echo_request::*;
 
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -89,61 +89,53 @@ impl fmt::Debug for Icmpv4<()> {
 }
 
 impl Icmpv4Packet<()> for Icmpv4<()> {
+    #[inline]
+    fn header(&self) -> &Icmpv4Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Icmpv4Header {
+        unsafe { self.header.as_mut() }
+    }
+
+    #[inline]
     fn payload(&self) -> &() {
         unsafe { self.payload.as_ref() }
     }
 
+    #[inline]
     fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
     }
 }
 
 impl PacketBase for Icmpv4<()> {
-    type Header = Icmpv4Header;
     type Envelope = Ipv4;
 
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
-            ParseError::new("not an ICMPv4 packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
-
-        Ok(Icmpv4 {
-            envelope,
-            header,
-            payload,
-            offset,
-        })
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
 
-        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
 
-        let mut packet = Icmpv4 {
-            envelope,
-            header,
-            payload,
-            offset,
-        };
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
 
-        packet.header_mut().msg_type = <()>::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_protocol(ProtocolNumbers::Icmpv4);
-
-        Ok(packet)
+    #[inline]
+    fn header_len(&self) -> usize {
+        Icmpv4Header::size_of()
     }
 
     #[inline]
@@ -155,53 +147,54 @@ impl PacketBase for Icmpv4<()> {
             offset: self.offset,
         }
     }
-}
 
-impl Packet for Icmpv4<()> {
     #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
+            ParseError::new("not an ICMPv4 packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+        let payload = mbuf.read_data(offset + Icmpv4Header::size_of())?;
+
+        Ok(Icmpv4 {
+            envelope,
+            header,
+            payload,
+            offset,
+        })
     }
 
     #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
+        mbuf.extend(offset, Icmpv4Header::size_of() + <()>::size_of())?;
+        let header = mbuf.write_data(offset, &Icmpv4Header::default())?;
+        let payload = mbuf.write_data(offset + Icmpv4Header::size_of(), &<()>::default())?;
 
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
+        let mut packet = Icmpv4 {
+            envelope,
+            header,
+            payload,
+            offset,
+        };
 
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
+        packet.header_mut().msg_type = <()>::msg_type().0;
+        packet
+            .envelope_mut0()
+            .set_next_protocol(ProtocolNumbers::Icmpv4);
 
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
+        Ok(packet)
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self, _internal: Internal) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
     }
 }
 
@@ -249,9 +242,8 @@ impl fmt::Display for Icmpv4Type {
     }
 }
 
-/// ICMPv4 header accessible through [`Icmpv4`].
-///
-/// [`Icmpv4`]: Icmpv4
+/// ICMPv4 header.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv4Header {
@@ -259,8 +251,6 @@ pub struct Icmpv4Header {
     code: u8,
     checksum: u16,
 }
-
-impl Header for Icmpv4Header {}
 
 /// Common behaviors for ICMPv4 payloads.
 pub trait Icmpv4Payload: Clone + Default + SizeOf {
@@ -293,10 +283,16 @@ impl Icmpv4Payload for () {
 /// ## Remarks
 ///
 /// When using the associated derive macro, the payload struct implementation
-/// must provide an private implementation of the `cascade` function.
+/// must provide an private implementation of the `fix_invariants` function.
 ///
 /// [`Packet`]: crate::packets::Packet
-pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Header = Icmpv4Header, Envelope = Ipv4> {
+pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Envelope = Ipv4> {
+    /// Returns a reference to the header.
+    fn header(&self) -> &Icmpv4Header;
+
+    /// Returns a mutable reference to the header.
+    fn header_mut(&mut self) -> &mut Icmpv4Header;
+
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
 

@@ -32,7 +32,7 @@ pub use self::too_big::*;
 use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, PacketBase, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -97,61 +97,53 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
+    #[inline]
+    fn header(&self) -> &Icmpv6Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Icmpv6Header {
+        unsafe { self.header.as_mut() }
+    }
+
+    #[inline]
     fn payload(&self) -> &() {
         unsafe { self.payload.as_ref() }
     }
 
+    #[inline]
     fn payload_mut(&mut self) -> &mut () {
         unsafe { self.payload.as_mut() }
     }
 }
 
 impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
-    type Header = Icmpv6Header;
     type Envelope = E;
 
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
-        ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Icmpv6,
-            ParseError::new("not an ICMPv6 packet.")
-        );
-
-        let mbuf = envelope.mbuf();
-        let offset = envelope.payload_offset();
-        let header = mbuf.read_data(offset)?;
-        let payload = mbuf.read_data(offset + Self::Header::size_of())?;
-
-        Ok(Icmpv6 {
-            envelope,
-            header,
-            payload,
-            offset,
-        })
+    fn envelope0(&self) -> &Self::Envelope {
+        &self.envelope
     }
 
     #[inline]
-    fn try_push(mut envelope: Self::Envelope) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
+    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
 
-        mbuf.extend(offset, Self::Header::size_of() + <()>::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let payload = mbuf.write_data(offset + Self::Header::size_of(), &<()>::default())?;
+    #[inline]
+    fn into_envelope(self) -> Self::Envelope {
+        self.envelope
+    }
 
-        let mut packet = Icmpv6 {
-            envelope,
-            header,
-            payload,
-            offset,
-        };
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
 
-        packet.header_mut().msg_type = <()>::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_header(ProtocolNumbers::Icmpv6);
-
-        Ok(packet)
+    #[inline]
+    fn header_len(&self) -> usize {
+        Icmpv6Header::size_of()
     }
 
     #[inline]
@@ -163,53 +155,57 @@ impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
             offset: self.offset,
         }
     }
-}
 
-impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
     #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        &self.envelope
+    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+        ensure!(
+            envelope.next_protocol() == ProtocolNumbers::Icmpv6,
+            ParseError::new("not an ICMPv6 packet.")
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+        let payload = mbuf.read_data(offset + Icmpv6Header::size_of())?;
+
+        Ok(Icmpv6 {
+            envelope,
+            header,
+            payload,
+            offset,
+        })
     }
 
     #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        &mut self.envelope
-    }
+    fn try_push(
+        mut envelope: Self::Envelope,
+        _internal: crate::packets::Internal,
+    ) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
+        mbuf.extend(offset, Icmpv6Header::size_of() + <()>::size_of())?;
+        let header = mbuf.write_data(offset, &Icmpv6Header::default())?;
+        let payload = mbuf.write_data(offset + Icmpv6Header::size_of(), &<()>::default())?;
 
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
+        let mut packet = Icmpv6 {
+            envelope,
+            header,
+            payload,
+            offset,
+        };
 
-    #[inline]
-    fn offset(&self) -> usize {
-        self.offset
-    }
+        packet.header_mut().msg_type = <()>::msg_type().0;
+        packet
+            .envelope_mut0()
+            .set_next_header(ProtocolNumbers::Icmpv6);
 
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
+        Ok(packet)
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn fix_invariants(&mut self, _internal: Internal) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.envelope
     }
 }
 
@@ -299,9 +295,8 @@ impl fmt::Display for Icmpv6Type {
     }
 }
 
-/// ICMPv6 header accessible through [`Icmpv6`].
-///
-/// [`Icmpv6`]: Icmpv6
+/// ICMPv6 header.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 pub struct Icmpv6Header {
@@ -309,8 +304,6 @@ pub struct Icmpv6Header {
     code: u8,
     checksum: u16,
 }
-
-impl Header for Icmpv6Header {}
 
 /// ICMPv6 packet payload.
 ///
@@ -347,12 +340,16 @@ impl Icmpv6Payload for () {
 /// ## Remarks
 ///
 /// When using the associated derive macro, the payload struct implementation
-/// must provide an private implementation of the `cascade` function.
+/// must provide an private implementation of the `fix_invariants` function.
 ///
 /// [`Packet`]: crate::packets::Packet
-pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>:
-    Packet<Header = Icmpv6Header, Envelope = E>
-{
+pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>: Packet<Envelope = E> {
+    /// Returns a reference to the header.
+    fn header(&self) -> &Icmpv6Header;
+
+    /// Returns a mutable reference to the header.
+    fn header_mut(&mut self) -> &mut Icmpv6Header;
+
     /// Returns a reference to the fixed payload.
     fn payload(&self) -> &P;
 
