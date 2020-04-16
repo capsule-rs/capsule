@@ -20,7 +20,7 @@
 
 use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
-use crate::packets::{EtherTypes, Ethernet, Internal, PacketBase, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -383,22 +383,18 @@ impl fmt::Debug for Ipv4 {
     }
 }
 
-impl PacketBase for Ipv4 {
+impl Packet for Ipv4 {
+    /// The proceeding type for `Ipv4` packet must be `Ethernet`.
     type Envelope = Ethernet;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -420,8 +416,15 @@ impl PacketBase for Ipv4 {
         }
     }
 
+    /// Parses the Ethernet's payload as an IPv4 packet.
+    ///
+    /// [`ether_type`] must be set to [`EtherTypes::Ipv4`]. Otherwise returns
+    /// a parsing error.
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv4,
             ParseError::new("not an IPv4 packet.")
@@ -438,6 +441,12 @@ impl PacketBase for Ipv4 {
         })
     }
 
+    /// Prepends an IPv4 packet at the start of the Ethernet's payload.
+    ///
+    /// [`ether_type`] is set to [`EtherTypes::Ipv4`].
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
     #[inline]
     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
@@ -456,7 +465,21 @@ impl PacketBase for Ipv4 {
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
+    ///
+    /// * [`total_length`] is set to the total length of the header and the
+    /// payload.
+    /// * [`checksum`] is computed based on the IPv4 header.
+    ///
+    /// [`total_length`]: Ipv4::total_length
+    /// [`checksum`]: Ipv4::checksum
+    #[inline]
+    fn reconcile(&mut self) {
         self.set_total_length(self.len() as u16);
         self.compute_checksum();
     }
@@ -568,7 +591,6 @@ impl Default for Ipv4Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::Packet;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 
@@ -670,7 +692,7 @@ mod tests {
 
         let expected = ipv4.checksum();
         // no payload change but force a checksum recompute anyway
-        ipv4.cascade();
+        ipv4.reconcile_all();
         assert_eq!(expected, ipv4.checksum());
     }
 }

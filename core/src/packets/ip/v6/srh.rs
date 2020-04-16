@@ -19,7 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{Internal, PacketBase, ParseError};
+use crate::packets::{Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -248,22 +248,22 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
     }
 }
 
-impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
+impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
+    /// The proceeding packet type that encapsulates an IPv6 segment routing
+    /// packet.
+    ///
+    /// The proceeding type can be either an IPv6 packet or any IPv6 extension
+    /// packets.
     type Envelope = E;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -286,8 +286,15 @@ impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
         }
     }
 
+    /// Parses the envelope's payload as an IPv6 segment routing packet.
+    ///
+    /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Route`].
+    /// Otherwise returns a parsing error.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.next_header() == ProtocolNumbers::Ipv6Route,
             ParseError::new("not an IPv6 routing packet.")
@@ -317,6 +324,14 @@ impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
         }
     }
 
+    /// Prepends an IPv6 segment routing packet with a segment list of one
+    /// at the start of the envelope's payload.
+    ///
+    /// [`next_header`] is set to the value of the `next_header` field of the
+    /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Route`].
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
     #[inline]
     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
@@ -340,26 +355,34 @@ impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
             offset,
         };
 
-        packet.set_next_header(packet.envelope0().next_header());
+        packet.set_next_header(packet.envelope().next_header());
         packet
-            .envelope_mut0()
+            .envelope_mut()
             .set_next_header(ProtocolNumbers::Ipv6Route);
 
         Ok(packet)
     }
 
+    /// Removes IPv6 segment routing packet from the message buffer.
+    ///
+    /// The envelope's [`next_header`] field is set to the value of the
+    /// `next_header` field on the segment routing packet.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
     #[inline]
-    fn try_remove(mut self, _internal: Internal) -> Fallible<Self::Envelope> {
+    fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         let next_header = self.next_header();
         self.mbuf_mut().shrink(offset, len)?;
-        self.envelope_mut0().set_next_header(next_header);
+        self.envelope_mut().set_next_header(next_header);
         Ok(self.envelope)
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {}
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
 }
 
 impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
@@ -375,12 +398,12 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
 
     #[inline]
     fn src(&self) -> IpAddr {
-        self.envelope0().src()
+        self.envelope().src()
     }
 
     #[inline]
     fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
-        self.envelope_mut0().set_src(src)
+        self.envelope_mut().set_src(src)
     }
 
     #[inline]
@@ -399,7 +422,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
             self.set_segments(&segments)?;
 
             if self.segments_left() == 0 {
-                self.envelope_mut0().set_dst(dst)
+                self.envelope_mut().set_dst(dst)
             } else {
                 Ok(())
             }
@@ -440,7 +463,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
 
     #[inline]
     fn truncate(&mut self, mtu: usize) -> Fallible<()> {
-        self.envelope_mut0().truncate(mtu)
+        self.envelope_mut().truncate(mtu)
     }
 }
 
@@ -496,7 +519,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Ethernet, Packet, Tcp};
+    use crate::packets::{Ethernet, Tcp};
     use crate::testils::byte_arrays::{IPV6_TCP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
 
@@ -595,7 +618,7 @@ mod tests {
         // checksum, as it's 0 given above.
         assert_eq!(0, tcp.checksum());
 
-        tcp.cascade();
+        tcp.reconcile_all();
         let expected = tcp.checksum();
 
         // our checksum should now be calculated correctly & no longer be 0
@@ -610,7 +633,7 @@ mod tests {
         srh_ret.set_segments_left(0);
 
         let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
-        tcp_ret.cascade();
+        tcp_ret.reconcile_all();
         assert_eq!(expected, tcp_ret.checksum());
 
         // Let's make sure that if segments left is 0, then our checksum
@@ -618,7 +641,7 @@ mod tests {
         let mut srh_fin = tcp_ret.deparse();
         srh_fin.set_segments_left(0);
         let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
-        tcp_fin.cascade();
+        tcp_fin.reconcile_all();
         assert_eq!(expected, tcp_fin.checksum());
     }
 
@@ -646,7 +669,7 @@ mod tests {
 
         let mut srh = tcp.deparse();
         let srh_packet_len = srh.len();
-        srh.cascade();
+        srh.reconcile_all();
         let ipv6 = srh.deparse();
         assert_ne!(srh_packet_len, ipv6_payload_len as usize);
         assert_eq!(srh_packet_len, ipv6.payload_length() as usize)

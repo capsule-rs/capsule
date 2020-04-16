@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Internal, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -152,8 +152,8 @@ impl<E: IpPacket> Udp<E> {
     #[inline]
     pub fn flow(&self) -> Flow {
         Flow::new(
-            self.envelope0().src(),
-            self.envelope0().dst(),
+            self.envelope().src(),
+            self.envelope().dst(),
             self.src_port(),
             self.dst_port(),
             ProtocolNumbers::Udp,
@@ -167,9 +167,9 @@ impl<E: IpPacket> Udp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope0().src();
+        let old_ip = self.envelope().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
-        self.envelope_mut0().set_src(src_ip)?;
+        self.envelope_mut().set_src(src_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -181,9 +181,9 @@ impl<E: IpPacket> Udp<E> {
     /// `cascade` to recompute the checksum over all the fields.
     #[inline]
     pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
-        let old_ip = self.envelope0().dst();
+        let old_ip = self.envelope().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
-        self.envelope_mut0().set_dst(dst_ip)?;
+        self.envelope_mut().set_dst(dst_ip)?;
         self.set_checksum(checksum);
         Ok(())
     }
@@ -195,7 +195,7 @@ impl<E: IpPacket> Udp<E> {
         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
             let data = unsafe { data.as_ref() };
             let pseudo_header_sum = self
-                .envelope0()
+                .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Udp)
                 .sum();
             let checksum = checksum::compute(pseudo_header_sum, data);
@@ -221,22 +221,24 @@ impl<E: IpPacket> fmt::Debug for Udp<E> {
     }
 }
 
-impl<E: IpPacket> PacketBase for Udp<E> {
+impl<E: IpPacket> Packet for Udp<E> {
+    /// The proceeding packet type that encapsulates an UDP packet.
+    ///
+    /// The proceeding packet type can be either an [`IPv4`] packet, an
+    /// [`IPv6`] packet, or any IPv6 extension packets.
+    ///
+    /// [`IPv4`]: crate::packets::ip::v4::Ipv4
+    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
     type Envelope = E;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -258,8 +260,18 @@ impl<E: IpPacket> PacketBase for Udp<E> {
         }
     }
 
+    /// Parses the envelope's payload as an UDP packet.
+    ///
+    /// If the envelope is `IPv4`, then [`Ipv4::protocol`] must be set to
+    /// [`ProtocolNumbers::Udp`]. If the envelope is `IPv6` or an extension
+    /// header, then [`next_header`] must be set to `ProtocolNumbers::Udp`.
+    /// Otherwise, returns a parsing error.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.next_protocol() == ProtocolNumbers::Udp,
             ParseError::new("not a UDP packet.")
@@ -276,6 +288,15 @@ impl<E: IpPacket> PacketBase for Udp<E> {
         })
     }
 
+    /// Prepends an UDP packet at the start of the envelope's payload.
+    ///
+    /// If the envelope is `IPv4`, then [`Ipv4::protocol`] is set to
+    /// [`ProtocolNumbers::Udp`]. If the envelope is `IPv6` or an extension
+    /// header, then [`next_header`] is set to `ProtocolNumbers::Udp`.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     #[inline]
     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
@@ -294,7 +315,22 @@ impl<E: IpPacket> PacketBase for Udp<E> {
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
+    ///
+    /// * [`length`] is set to the total length of the header and the payload.
+    /// * [`checksum`] is computed based on the [`pseudo-header`] and the
+    /// full packet.
+    ///
+    /// [`length`]: Udp::length
+    /// [`checksum`]: Udp::checksum
+    /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
+    #[inline]
+    fn reconcile(&mut self) {
         let len = self.len() as u16;
         self.set_length(len);
         self.compute_checksum();
@@ -315,7 +351,7 @@ struct UdpHeader {
 mod tests {
     use super::*;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Ethernet, Packet};
+    use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
@@ -394,7 +430,7 @@ mod tests {
 
         let expected = udp.checksum();
         // no payload change but force a checksum recompute anyway
-        udp.cascade();
+        udp.reconcile_all();
         assert_eq!(expected, udp.checksum());
     }
 

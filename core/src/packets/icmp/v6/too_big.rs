@@ -18,7 +18,7 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::PacketBase;
+use crate::packets::Packet;
 use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 
@@ -69,12 +69,12 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
     }
 
     #[inline]
-    fn fix_invariants(&mut self) {
+    fn reconcile(&mut self) {
         let mtu = self.mtu() as usize;
         // keeps as much of the invoking packet without exceeding the
         // next-hop MTU, and ignores the error if there's nothing to
         // truncate.
-        let _ = self.envelope_mut0().truncate(mtu);
+        let _ = self.envelope_mut().truncate(mtu);
         self.compute_checksum();
     }
 }

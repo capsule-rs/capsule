@@ -32,7 +32,7 @@ pub use self::too_big::*;
 use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
-use crate::packets::{checksum, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -118,22 +118,21 @@ impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
     }
 }
 
-impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
+impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
+    /// The proceeding type for `ICMPv6` packet must be either an [`IPv6`]
+    /// packet or any IPv6 extension packets.
+    ///
+    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
     type Envelope = E;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -156,8 +155,15 @@ impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
         }
     }
 
+    /// Parses the envelope's payload as an `ICMPv6` packet.
+    ///
+    /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
+    /// Otherwise, returns a parsing error.
+    ///
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.next_protocol() == ProtocolNumbers::Icmpv6,
             ParseError::new("not an ICMPv6 packet.")
@@ -176,6 +182,12 @@ impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
         })
     }
 
+    /// Prepends an `ICMPv6` packet at the start of the envelope's payload.
+    ///
+    /// [`next_header`] is set to [`ProtocolNumbers::Icmpv6`].
+    ///
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
     #[inline]
     fn try_push(
         mut envelope: Self::Envelope,
@@ -197,14 +209,27 @@ impl<E: Ipv6Packet> PacketBase for Icmpv6<E, ()> {
 
         packet.header_mut().msg_type = <()>::msg_type().0;
         packet
-            .envelope_mut0()
+            .envelope_mut()
             .set_next_header(ProtocolNumbers::Icmpv6);
 
         Ok(packet)
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
+    ///
+    /// * [`checksum`] is computed based on the [`pseudo-header`] and the
+    /// full packet.
+    ///
+    /// [`checksum`]: Icmpv6Packet::checksum
+    /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
+    #[inline]
+    fn reconcile(&mut self) {
         self.compute_checksum();
     }
 }
@@ -560,7 +585,7 @@ mod tests {
 
         let expected = icmpv6.checksum();
         // no payload change but force a checksum recompute anyway
-        icmpv6.cascade();
+        icmpv6.reconcile_all();
         assert_eq!(expected, icmpv6.checksum());
     }
 

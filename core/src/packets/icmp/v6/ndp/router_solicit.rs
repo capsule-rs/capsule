@@ -69,7 +69,7 @@ impl NdpPayload for RouterSolicitation {}
 
 impl<E: Ipv6Packet> Icmpv6<E, RouterSolicitation> {
     #[inline]
-    fn fix_invariants(&mut self) {
+    fn reconcile(&mut self) {
         self.compute_checksum();
     }
 }

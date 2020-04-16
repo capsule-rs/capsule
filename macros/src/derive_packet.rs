@@ -45,22 +45,21 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             }
         }
 
-        impl<E: Ipv6Packet> crate::packets::PacketBase for crate::packets::icmp::v6::Icmpv6<E, #name> {
+        impl<E: Ipv6Packet> crate::packets::Packet for crate::packets::icmp::v6::Icmpv6<E, #name> {
+            /// The proceeding type for `ICMPv6` packet must be either an [`IPv6`]
+            /// packet or any IPv6 extension packets.
+            ///
+            /// [`IPv6`]: crate::packets::ip::v6::Ipv6
             type Envelope = E;
 
             #[inline]
-            fn envelope0(&self) -> &Self::Envelope {
+            fn envelope(&self) -> &Self::Envelope {
                 &self.envelope
             }
 
             #[inline]
-            fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+            fn envelope_mut(&mut self) -> &mut Self::Envelope {
                 &mut self.envelope
-            }
-
-            #[inline]
-            fn into_envelope(self) -> Self::Envelope {
-                self.envelope
             }
 
             #[inline]
@@ -83,12 +82,19 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 }
             }
 
+            /// Parses the envelope's payload as an `ICMPv6` packet.
+            ///
+            /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
+            /// Otherwise, returns a parsing error.
+            ///
+            /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+            /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
             #[inline]
-            fn try_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn try_parse(envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::ensure;
                 use crate::packets::icmp::v6::Icmpv6Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::{PacketBase, ParseError};
+                use crate::packets::{Packet, ParseError};
 
                 ensure!(
                     envelope.next_protocol() == ProtocolNumbers::Icmpv6,
@@ -108,11 +114,17 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
+            /// Prepends an `ICMPv6` packet at the start of the envelope's payload.
+            ///
+            /// [`next_header`] is set to [`ProtocolNumbers::Icmpv6`].
+            ///
+            /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+            /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
             #[inline]
             fn try_push(mut envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::packets::icmp::v6::Icmpv6Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::PacketBase;
+                use crate::packets::Packet;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
@@ -130,15 +142,25 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
 
                 packet.header_mut().msg_type = #name::msg_type().0;
                 packet
-                    .envelope_mut0()
+                    .envelope_mut()
                     .set_next_header(ProtocolNumbers::Icmpv6);
 
                 Ok(packet)
             }
 
             #[inline]
-            fn fix_invariants(&mut self, _internal: crate::packets::Internal) {
-                self.fix_invariants();
+            fn deparse(self) -> Self::Envelope {
+                self.envelope
+            }
+
+            /// Reconciles the derivable attributes against the changes made to the
+            /// packet.
+            ///
+            /// The implementation is delegated to the private `reconcile` function in
+            /// the payload struct.
+            #[inline]
+            fn reconcile(&mut self) {
+                self.reconcile();
             }
         }
     };
@@ -172,22 +194,18 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             }
         }
 
-        impl crate::packets::PacketBase for Icmpv4<#name> {
+        impl crate::packets::Packet for Icmpv4<#name> {
+            /// The proceeding type for `ICMPv4` packet must be `IPv4`.
             type Envelope = crate::packets::ip::v4::Ipv4;
 
             #[inline]
-            fn envelope0(&self) -> &Self::Envelope {
+            fn envelope(&self) -> &Self::Envelope {
                 &self.envelope
             }
 
             #[inline]
-            fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+            fn envelope_mut(&mut self) -> &mut Self::Envelope {
                 &mut self.envelope
-            }
-
-            #[inline]
-            fn into_envelope(self) -> Self::Envelope {
-                self.envelope
             }
 
             #[inline]
@@ -210,12 +228,19 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 }
             }
 
+            /// Parses the envelope's payload as an `ICMPv4` packet.
+            ///
+            /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
+            /// Otherwise, returns a parsing error.
+            ///
+            /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+            /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
             #[inline]
-            fn try_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn try_parse(envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::ensure;
                 use crate::packets::icmp::v4::Icmpv4Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::{PacketBase, ParseError};
+                use crate::packets::{Packet, ParseError};
 
                 ensure!(
                     envelope.next_protocol() == ProtocolNumbers::Icmpv4,
@@ -235,11 +260,17 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
+            /// Prepends an `ICMPv4` packet at the start of the envelope's payload.
+            ///
+            /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
+            ///
+            /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+            /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
             #[inline]
             fn try_push(mut envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::packets::icmp::v4::Icmpv4Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::PacketBase;
+                use crate::packets::Packet;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
@@ -257,15 +288,25 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
 
                 packet.header_mut().msg_type = #name::msg_type().0;
                 packet
-                    .envelope_mut0()
+                    .envelope_mut()
                     .set_next_protocol(ProtocolNumbers::Icmpv4);
 
                 Ok(packet)
             }
 
             #[inline]
-            fn fix_invariants(&mut self, _internal: crate::packets::Internal) {
-                self.fix_invariants();
+            fn deparse(self) -> Self::Envelope {
+                self.envelope
+            }
+
+            /// Reconciles the derivable attributes against the changes made to the
+            /// packet.
+            ///
+            /// The implementation is delegated to the private `reconcile` function in
+            /// the payload struct.
+            #[inline]
+            fn reconcile(&mut self) {
+                self.reconcile();
             }
         }
     };

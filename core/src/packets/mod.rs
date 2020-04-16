@@ -35,29 +35,22 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-/// An argument to restrict users from calling functions on the [`PacketBase`]
+/// An argument to restrict users from calling functions on the [`Packet`]
 /// trait.
 ///
 /// While `Internal` is a publicly exported type, it can only be created
 /// inside the crate. Hence any function using it as an argument can only
 /// be called from within the crate. For example, users cannot invoke
-/// [`PacketBase::clone`] directly from their code.
+/// [`Packet::clone`] directly from their code.
 ///
 /// [`PacketBase`]: PacketBase
 /// [`PacketBase::clone`]: PacketBase::clone
 #[derive(Clone, Debug)]
 pub struct Internal(());
 
-/// A trait network protocols implement to integrate with other protocols.
-///
-/// Only use this trait to implement a new network protocol. The trait is
-/// not intended to be used directly. Many functions are restricted and are
-/// only callable from within the crate. Most applications should use the
-/// [`Packet`] trait instead.
-///
-/// [`Packet`]: Packet
+/// A trait all network protocols implement.
 #[allow(clippy::len_without_is_empty)]
-pub trait PacketBase {
+pub trait Packet {
     /// The proceeding packet type that encapsulates this packet.
     ///
     /// The envelope behaves as a constraint to enforce strict ordering
@@ -65,48 +58,49 @@ pub trait PacketBase {
     /// encapsulated by an [`Ethernet`] packet.
     ///
     /// [`Ethernet`]: Ethernet
-    /// [`IPv4`]: Ipv4
+    /// [`IPv4`]: ip::v4::Ipv4
     type Envelope: Packet;
 
     /// Returns a reference to the envelope.
-    fn envelope0(&self) -> &Self::Envelope;
+    fn envelope(&self) -> &Self::Envelope;
 
     /// Returns a mutable reference to the envelope.
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope;
-
-    /// Returns the envelope.
-    fn into_envelope(self) -> Self::Envelope
-    where
-        Self: Sized;
+    fn envelope_mut(&mut self) -> &mut Self::Envelope;
 
     /// Returns a reference to the raw message buffer.
+    ///
+    /// Directly reading from the buffer is error-prone and discouraged except
+    /// when implementing a new protocol.
     #[inline]
     fn mbuf(&self) -> &Mbuf {
-        self.envelope0().mbuf()
+        self.envelope().mbuf()
     }
 
     /// Returns a mutable reference to the raw message buffer.
+    ///
+    /// Directly writing to the buffer is error-prone and discouraged except
+    /// when implementing a new protocol.
     #[inline]
     fn mbuf_mut(&mut self) -> &mut Mbuf {
-        self.envelope_mut0().mbuf_mut()
+        self.envelope_mut().mbuf_mut()
     }
 
-    /// Returns the buffer offset where the packet begins.
+    /// Returns the buffer offset where the current packet begins.
     fn offset(&self) -> usize;
 
     /// Returns the length of the packet header.
     fn header_len(&self) -> usize;
 
-    /// Returns the length of the packet with the payload.
-    #[inline]
-    fn len(&self) -> usize {
-        self.mbuf().data_len() - self.offset()
-    }
-
     /// Returns the buffer offset where the packet payload begins.
     #[inline]
     fn payload_offset(&self) -> usize {
         self.offset() + self.header_len()
+    }
+
+    /// Returns the length of the packet with the payload.
+    #[inline]
+    fn len(&self) -> usize {
+        self.mbuf().data_len() - self.offset()
     }
 
     /// Returns the length of the packet payload.
@@ -117,105 +111,63 @@ pub trait PacketBase {
 
     /// Returns a copy of the packet.
     ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`peek`].
+    ///
     /// # Safety
     ///
     /// The underlying byte buffer is not cloned. The original and the clone
     /// will share the same buffer. Both copies are independently mutable.
     /// Changes made through one copy could completely invalidate the other.
     ///
-    /// [`Packet::peek`] addresses this safety issue by wrapping the clone in
-    /// a [`Immutable`] and making the clone behave as an immutable borrow
-    /// of the original.
+    /// [`peek`] addresses this safety issue by wrapping the clone in an
+    /// [`Immutable`] and making the clone behave as an immutable borrow of
+    /// the original.
     ///
-    /// [`Packet::peek`]: Packet::peek
-    /// [`Immutable`] Immutable
+    /// [`peek`]: Packet::peek
+    /// [`Immutable`]: Immutable
     unsafe fn clone(&self, internal: Internal) -> Self;
 
     /// Parses the envelope's payload as this packet type.
     ///
     /// The implementation should perform the necessary buffer boundary
     /// checks and validate the invariants if any. For example, before parsing
-    /// the [`Ethernet`]'s payload as a [`IPv4`] packet, there should be a
+    /// the [`Ethernet`]'s payload as an [`IPv4`] packet, there should be a
     /// check to assert that [`ether_type`] matches the expectation.
     ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`parse`].
+    ///
     /// [`Ethernet`]: Ethernet
-    /// [`IPv4`]: Ipv4
+    /// [`IPv4`]: ip::v4::Ipv4
     /// [`ether_type`]: Ethernet::ether_type
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self>
+    /// [`parse`]: Packet::parse
+    fn try_parse(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
     where
         Self: Sized;
 
-    /// Prepends packet at the start of the envelope's payload.
-    ///
-    /// When the packet is inserted into an envelope with an existing payload,
-    /// the original payload becomes the payload of the new packet.
-    fn try_push(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
-    where
-        Self: Sized;
-
-    /// Removes the packet from the message buffer.
-    ///
-    /// The current payload of the packet becomes the payload of the envelope.
-    #[inline]
-    fn try_remove(mut self, _internal: Internal) -> Fallible<Self::Envelope>
-    where
-        Self: Sized,
-    {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.into_envelope())
-    }
-
-    /// Resets the parsed packet back to raw packet.
-    #[inline]
-    fn reset0(self) -> Mbuf
-    where
-        Self: Sized,
-    {
-        self.into_envelope().reset0()
-    }
-
-    /// Maintains the packet invariants after parts of it have been modified.
-    fn fix_invariants(&mut self, internal: Internal);
-
-    /// Cascades the changes recursively through the layers.
-    #[inline]
-    fn cascade0(&mut self) {
-        self.fix_invariants(Internal(()));
-        self.envelope_mut0().cascade0();
-    }
-}
-
-/// Common behaviors shared by all typed packets.
-pub trait Packet: PacketBase {
-    /// Returns a reference to the envelope.
-    fn envelope(&self) -> &Self::Envelope {
-        self.envelope0()
-    }
-
-    /// Returns a mutable reference to the envelope.
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        self.envelope_mut0()
-    }
-
-    /// Parses the payload as packet of `T`.
+    /// Parses the packet's payload as a packet of type `T`.
     ///
     /// The ownership of the packet is moved after invocation. To retain
-    /// ownership, use `Packet::peek` instead to gain immutable access
-    /// to the packet payload.
+    /// ownership, use [`peek`] instead.
+    ///
+    /// [`peek`]: Packet::peek
     #[inline]
     fn parse<T: Packet<Envelope = Self>>(self) -> Fallible<T>
     where
         Self: Sized,
     {
-        T::try_parse(self)
+        T::try_parse(self, Internal(()))
     }
 
-    /// Peeks into the payload as packet of `T`.
+    /// Peeks into the packet's payload as a packet of type `T`.
     ///
-    /// `Packet::peek` returns an immutable reference to the payload. Use
-    /// `Packet::parse` instead to gain mutable access to the packet payload.
+    /// `peek` returns an immutable reference to the payload. The caller
+    /// retains full ownership of the packet.
     #[inline]
     fn peek<'a, T: Packet<Envelope = Self>>(&'a self) -> Fallible<Immutable<'a, T>>
     where
@@ -225,7 +177,24 @@ pub trait Packet: PacketBase {
         clone.parse::<T>().map(Immutable::new)
     }
 
-    /// Pushes a new packet `T` as the payload.
+    /// Prepends a new packet at the start of the envelope's payload.
+    ///
+    /// When the packet is inserted into an envelope with an existing payload,
+    /// the original payload becomes the payload of the new packet. The
+    /// implementation should validate the invariants accordingly if there's
+    /// an existing payload.
+    ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`push`].
+    ///
+    /// [`push`]: Packet::push
+    fn try_push(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
+    where
+        Self: Sized;
+
+    /// Prepends a new packet of type `T` at the start of the payload.
     #[inline]
     fn push<T: Packet<Envelope = Self>>(self) -> Fallible<T>
     where
@@ -234,48 +203,60 @@ pub trait Packet: PacketBase {
         T::try_push(self, Internal(()))
     }
 
-    /// Removes this packet's header from the message buffer.
-    ///
-    /// The packet's payload becomes the payload of its envelope. The
-    /// result of the removal is not guaranteed to be a valid packet.
-    #[inline]
-    fn remove(self) -> Fallible<Self::Envelope>
-    where
-        Self: Sized,
-    {
-        self.try_remove(Internal(()))
-    }
-
-    /// Deparses the packet and returns its envelope.
-    #[inline]
+    /// Deparses the packet back to the envelope's packet type.
     fn deparse(self) -> Self::Envelope
     where
+        Self: Sized;
+
+    /// Removes this packet's header from the message buffer.
+    ///
+    /// After the removal, the packet's payload becomes the payload of its
+    /// envelope. The result of the removal is not guaranteed to be a valid
+    /// packet. The protocol should provide a custom implementation if
+    /// additional fixes are necessary.
+    #[inline]
+    fn remove(mut self) -> Fallible<Self::Envelope>
+    where
         Self: Sized,
     {
-        self.into_envelope()
+        let offset = self.offset();
+        let len = self.header_len();
+        self.mbuf_mut().shrink(offset, len)?;
+        Ok(self.deparse())
     }
 
-    /// Resets the parsed packet back to raw packet.
+    /// Resets the parsed packet back to `Mbuf`.
+    ///
+    /// [`Mbuf`]: Mbuf
     #[inline]
     fn reset(self) -> Mbuf
     where
         Self: Sized,
     {
-        self.reset0()
+        self.deparse().reset()
     }
 
-    /// Cascades the changes recursively through the layers.
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
     ///
-    /// An upper layer change to message buffer size can have cascading
-    /// effects on a lower layer packet header. This call recursively ensures
-    /// such changes are propogated through all the layers.
+    /// Protocols that have derivable attributes, like a checksum, should
+    /// implement this to recompute those attributes after changes were made
+    /// to the packet.
     #[inline]
-    fn cascade(&mut self) {
-        self.cascade0();
+    fn reconcile(&mut self) {}
+
+    /// Reconciles against the changes recursively through the layers.
+    ///
+    /// A change made to a packet can have cascading effects through the
+    /// envelope chain. The call will recursively reconcile those changes
+    /// starting at the current packet type. The recursion does not include
+    /// the payload if the payload contains other packet types.
+    #[inline]
+    fn reconcile_all(&mut self) {
+        self.reconcile();
+        self.envelope_mut().reconcile_all();
     }
 }
-
-impl<T: PacketBase> Packet for T {}
 
 /// Immutable smart pointer to a packet.
 ///

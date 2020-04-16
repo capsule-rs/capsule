@@ -41,7 +41,7 @@ pub use self::router_solicit::*;
 
 use super::{Icmpv6, Icmpv6Packet, Icmpv6Payload};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::PacketBase;
+use crate::packets::Packet;
 use failure::Fallible;
 
 /// NDP message payload marker.

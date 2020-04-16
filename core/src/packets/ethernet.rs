@@ -18,7 +18,7 @@
 
 use crate::dpdk::BufferError;
 use crate::net::MacAddr;
-use crate::packets::{Internal, PacketBase};
+use crate::packets::{Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -224,22 +224,18 @@ impl fmt::Debug for Ethernet {
     }
 }
 
-impl PacketBase for Ethernet {
+impl Packet for Ethernet {
+    /// The proceeding type for `Ethernet` must be `Mbuf`.
     type Envelope = Mbuf;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -247,6 +243,9 @@ impl PacketBase for Ethernet {
         self.offset
     }
 
+    /// Returns the length of the packet header.
+    ///
+    /// The length of the Ethernet header depends on the VLAN tags.
     #[inline]
     fn header_len(&self) -> usize {
         if self.is_dot1q() {
@@ -268,7 +267,7 @@ impl PacketBase for Ethernet {
     }
 
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -307,7 +306,9 @@ impl PacketBase for Ethernet {
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {}
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
 }
 
 /// The protocol identifier of the Ethernet frame payload.
@@ -455,7 +456,6 @@ impl SizeOf for EthernetHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::Packet;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
 
     #[test]

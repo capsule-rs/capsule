@@ -17,7 +17,7 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Packet, Icmpv4Payload, Icmpv4Type, Icmpv4Types};
-use crate::packets::PacketBase;
+use crate::packets::Packet;
 use crate::{Icmpv4Packet, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -121,7 +121,7 @@ impl Icmpv4<EchoReply> {
     }
 
     #[inline]
-    fn fix_invariants(&mut self) {
+    fn reconcile(&mut self) {
         self.compute_checksum();
     }
 }

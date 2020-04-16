@@ -26,7 +26,7 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
-use crate::packets::{EtherTypes, Ethernet, Internal, PacketBase, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -228,22 +228,18 @@ impl fmt::Debug for Ipv6 {
     }
 }
 
-impl PacketBase for Ipv6 {
+impl Packet for Ipv6 {
+    /// The proceeding type for `Ipv6` packet must be `Ethernet`.
     type Envelope = Ethernet;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -265,8 +261,15 @@ impl PacketBase for Ipv6 {
         }
     }
 
+    /// Parses the Ethernet's payload as an IPv6 packet.
+    ///
+    /// [`ether_type`] must be set to [`EtherTypes::Ipv6`]. Otherwise returns
+    /// a parsing error.
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv6`]: EtherTypes::Ipv6
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv6,
             ParseError::new("not an IPv6 packet.")
@@ -283,6 +286,12 @@ impl PacketBase for Ipv6 {
         })
     }
 
+    /// Prepends an IPv6 packet at the start of the Ethernet's payload.
+    ///
+    /// [`ether_type`] is set to [`EtherTypes::Ipv6`].
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv6`]: EtherTypes::Ipv6
     #[inline]
     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
@@ -301,7 +310,19 @@ impl PacketBase for Ipv6 {
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
+    ///
+    /// * [`payload_length`] is set to the length of the payload which includes
+    /// any extension headers present.
+    ///
+    /// [`payload_length`]: Ipv6::payload_length
+    #[inline]
+    fn reconcile(&mut self) {
         let len = self.payload_len() as u16;
         self.set_payload_length(len);
     }
@@ -385,7 +406,7 @@ impl Ipv6Packet for Ipv6 {
     }
 }
 
-/// Common behaviors shared by IPv6 and extension packets.
+/// A trait implemented by IPv6 and extension packets.
 pub trait Ipv6Packet: IpPacket {
     /// Returns the next header type.
     fn next_header(&self) -> ProtocolNumber;
@@ -423,7 +444,6 @@ impl Default for Ipv6Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::Packet;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
     use crate::Mbuf;
 

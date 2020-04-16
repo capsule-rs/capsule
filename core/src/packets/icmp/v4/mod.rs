@@ -26,7 +26,7 @@ pub use self::echo_request::*;
 
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -110,22 +110,18 @@ impl Icmpv4Packet<()> for Icmpv4<()> {
     }
 }
 
-impl PacketBase for Icmpv4<()> {
+impl Packet for Icmpv4<()> {
+    /// The proceeding type for `ICMPv4` packet must be `IPv4`.
     type Envelope = Ipv4;
 
     #[inline]
-    fn envelope0(&self) -> &Self::Envelope {
+    fn envelope(&self) -> &Self::Envelope {
         &self.envelope
     }
 
     #[inline]
-    fn envelope_mut0(&mut self) -> &mut Self::Envelope {
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
         &mut self.envelope
-    }
-
-    #[inline]
-    fn into_envelope(self) -> Self::Envelope {
-        self.envelope
     }
 
     #[inline]
@@ -148,10 +144,17 @@ impl PacketBase for Icmpv4<()> {
         }
     }
 
+    /// Parses the envelope's payload as an `ICMPv4` packet.
+    ///
+    /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
+    /// Otherwise, returns a parsing error.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
     #[inline]
-    fn try_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
-            envelope.next_protocol() == ProtocolNumbers::Icmpv4,
+            envelope.protocol() == ProtocolNumbers::Icmpv4,
             ParseError::new("not an ICMPv4 packet.")
         );
 
@@ -168,6 +171,12 @@ impl PacketBase for Icmpv4<()> {
         })
     }
 
+    /// Prepends an `ICMPv4` packet at the start of the envelope's payload.
+    ///
+    /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
     #[inline]
     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
@@ -186,14 +195,25 @@ impl PacketBase for Icmpv4<()> {
 
         packet.header_mut().msg_type = <()>::msg_type().0;
         packet
-            .envelope_mut0()
+            .envelope_mut()
             .set_next_protocol(ProtocolNumbers::Icmpv4);
 
         Ok(packet)
     }
 
     #[inline]
-    fn fix_invariants(&mut self, _internal: Internal) {
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable attributes against the changes made to the
+    /// packet.
+    ///
+    /// * [`checksum`] is computed based on the full packet.
+    ///
+    /// [`checksum`]: Icmpv4Packet::checksum
+    #[inline]
+    fn reconcile(&mut self) {
         self.compute_checksum();
     }
 }
@@ -283,7 +303,7 @@ impl Icmpv4Payload for () {
 /// ## Remarks
 ///
 /// When using the associated derive macro, the payload struct implementation
-/// must provide an private implementation of the `fix_invariants` function.
+/// must provide an private implementation of the `reconcile` function.
 ///
 /// [`Packet`]: crate::packets::Packet
 pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Envelope = Ipv4> {
@@ -424,7 +444,7 @@ mod tests {
 
         let expected = icmpv4.checksum();
         // no payload change but force a checksum recompute anyway
-        icmpv4.cascade();
+        icmpv4.reconcile_all();
         assert_eq!(expected, icmpv4.checksum());
     }
 

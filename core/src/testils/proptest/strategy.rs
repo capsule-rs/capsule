@@ -375,7 +375,7 @@ fn tcp<E: Debug + IpPacket>(
                 if fin {
                     packet.set_fin();
                 }
-                packet.cascade();
+                packet.reconcile_all();
                 packet.reset()
             },
         )
@@ -394,7 +394,7 @@ fn udp<E: Debug + IpPacket>(
             let mut packet = packet.push::<Udp<E>>().unwrap();
             packet.set_src_port(src_port);
             packet.set_dst_port(dst_port);
-            packet.cascade();
+            packet.reconcile_all();
             packet.reset()
         })
 }

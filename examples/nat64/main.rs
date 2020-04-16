@@ -108,7 +108,7 @@ fn nat_4to6(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
 
             let mut tcp = v6.parse::<Tcp<Ipv6>>()?;
             tcp.set_dst_port(port);
-            tcp.cascade();
+            tcp.reconcile_all();
 
             Ok(Either::Keep(tcp.deparse().deparse()))
         } else {
@@ -142,7 +142,7 @@ fn nat_6to4(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
         let mut tcp = v4.parse::<Tcp<Ipv4>>()?;
         let port = tcp.src_port();
         tcp.set_src_port(assigned_port(src, port));
-        tcp.cascade();
+        tcp.reconcile_all();
 
         Ok(Either::Keep(tcp.deparse().deparse()))
     } else {
