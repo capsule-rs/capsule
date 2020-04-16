@@ -225,6 +225,15 @@ pub trait Packet {
         Ok(self.deparse())
     }
 
+    /// Removes the packet's payload from the message buffer.
+    #[inline]
+    fn remove_payload(&mut self) -> Fallible<()> {
+        let offset = self.payload_offset();
+        let len = self.payload_len();
+        self.mbuf_mut().shrink(offset, len)?;
+        Ok(())
+    }
+
     /// Resets the parsed packet back to `Mbuf`.
     ///
     /// [`Mbuf`]: Mbuf
@@ -349,5 +358,21 @@ mod tests {
         let udp_2 = v4_2.parse::<Udp<Ipv4>>().unwrap();
         let v4_4 = udp_2.envelope();
         assert_eq!(v4_4.ttl(), 25);
+    }
+
+    #[capsule::test]
+    fn remove_header_and_payload() {
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let v4 = ethernet.parse::<Ipv4>().unwrap();
+
+        let mut udp = v4.parse::<Udp<Ipv4>>().unwrap();
+        assert!(udp.payload_len() > 0);
+
+        let _ = udp.remove_payload();
+        assert_eq!(0, udp.payload_len());
+
+        let v4 = udp.remove().unwrap();
+        assert_eq!(0, v4.payload_len());
     }
 }
