@@ -141,7 +141,7 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
 
 impl<E: Ipv6Packet> Packet for Fragment<E> {
     /// The preceding type for an IPv6 fragment packet can be either an
-    /// IPv6 packet or any IPv6 extension packets.
+    /// IPv6 packet or any possible IPv6 extension packets.
     type Envelope = E;
 
     #[inline]

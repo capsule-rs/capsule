@@ -250,7 +250,7 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
 
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     /// The preceding type for an IPv6 segment routing packet can be either
-    /// an IPv6 packet or any IPv6 extension packets.
+    /// an IPv6 packet or any possible IPv6 extension packets.
     type Envelope = E;
 
     #[inline]
