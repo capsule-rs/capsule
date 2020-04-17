@@ -20,7 +20,7 @@
 
 use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
-use crate::packets::{EtherTypes, Ethernet, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -148,6 +148,16 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
+    #[inline]
+    fn header(&self) -> &Ipv4Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Ipv4Header {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the protocol version. Should always be `4`.
     #[inline]
     pub fn version(&self) -> u8 {
@@ -373,18 +383,8 @@ impl fmt::Debug for Ipv4 {
     }
 }
 
-impl PacketBase for Ipv4 {
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ipv4 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
 impl Packet for Ipv4 {
-    type Header = Ipv4Header;
+    /// The preceding type for an IPv4 packet must be Ethernet.
     type Envelope = Ethernet;
 
     #[inline]
@@ -397,26 +397,34 @@ impl Packet for Ipv4 {
         &mut self.envelope
     }
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
     #[inline]
     fn offset(&self) -> usize {
         self.offset
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn header_len(&self) -> usize {
+        Ipv4Header::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Ipv4 {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+
+    /// Parses the Ethernet's payload as an IPv4 packet.
+    ///
+    /// [`ether_type`] must be set to [`EtherTypes::Ipv4`]. Otherwise a parsing
+    /// error is returned.
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv4,
             ParseError::new("not an IPv4 packet.")
@@ -433,14 +441,19 @@ impl Packet for Ipv4 {
         })
     }
 
-    #[doc(hidden)]
+    /// Prepends an IPv4 packet to the beginning of the Ethernet's payload.
+    ///
+    /// [`ether_type`] is set to [`EtherTypes::Ipv4`].
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, Ipv4Header::size_of())?;
+        let header = mbuf.write_data(offset, &Ipv4Header::default())?;
 
         envelope.set_ether_type(EtherTypes::Ipv4);
 
@@ -452,23 +465,23 @@ impl Packet for Ipv4 {
     }
 
     #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
-        self.set_total_length(self.len() as u16);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
     fn deparse(self) -> Self::Envelope {
         self.envelope
+    }
+
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
+    ///
+    /// * [`total_length`] is set to the total length of the header and the
+    /// payload.
+    /// * [`checksum`] is computed based on the IPv4 header.
+    ///
+    /// [`total_length`]: Ipv4::total_length
+    /// [`checksum`]: Ipv4::checksum
+    #[inline]
+    fn reconcile(&mut self) {
+        self.set_total_length(self.len() as u16);
+        self.compute_checksum();
     }
 }
 
@@ -538,15 +551,13 @@ impl IpPacket for Ipv4 {
     }
 }
 
-/// IPv4 header accessible through [`Ipv4`].
+/// IPv4 header.
 ///
 /// The header only include the fixed portion of the IPv4 header.
 /// Options are parsed separately.
-///
-/// [`Ipv4`]: Ipv4
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
-pub struct Ipv4Header {
+struct Ipv4Header {
     version_ihl: u8,
     dscp_ecn: u8,
     total_length: u16,
@@ -575,8 +586,6 @@ impl Default for Ipv4Header {
         }
     }
 }
-
-impl Header for Ipv4Header {}
 
 #[cfg(test)]
 mod tests {
@@ -683,7 +692,7 @@ mod tests {
 
         let expected = ipv4.checksum();
         // no payload change but force a checksum recompute anyway
-        ipv4.cascade();
+        ipv4.reconcile_all();
         assert_eq!(expected, ipv4.checksum());
     }
 }

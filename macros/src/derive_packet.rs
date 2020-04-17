@@ -24,29 +24,33 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
 
     let expanded = quote! {
         impl<E: Ipv6Packet> crate::packets::icmp::v6::Icmpv6Packet<E, #name> for Icmpv6<E, #name> {
+            #[inline]
+            fn header(&self) -> &crate::packets::icmp::v6::Icmpv6Header {
+                unsafe { self.header.as_ref() }
+            }
+
+            #[inline]
+            fn header_mut(&mut self) -> &mut crate::packets::icmp::v6::Icmpv6Header {
+                unsafe { self.header.as_mut() }
+            }
+
+            #[inline]
             fn payload(&self) -> &#name {
                 unsafe { self.payload.as_ref() }
             }
 
+            #[inline]
             fn payload_mut(&mut self) -> &mut #name {
                 unsafe { self.payload.as_mut() }
             }
         }
 
-        impl<E: Ipv6Packet> crate::packets::PacketBase for crate::packets::icmp::v6::Icmpv6<E, #name> {
-            unsafe fn clone(&self, internal: crate::packets::Internal) -> Self {
-                Icmpv6::<E, #name> {
-                    envelope: self.envelope.clone(internal),
-                    header: self.header,
-                    payload: self.payload,
-                    offset: self.offset,
-                }
-            }
-        }
-
         impl<E: Ipv6Packet> crate::packets::Packet for crate::packets::icmp::v6::Icmpv6<E, #name> {
+            /// The preceding type for an ICMPv6 packet must be either an [IPv6]
+            /// packet or any IPv6 extension packets.
+            ///
+            /// [IPv6]: crate::packets::ip::v6::Ipv6
             type Envelope = E;
-            type Header = crate::packets::icmp::v6::Icmpv6Header;
 
             #[inline]
             fn envelope(&self) -> &Self::Envelope {
@@ -58,29 +62,39 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 &mut self.envelope
             }
 
-            #[doc(hidden)]
-            #[inline]
-            fn header(&self) -> &Self::Header {
-                unsafe { self.header.as_ref() }
-            }
-
-            #[doc(hidden)]
-            #[inline]
-            fn header_mut(&mut self) -> &mut Self::Header {
-                unsafe { self.header.as_mut() }
-            }
-
             #[inline]
             fn offset(&self) -> usize {
                 self.offset
             }
 
-            #[doc(hidden)]
             #[inline]
-            fn do_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn header_len(&self) -> usize {
+                crate::packets::icmp::v6::Icmpv6Header::size_of()
+            }
+
+            #[inline]
+            unsafe fn clone(&self, internal: crate::packets::Internal) -> Self {
+                Icmpv6::<E, #name> {
+                    envelope: self.envelope.clone(internal),
+                    header: self.header,
+                    payload: self.payload,
+                    offset: self.offset,
+                }
+            }
+
+            /// Parses the envelope's payload as an ICMPv6 packet.
+            ///
+            /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
+            /// Otherwise, a parsing error is returned.
+            ///
+            /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+            /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
+            #[inline]
+            fn try_parse(envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::ensure;
+                use crate::packets::icmp::v6::Icmpv6Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::ParseError;
+                use crate::packets::{Packet, ParseError};
 
                 ensure!(
                     envelope.next_protocol() == ProtocolNumbers::Icmpv6,
@@ -90,7 +104,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 let mbuf = envelope.mbuf();
                 let offset = envelope.payload_offset();
                 let header = mbuf.read_data(offset)?;
-                let payload = mbuf.read_data(offset + Self::Header::size_of())?;
+                let payload = mbuf.read_data(offset + Icmpv6Header::size_of())?;
 
                 Ok(Icmpv6 {
                     envelope,
@@ -100,17 +114,24 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
-            #[doc(hidden)]
+            /// Prepends an ICMPv6 packet to the beginning of the envelope's payload.
+            ///
+            /// [`next_header`] is set to [`ProtocolNumbers::Icmpv6`].
+            ///
+            /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+            /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
             #[inline]
-            fn do_push(mut envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn try_push(mut envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
+                use crate::packets::icmp::v6::Icmpv6Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::Packet;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
 
-                mbuf.extend(offset, Self::Header::size_of() + #name::size_of())?;
-                let header = mbuf.write_data(offset, &Self::Header::default())?;
-                let payload = mbuf.write_data(offset + Self::Header::size_of(), &#name::default())?;
+                mbuf.extend(offset, Icmpv6Header::size_of() + #name::size_of())?;
+                let header = mbuf.write_data(offset, &Icmpv6Header::default())?;
+                let payload = mbuf.write_data(offset + Icmpv6Header::size_of(), &#name::default())?;
 
                 let mut packet = Icmpv6 {
                     envelope,
@@ -128,21 +149,18 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[inline]
-            fn remove(mut self) -> failure::Fallible<Self::Envelope> {
-                let offset = self.offset();
-                let len = self.header_len();
-                self.mbuf_mut().shrink(offset, len)?;
-                Ok(self.envelope)
-            }
-
-            #[inline]
-            fn cascade(&mut self) {
-                self.cascade()
-            }
-
-            #[inline]
             fn deparse(self) -> Self::Envelope {
                 self.envelope
+            }
+
+            /// Reconciles the derivable header fields against the changes made to the
+            /// packet.
+            ///
+            /// The implementation is delegated to the private `reconcile` function in
+            /// the payload struct.
+            #[inline]
+            fn reconcile(&mut self) {
+                self.reconcile();
             }
         }
     };
@@ -155,16 +173,52 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
 
     let expanded = quote! {
         impl crate::packets::icmp::v4::Icmpv4Packet<#name> for crate::packets::icmp::v4::Icmpv4<#name> {
+            #[inline]
+            fn header(&self) -> &crate::packets::icmp::v4::Icmpv4Header {
+                unsafe { self.header.as_ref() }
+            }
+
+            #[inline]
+            fn header_mut(&mut self) -> &mut crate::packets::icmp::v4::Icmpv4Header {
+                unsafe { self.header.as_mut() }
+            }
+
+            #[inline]
             fn payload(&self) -> &#name {
                 unsafe { self.payload.as_ref() }
             }
 
+            #[inline]
             fn payload_mut(&mut self) -> &mut #name {
                 unsafe { self.payload.as_mut() }
             }
         }
 
-        impl crate::packets::PacketBase for Icmpv4<#name> {
+        impl crate::packets::Packet for Icmpv4<#name> {
+            /// The preceding type for an ICMPv4 packet must be IPv4.
+            type Envelope = crate::packets::ip::v4::Ipv4;
+
+            #[inline]
+            fn envelope(&self) -> &Self::Envelope {
+                &self.envelope
+            }
+
+            #[inline]
+            fn envelope_mut(&mut self) -> &mut Self::Envelope {
+                &mut self.envelope
+            }
+
+            #[inline]
+            fn offset(&self) -> usize {
+                self.offset
+            }
+
+            #[inline]
+            fn header_len(&self) -> usize {
+                crate::packets::icmp::v4::Icmpv4Header::size_of()
+            }
+
+            #[inline]
             unsafe fn clone(&self, internal: crate::packets::Internal) -> Self {
                 Icmpv4::<#name> {
                     envelope: self.envelope.clone(internal),
@@ -173,45 +227,20 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                     offset: self.offset,
                 }
             }
-        }
 
-        impl crate::packets::Packet for Icmpv4<#name> {
-            type Header = crate::packets::icmp::v4::Icmpv4Header;
-            type Envelope = crate::packets::ip::v4::Ipv4;
-
+            /// Parses the envelope's payload as an ICMPv4 packet.
+            ///
+            /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
+            /// Otherwise, a parsing error is returned.
+            ///
+            /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+            /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
             #[inline]
-            fn envelope(&self) -> &Self::Envelope {
-                    &self.envelope
-            }
-
-            #[inline]
-            fn envelope_mut(&mut self) -> &mut Self::Envelope {
-                &mut self.envelope
-            }
-
-            #[doc(hidden)]
-            #[inline]
-            fn header(&self) -> &Self::Header {
-                unsafe { self.header.as_ref() }
-            }
-
-            #[doc(hidden)]
-            #[inline]
-            fn header_mut(&mut self) -> &mut Self::Header {
-                unsafe { self.header.as_mut() }
-            }
-
-            #[inline]
-            fn offset(&self) -> usize {
-                self.offset
-            }
-
-            #[doc(hidden)]
-            #[inline]
-            fn do_parse(envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn try_parse(envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
                 use crate::ensure;
+                use crate::packets::icmp::v4::Icmpv4Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
-                use crate::packets::ParseError;
+                use crate::packets::{Packet, ParseError};
 
                 ensure!(
                     envelope.next_protocol() == ProtocolNumbers::Icmpv4,
@@ -221,7 +250,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 let mbuf = envelope.mbuf();
                 let offset = envelope.payload_offset();
                 let header = mbuf.read_data(offset)?;
-                let payload = mbuf.read_data(offset + Self::Header::size_of())?;
+                let payload = mbuf.read_data(offset + Icmpv4Header::size_of())?;
 
                 Ok(Icmpv4 {
                     envelope,
@@ -231,17 +260,24 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
-            #[doc(hidden)]
+            /// Prepends an ICMPv4 packet to the beginning of the IPv4's payload.
+            ///
+            /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
+            ///
+            /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+            /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
             #[inline]
-            fn do_push(mut envelope: Self::Envelope) -> failure::Fallible<Self> {
+            fn try_push(mut envelope: Self::Envelope, _internal: crate::packets::Internal) -> failure::Fallible<Self> {
+                use crate::packets::icmp::v4::Icmpv4Header;
                 use crate::packets::ip::{IpPacket, ProtocolNumbers};
+                use crate::packets::Packet;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
 
-                mbuf.extend(offset, Self::Header::size_of() + #name::size_of())?;
-                let header = mbuf.write_data(offset, &Self::Header::default())?;
-                let payload = mbuf.write_data(offset + Self::Header::size_of(), &#name::default())?;
+                mbuf.extend(offset, Icmpv4Header::size_of() + #name::size_of())?;
+                let header = mbuf.write_data(offset, &Icmpv4Header::default())?;
+                let payload = mbuf.write_data(offset + Icmpv4Header::size_of(), &#name::default())?;
 
                 let mut packet = Icmpv4 {
                     envelope,
@@ -259,24 +295,20 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[inline]
-            fn remove(mut self) -> failure::Fallible<Self::Envelope> {
-                let offset = self.offset();
-                let len = self.header_len();
-                self.mbuf_mut().shrink(offset, len)?;
-                Ok(self.envelope)
-            }
-
-            // Expected to be implemented within struct impl.
-            #[inline]
-            fn cascade(&mut self) {
-                self.cascade()
-            }
-
-            #[inline]
             fn deparse(self) -> Self::Envelope {
                 self.envelope
             }
-        };
+
+            /// Reconciles the derivable header fields against the changes made to the
+            /// packet.
+            ///
+            /// The implementation is delegated to the private `reconcile` function in
+            /// the payload struct.
+            #[inline]
+            fn reconcile(&mut self) {
+                self.reconcile();
+            }
+        }
     };
 
     expanded.into()

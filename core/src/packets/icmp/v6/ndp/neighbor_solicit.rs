@@ -19,7 +19,6 @@
 use crate::packets::icmp::v6::ndp::NdpPayload;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::Packet;
 use crate::{Icmpv6Packet, SizeOf};
 use std::fmt;
 use std::net::Ipv6Addr;
@@ -106,9 +105,8 @@ impl<E: Ipv6Packet> Icmpv6<E, NeighborSolicitation> {
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn reconcile(&mut self) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

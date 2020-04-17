@@ -85,24 +85,31 @@ impl fmt::Display for ProtocolNumber {
                 ProtocolNumbers::Ipv6Route => "IPv6 Route".to_string(),
                 ProtocolNumbers::Ipv6Frag => "IPv6 Frag".to_string(),
                 ProtocolNumbers::Icmpv6 => "ICMPv6".to_string(),
+                ProtocolNumbers::Icmpv4 => "ICMPv4".to_string(),
                 _ => format!("0x{:02x}", self.0),
             }
         )
     }
 }
 
-/// Common behaviors shared by IPv4 and IPv6 packets.
+/// A trait implemented by IPv4, IPv6 and IPv6 extension packets.
 pub trait IpPacket: Packet {
-    /// Returns the assigned protocol number of the header immediately follows.
+    /// Returns the assigned protocol number of the packet immediately follows.
     ///
-    /// For IPv4 headers, this should be the `protocol` field.
-    /// For IPv6 and extension headers, this should be the `next header` field.
+    /// For IPv4 packets, this should be the [`protocol`] field. For IPv6 and
+    /// extension packets, this should be the [`next header`] field.
+    ///
+    /// [`protocol`]: v4::Ipv4::protocol
+    /// [`next header`]: v6::Ipv6Packet::next_header
     fn next_protocol(&self) -> ProtocolNumber;
 
-    /// Sets the protocol number of the header immediately follows.
+    /// Sets the protocol number of the packet immediately follows.
     ///
-    /// For IPv4 headers, this should be the `protocol` field.
-    /// For IPv6 and extension headers, this should be the `next header` field.
+    /// For IPv4 packets, this should be the [`protocol`] field. For IPv6 and
+    /// extension packets, this should be the [`next header`] field.
+    ///
+    /// [`protocol`]: v4::Ipv4::protocol
+    /// [`next header`]: v6::Ipv6Packet::next_header
     fn set_next_protocol(&mut self, proto: ProtocolNumber);
 
     /// Returns the source IP address

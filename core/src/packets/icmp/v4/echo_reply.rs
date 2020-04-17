@@ -121,9 +121,8 @@ impl Icmpv4<EchoReply> {
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn reconcile(&mut self) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

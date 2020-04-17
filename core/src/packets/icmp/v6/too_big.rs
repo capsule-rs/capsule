@@ -69,12 +69,13 @@ impl<E: Ipv6Packet> Icmpv6<E, PacketTooBig> {
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn reconcile(&mut self) {
         let mtu = self.mtu() as usize;
-        // ignores the error if there's nothing to truncate.
+        // keeps as much of the invoking packet without exceeding the
+        // next-hop MTU, and ignores the error if there's nothing to
+        // truncate.
         let _ = self.envelope_mut().truncate(mtu);
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

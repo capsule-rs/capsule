@@ -19,8 +19,8 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{Header, Internal, Packet, PacketBase};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, ParseError};
+use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
 use std::net::IpAddr;
@@ -76,6 +76,16 @@ pub struct Fragment<E: Ipv6Packet> {
 }
 
 impl<E: Ipv6Packet> Fragment<E> {
+    #[inline]
+    fn header(&self) -> &FragmentHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut FragmentHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the offset of the data following this header relative to the
     /// start of the fragmentable part of the original packet. It is measured
     /// in units of 8 octets or 64 bits.
@@ -129,18 +139,9 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
     }
 }
 
-impl<E: Ipv6Packet> PacketBase for Fragment<E> {
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Fragment::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
 impl<E: Ipv6Packet> Packet for Fragment<E> {
-    type Header = FragmentHeader;
+    /// The preceding type for an IPv6 fragment packet can be either an
+    /// IPv6 packet or any possible IPv6 extension packets.
     type Envelope = E;
 
     #[inline]
@@ -153,18 +154,6 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
         &mut self.envelope
     }
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
     #[inline]
     fn offset(&self) -> usize {
         self.offset
@@ -172,12 +161,32 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
 
     #[inline]
     fn header_len(&self) -> usize {
-        Self::Header::size_of()
+        FragmentHeader::size_of()
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Fragment::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+
+    /// Parses the envelope's payload as an IPv6 fragment packet.
+    ///
+    /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Frag`].
+    /// Otherwise a parsing error is returned.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Frag`]: ProtocolNumbers::Ipv6Frag
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        ensure!(
+            envelope.next_header() == ProtocolNumbers::Ipv6Frag,
+            ParseError::new("not an IPv6 fragment packet.")
+        );
+
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -189,14 +198,21 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
         })
     }
 
-    #[doc(hidden)]
+    /// Prepends an IPv6 fragment packet to the beginning of the envelope's
+    /// payload.
+    ///
+    /// [`next_header`] is set to the value of the `next_header` field of the
+    /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Frag`].
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Frag`]: ProtocolNumbers::Ipv6Frag
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, FragmentHeader::size_of())?;
+        let header = mbuf.write_data(offset, &FragmentHeader::default())?;
 
         let mut packet = Fragment {
             envelope,
@@ -212,6 +228,12 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
         Ok(packet)
     }
 
+    /// Removes IPv6 fragment packet from the message buffer.
+    ///
+    /// The envelope's [`next_header`] field is set to the value of the
+    /// `next_header` field on the fragment packet.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
     #[inline]
     fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
@@ -282,19 +304,15 @@ impl<E: Ipv6Packet> Ipv6Packet for Fragment<E> {
     }
 }
 
-/// IPv6 fragment extension header accessible through [`Fragment`].
-///
-/// [`Fragment`]: Fragment
+/// IPv6 fragment extension header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
-pub struct FragmentHeader {
+struct FragmentHeader {
     next_header: u8,
     reserved: u8,
     frag_res_m: u16,
     identification: u32,
 }
-
-impl Header for FragmentHeader {}
 
 #[cfg(test)]
 mod tests {
@@ -320,6 +338,15 @@ mod tests {
         assert_eq!(543, frag.fragment_offset());
         assert!(!frag.more_fragments());
         assert_eq!(0xf88e_b466, frag.identification());
+    }
+
+    #[capsule::test]
+    fn parse_non_fragment_packet() {
+        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+
+        assert!(ipv6.parse::<Fragment<Ipv6>>().is_err());
     }
 
     #[capsule::test]

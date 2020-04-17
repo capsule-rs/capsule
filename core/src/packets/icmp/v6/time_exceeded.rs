@@ -55,13 +55,12 @@ impl Icmpv6Payload for TimeExceeded {
 
 impl<E: Ipv6Packet> Icmpv6<E, TimeExceeded> {
     #[inline]
-    fn cascade(&mut self) {
+    fn reconcile(&mut self) {
         // keeps as much of the invoking packet without exceeding the
         // minimum MTU, and ignores the error if there's nothing to
         // truncate.
         let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

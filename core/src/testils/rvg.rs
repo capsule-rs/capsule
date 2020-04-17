@@ -77,9 +77,8 @@ impl Rvg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dpdk::SizeOf;
     use crate::fieldmap;
-    use crate::packets::{Packet, UdpHeader};
+    use crate::packets::ip::ProtocolNumbers;
     use crate::testils::packet::PacketExt;
     use crate::testils::proptest::*;
     use std::net::Ipv6Addr;
@@ -88,8 +87,8 @@ mod tests {
     fn gen_v4_packet() {
         let mut gen = Rvg::new();
         let packet = gen.generate(&v4_udp());
-        let udp = packet.into_v4_udp();
-        assert_eq!(UdpHeader::size_of(), udp.len());
+        let v4 = packet.into_v4();
+        assert_eq!(ProtocolNumbers::Udp, v4.protocol());
     }
 
     #[capsule::test]

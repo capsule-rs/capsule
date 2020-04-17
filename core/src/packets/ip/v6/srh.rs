@@ -19,7 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -111,6 +111,16 @@ pub struct SegmentRouting<E: Ipv6Packet> {
 }
 
 impl<E: Ipv6Packet> SegmentRouting<E> {
+    #[inline]
+    fn header(&self) -> &SegmentRoutingHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut SegmentRoutingHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the length of the segment routing header in 8-octet units,
     /// not including the first 8 octets.
     #[inline]
@@ -238,19 +248,9 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
     }
 }
 
-impl<E: Ipv6Packet> PacketBase for SegmentRouting<E> {
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        SegmentRouting::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            segments: self.segments,
-            offset: self.offset,
-        }
-    }
-}
-
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
-    type Header = SegmentRoutingHeader;
+    /// The preceding type for an IPv6 segment routing packet can be either
+    /// an IPv6 packet or any possible IPv6 extension packets.
     type Envelope = E;
 
     #[inline]
@@ -263,18 +263,6 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         &mut self.envelope
     }
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
     #[inline]
     fn offset(&self) -> usize {
         self.offset
@@ -282,12 +270,28 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
     #[inline]
     fn header_len(&self) -> usize {
-        Self::Header::size_of() + self.segments().len() * Ipv6Addr::size_of()
+        SegmentRoutingHeader::size_of() + self.segments().len() * Ipv6Addr::size_of()
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        SegmentRouting::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            segments: self.segments,
+            offset: self.offset,
+        }
+    }
+
+    /// Parses the envelope's payload as an IPv6 segment routing packet.
+    ///
+    /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Route`].
+    /// Otherwise a parsing error is returned.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.next_header() == ProtocolNumbers::Ipv6Route,
             ParseError::new("not an IPv6 routing packet.")
@@ -295,7 +299,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
-        let header = mbuf.read_data::<Self::Header>(offset)?;
+        let header = mbuf.read_data::<SegmentRoutingHeader>(offset)?;
 
         let hdr_ext_len = unsafe { header.as_ref().hdr_ext_len };
         let segments_len = unsafe { header.as_ref().last_entry + 1 };
@@ -317,17 +321,29 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         }
     }
 
-    #[doc(hidden)]
+    /// Prepends an IPv6 segment routing packet with a segment list of one
+    /// to the beginning of the envelope's payload.
+    ///
+    /// [`next_header`] is set to the value of the `next_header` field of the
+    /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Route`].
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
+    /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
         // adds a default segment list of one element.
-        mbuf.extend(offset, Self::Header::size_of() + Ipv6Addr::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
-        let segments =
-            mbuf.write_data_slice(offset + Self::Header::size_of(), &[Ipv6Addr::UNSPECIFIED])?;
+        mbuf.extend(
+            offset,
+            SegmentRoutingHeader::size_of() + Ipv6Addr::size_of(),
+        )?;
+        let header = mbuf.write_data(offset, &SegmentRoutingHeader::default())?;
+        let segments = mbuf.write_data_slice(
+            offset + SegmentRoutingHeader::size_of(),
+            &[Ipv6Addr::UNSPECIFIED],
+        )?;
 
         let mut packet = SegmentRouting {
             envelope,
@@ -344,6 +360,12 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         Ok(packet)
     }
 
+    /// Removes IPv6 segment routing packet from the message buffer.
+    ///
+    /// The envelope's [`next_header`] field is set to the value of the
+    /// `next_header` field on the segment routing packet.
+    ///
+    /// [`next_header`]: Ipv6Packet::next_header
     #[inline]
     fn remove(mut self) -> Fallible<Self::Envelope> {
         let offset = self.offset();
@@ -459,15 +481,13 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
 #[fail(display = "Segment list length must be greater than 0")]
 pub struct BadSegmentsError;
 
-/// IPv6 segment routing header accessible through [`SegmentRouting`].
+/// IPv6 segment routing header.
 ///
 /// The segment routing header contains only the fixed portion of the
 /// header. `segment_list` and `tlv` are parsed separately.
-///
-/// [`SegmentRouting`]: SegmentRouting
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
-pub struct SegmentRoutingHeader {
+struct SegmentRoutingHeader {
     next_header: u8,
     hdr_ext_len: u8,
     routing_type: u8,
@@ -490,8 +510,6 @@ impl Default for SegmentRoutingHeader {
         }
     }
 }
-
-impl Header for SegmentRoutingHeader {}
 
 #[cfg(test)]
 mod tests {
@@ -597,7 +615,7 @@ mod tests {
         // checksum, as it's 0 given above.
         assert_eq!(0, tcp.checksum());
 
-        tcp.cascade();
+        tcp.reconcile_all();
         let expected = tcp.checksum();
 
         // our checksum should now be calculated correctly & no longer be 0
@@ -612,7 +630,7 @@ mod tests {
         srh_ret.set_segments_left(0);
 
         let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
-        tcp_ret.cascade();
+        tcp_ret.reconcile_all();
         assert_eq!(expected, tcp_ret.checksum());
 
         // Let's make sure that if segments left is 0, then our checksum
@@ -620,7 +638,7 @@ mod tests {
         let mut srh_fin = tcp_ret.deparse();
         srh_fin.set_segments_left(0);
         let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
-        tcp_fin.cascade();
+        tcp_fin.reconcile_all();
         assert_eq!(expected, tcp_fin.checksum());
     }
 
@@ -648,7 +666,7 @@ mod tests {
 
         let mut srh = tcp.deparse();
         let srh_packet_len = srh.len();
-        srh.cascade();
+        srh.reconcile_all();
         let ipv6 = srh.deparse();
         assert_ne!(srh_packet_len, ipv6_payload_len as usize);
         assert_eq!(srh_packet_len, ipv6.payload_length() as usize)

@@ -18,7 +18,7 @@
 
 use super::MEMPOOL;
 use crate::ffi::{self, ToResult};
-use crate::packets::{Internal, PacketBase};
+use crate::packets::{Internal, Packet};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
 use std::fmt;
@@ -32,7 +32,7 @@ use std::slice;
 /// packets.
 ///
 ///
-/// ## Derivable
+/// # Derivable
 ///
 /// The `SizeOf` trait can be used with `#[derive]` and defaults to
 /// `std::mem::size_of::<Self>()`.
@@ -410,7 +410,42 @@ impl Drop for Mbuf {
 // can go across thread boundaries.
 unsafe impl Send for Mbuf {}
 
-impl PacketBase for Mbuf {
+impl Packet for Mbuf {
+    // `Mbuf` does not have a conceptual envelope. However, we need to define
+    // it this way to implement the trait.
+    type Envelope = Mbuf;
+
+    #[inline]
+    fn envelope(&self) -> &Self::Envelope {
+        self
+    }
+
+    #[inline]
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
+        self
+    }
+
+    #[inline]
+    fn mbuf(&self) -> &Mbuf {
+        self
+    }
+
+    #[inline]
+    fn mbuf_mut(&mut self) -> &mut Mbuf {
+        self
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        0
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        0
+    }
+
+    #[inline]
     unsafe fn clone(&self, _internal: Internal) -> Self {
         Mbuf {
             raw: self.raw,
@@ -419,6 +454,34 @@ impl PacketBase for Mbuf {
             should_free: false,
         }
     }
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
+    fn try_push(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        Ok(envelope)
+    }
+
+    #[inline]
+    fn deparse(self) -> Self::Envelope {
+        self
+    }
+
+    #[inline]
+    fn remove(self) -> Fallible<Self::Envelope> {
+        Ok(self)
+    }
+
+    #[inline]
+    fn reset(self) -> Mbuf {
+        self
+    }
+
+    #[inline]
+    fn reconcile_all(&mut self) {}
 }
 
 #[cfg(test)]

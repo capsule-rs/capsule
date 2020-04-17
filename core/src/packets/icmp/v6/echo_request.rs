@@ -123,9 +123,8 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoRequest> {
     }
 
     #[inline]
-    fn cascade(&mut self) {
+    fn reconcile(&mut self) {
         self.compute_checksum();
-        self.envelope_mut().cascade();
     }
 }
 

@@ -18,7 +18,7 @@
 
 use crate::dpdk::BufferError;
 use crate::net::MacAddr;
-use crate::packets::{Header, Internal, Packet, PacketBase};
+use crate::packets::{Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -122,6 +122,16 @@ pub struct Ethernet {
 }
 
 impl Ethernet {
+    #[inline]
+    fn header(&self) -> &EthernetHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut EthernetHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the source MAC address.
     #[inline]
     pub fn src(&self) -> MacAddr {
@@ -214,18 +224,8 @@ impl fmt::Debug for Ethernet {
     }
 }
 
-impl PacketBase for Ethernet {
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ethernet {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
 impl Packet for Ethernet {
-    type Header = EthernetHeader;
+    /// The preceding type for Ethernet must be `Mbuf`.
     type Envelope = Mbuf;
 
     #[inline]
@@ -238,37 +238,36 @@ impl Packet for Ethernet {
         &mut self.envelope
     }
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
     #[inline]
     fn offset(&self) -> usize {
         self.offset
     }
 
+    /// Returns the length of the packet header.
+    ///
+    /// The length of the Ethernet header depends on the VLAN tags.
     #[inline]
     fn header_len(&self) -> usize {
         if self.is_dot1q() {
-            Self::Header::size_of() + VlanTag::size_of()
+            EthernetHeader::size_of() + VlanTag::size_of()
         } else if self.is_qinq() {
-            Self::Header::size_of() + VlanTag::size_of() * 2
+            EthernetHeader::size_of() + VlanTag::size_of() * 2
         } else {
-            Self::Header::size_of()
+            EthernetHeader::size_of()
         }
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Ethernet {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -279,7 +278,7 @@ impl Packet for Ethernet {
             offset,
         };
 
-        // We've only parsed 14 bytes as the Ethernet header, in case of
+        // we've only parsed 14 bytes as the Ethernet header, in case of
         // vlan, we need to make sure there's enough data for the whole
         // header including tags, otherwise accessing the union type in the
         // header will cause a panic.
@@ -291,28 +290,19 @@ impl Packet for Ethernet {
         Ok(packet)
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, EthernetHeader::size_of())?;
+        let header = mbuf.write_data(offset, &EthernetHeader::default())?;
 
         Ok(Ethernet {
             envelope,
             header,
             offset,
         })
-    }
-
-    #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
     }
 
     #[inline]
@@ -368,7 +358,7 @@ impl fmt::Display for EtherType {
 /// VLAN tag.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
-pub struct VlanTag {
+struct VlanTag {
     tpid: u16,
     tci: u16,
 }
@@ -376,23 +366,31 @@ pub struct VlanTag {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 impl VlanTag {
     /// Returns the tag protocol identifier, either 802.1q (Dot1q) or 802.1ad (QinQ).
-    pub fn tag_id(&self) -> u16 {
+    #[allow(dead_code)]
+    #[inline]
+    fn tag_id(&self) -> u16 {
         self.tpid
     }
 
     /// Returns the priority code point.
-    pub fn priority(&self) -> u8 {
+    #[allow(dead_code)]
+    #[inline]
+    fn priority(&self) -> u8 {
         (self.tci >> 13) as u8
     }
 
     /// Returns whether the frame is eligible to be dropped in the presence
     /// of congestion.
-    pub fn drop_eligible(&self) -> bool {
+    #[allow(dead_code)]
+    #[inline]
+    fn drop_eligible(&self) -> bool {
         self.tci & 0x1000 > 0
     }
 
     /// Returns the VLAN identifier.
-    pub fn identifier(&self) -> u16 {
+    #[allow(dead_code)]
+    #[inline]
+    fn identifier(&self) -> u16 {
         self.tci & 0x0fff
     }
 }
@@ -400,7 +398,7 @@ impl VlanTag {
 /// Dot1q chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
-pub(crate) struct Dot1q {
+struct Dot1q {
     tag: VlanTag,
     ether_type: u16,
 }
@@ -408,7 +406,7 @@ pub(crate) struct Dot1q {
 /// QinQ chunk for a VLAN header.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C, packed)]
-pub(crate) struct Qinq {
+struct Qinq {
     stag: VlanTag,
     ctag: VlanTag,
     ether_type: u16,
@@ -418,7 +416,7 @@ pub(crate) struct Qinq {
 #[allow(missing_debug_implementations)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
-pub(crate) union Chunk {
+union Chunk {
     ether_type: u16,
     dot1q: Dot1q,
     qinq: Qinq,
@@ -430,19 +428,15 @@ impl Default for Chunk {
     }
 }
 
-/// Ethernet header accessible through [`Ethernet`].
-///
-/// [`Ethernet`]: Ethernet
+/// Ethernet header.
 #[allow(missing_debug_implementations)]
 #[derive(Clone, Copy, Default)]
 #[repr(C, packed)]
-pub struct EthernetHeader {
+struct EthernetHeader {
     dst: MacAddr,
     src: MacAddr,
     chunk: Chunk,
 }
-
-impl Header for EthernetHeader {}
 
 impl SizeOf for EthernetHeader {
     /// Size of the Ethernet header.

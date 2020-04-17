@@ -77,10 +77,10 @@ where
 mod tests {
     use super::*;
     use crate::net::MacAddr;
-    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::NdpOptions;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::packets::{Ethernet, Packet};
     use crate::Mbuf;
     use fallible_iterator::FallibleIterator;
     use std::str::FromStr;

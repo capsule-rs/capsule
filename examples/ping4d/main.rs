@@ -45,7 +45,7 @@ fn reply_echo(packet: &Mbuf) -> Fallible<Icmpv4<EchoReply>> {
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;
-    reply.cascade();
+    reply.reconcile_all();
 
     debug!(?request);
     debug!(?reply);

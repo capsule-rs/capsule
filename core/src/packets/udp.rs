@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
-use crate::packets::{checksum, Header, Internal, Packet, PacketBase, ParseError};
+use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -77,6 +77,16 @@ pub struct Udp<E: IpPacket> {
 }
 
 impl<E: IpPacket> Udp<E> {
+    #[inline]
+    fn header(&self) -> &UdpHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut UdpHeader {
+        unsafe { self.header.as_mut() }
+    }
+
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
@@ -211,19 +221,13 @@ impl<E: IpPacket> fmt::Debug for Udp<E> {
     }
 }
 
-impl<E: IpPacket> PacketBase for Udp<E> {
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Udp::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-}
-
 impl<E: IpPacket> Packet for Udp<E> {
+    /// The preceding packet type for an UDP packet can be either an [IPv4]
+    /// packet, an [IPv6] packet, or any IPv6 extension packets.
+    ///
+    /// [IPv4]: crate::packets::ip::v4::Ipv4
+    /// [IPv6]: crate::packets::ip::v6::Ipv6
     type Envelope = E;
-    type Header = UdpHeader;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -235,26 +239,37 @@ impl<E: IpPacket> Packet for Udp<E> {
         &mut self.envelope
     }
 
-    #[doc(hidden)]
-    #[inline]
-    fn header(&self) -> &Self::Header {
-        unsafe { self.header.as_ref() }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn header_mut(&mut self) -> &mut Self::Header {
-        unsafe { self.header.as_mut() }
-    }
-
     #[inline]
     fn offset(&self) -> usize {
         self.offset
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn do_parse(envelope: Self::Envelope) -> Fallible<Self> {
+    fn header_len(&self) -> usize {
+        UdpHeader::size_of()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Udp::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            offset: self.offset,
+        }
+    }
+
+    /// Parses the envelope's payload as an UDP packet.
+    ///
+    /// If the envelope is IPv4, then [`Ipv4::protocol`] must be set to
+    /// [`ProtocolNumbers::Udp`]. If the envelope is IPv6 or an extension
+    /// header, then [`next_header`] must be set to `ProtocolNumbers::Udp`.
+    /// Otherwise, a parsing error is returned.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         ensure!(
             envelope.next_protocol() == ProtocolNumbers::Udp,
             ParseError::new("not a UDP packet.")
@@ -271,14 +286,22 @@ impl<E: IpPacket> Packet for Udp<E> {
         })
     }
 
-    #[doc(hidden)]
+    /// Prepends an UDP packet to the beginning of the envelope's payload.
+    ///
+    /// If the envelope is IPv4, then [`Ipv4::protocol`] is set to
+    /// [`ProtocolNumbers::Udp`]. If the envelope is IPv6 or an extension
+    /// header, then [`next_header`] is set to `ProtocolNumbers::Udp`.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     #[inline]
-    fn do_push(mut envelope: Self::Envelope) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, Self::Header::size_of())?;
-        let header = mbuf.write_data(offset, &Self::Header::default())?;
+        mbuf.extend(offset, UdpHeader::size_of())?;
+        let header = mbuf.write_data(offset, &UdpHeader::default())?;
 
         envelope.set_next_protocol(ProtocolNumbers::Udp);
 
@@ -290,40 +313,37 @@ impl<E: IpPacket> Packet for Udp<E> {
     }
 
     #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
-        let offset = self.offset();
-        let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
-        Ok(self.envelope)
-    }
-
-    #[inline]
-    fn cascade(&mut self) {
-        let len = self.len() as u16;
-        self.set_length(len);
-        self.compute_checksum();
-        self.envelope_mut().cascade();
-    }
-
-    #[inline]
     fn deparse(self) -> Self::Envelope {
         self.envelope
     }
+
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
+    ///
+    /// * [`length`] is set to the total length of the header and the payload.
+    /// * [`checksum`] is computed based on the [`pseudo-header`] and the
+    /// full packet.
+    ///
+    /// [`length`]: Udp::length
+    /// [`checksum`]: Udp::checksum
+    /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
+    #[inline]
+    fn reconcile(&mut self) {
+        let len = self.len() as u16;
+        self.set_length(len);
+        self.compute_checksum();
+    }
 }
 
-/// UDP header accessible through [`Udp`].
-///
-/// [`Udp`]: Udp
+/// UDP header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
-pub struct UdpHeader {
+struct UdpHeader {
     src_port: u16,
     dst_port: u16,
     length: u16,
     checksum: u16,
 }
-
-impl Header for UdpHeader {}
 
 #[cfg(test)]
 mod tests {
@@ -408,7 +428,7 @@ mod tests {
 
         let expected = udp.checksum();
         // no payload change but force a checksum recompute anyway
-        udp.cascade();
+        udp.reconcile_all();
         assert_eq!(expected, udp.checksum());
     }
 

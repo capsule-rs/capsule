@@ -60,7 +60,7 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
         tcp.set_seq_no(1);
         tcp.set_window(10);
         tcp.set_dst_port(80);
-        tcp.cascade();
+        tcp.reconcile_all();
 
         Ok(tcp)
     })
