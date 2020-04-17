@@ -286,7 +286,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     /// Parses the envelope's payload as an IPv6 segment routing packet.
     ///
     /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Route`].
-    /// Otherwise returns a parsing error.
+    /// Otherwise a parsing error is returned.
     ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route

@@ -85,7 +85,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             /// Parses the envelope's payload as an ICMPv6 packet.
             ///
             /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
-            /// Otherwise, returns a parsing error.
+            /// Otherwise, a parsing error is returned.
             ///
             /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
             /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
@@ -231,7 +231,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             /// Parses the envelope's payload as an ICMPv4 packet.
             ///
             /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
-            /// Otherwise, returns a parsing error.
+            /// Otherwise, a parsing error is returned.
             ///
             /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
             /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4

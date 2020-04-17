@@ -263,8 +263,8 @@ impl Packet for Ipv6 {
 
     /// Parses the Ethernet's payload as an IPv6 packet.
     ///
-    /// [`ether_type`] must be set to [`EtherTypes::Ipv6`]. Otherwise returns
-    /// a parsing error.
+    /// [`ether_type`] must be set to [`EtherTypes::Ipv6`]. Otherwise a
+    /// parsing error is returned.
     ///
     /// [`ether_type`]: Ethernet::ether_type
     /// [`EtherTypes::Ipv6`]: EtherTypes::Ipv6

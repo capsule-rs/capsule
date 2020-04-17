@@ -529,7 +529,7 @@ impl<E: IpPacket> Packet for Tcp<E> {
     /// If the envelope is IPv4, then [`Ipv4::protocol`] must be set to
     /// [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an extension
     /// header, then [`next_header`] must be set to `ProtocolNumbers::Tcp`.
-    /// Otherwise, returns a parsing error.
+    /// Otherwise, a parsing error is returned.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Tcp`]: crate::packets::ip::ProtocolNumbers::Tcp

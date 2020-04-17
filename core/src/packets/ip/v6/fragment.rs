@@ -176,7 +176,7 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
     /// Parses the envelope's payload as an IPv6 fragment packet.
     ///
     /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Frag`].
-    /// Otherwise returns a parsing error.
+    /// Otherwise a parsing error is returned.
     ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Frag`]: ProtocolNumbers::Ipv6Frag

@@ -263,7 +263,7 @@ impl<E: IpPacket> Packet for Udp<E> {
     /// If the envelope is IPv4, then [`Ipv4::protocol`] must be set to
     /// [`ProtocolNumbers::Udp`]. If the envelope is IPv6 or an extension
     /// header, then [`next_header`] must be set to `ProtocolNumbers::Udp`.
-    /// Otherwise, returns a parsing error.
+    /// Otherwise, a parsing error is returned.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
