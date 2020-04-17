@@ -111,7 +111,7 @@ impl Icmpv4Packet<()> for Icmpv4<()> {
 }
 
 impl Packet for Icmpv4<()> {
-    /// The proceeding type for `ICMPv4` packet must be `IPv4`.
+    /// The preceding type for ICMPv4 packet must be IPv4.
     type Envelope = Ipv4;
 
     #[inline]
@@ -144,10 +144,10 @@ impl Packet for Icmpv4<()> {
         }
     }
 
-    /// Parses the envelope's payload as an `ICMPv4` packet.
+    /// Parses the envelope's payload as an ICMPv4 packet.
     ///
     /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
-    /// Otherwise, returns a parsing error.
+    /// Otherwise, a parsing error is returned.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
@@ -171,7 +171,7 @@ impl Packet for Icmpv4<()> {
         })
     }
 
-    /// Prepends an `ICMPv4` packet at the start of the envelope's payload.
+    /// Prepends an ICMPv4 packet to the beginning of the IPv4's payload.
     ///
     /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
     ///
@@ -206,8 +206,8 @@ impl Packet for Icmpv4<()> {
         self.envelope
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
     /// * [`checksum`] is computed based on the full packet.
     ///
@@ -288,7 +288,7 @@ impl Icmpv4Payload for () {
 
 /// A trait for common behaviors shared by ICMPv4 packets.
 ///
-/// ## Derivable
+/// # Derivable
 ///
 /// The `Icmpv4Packet` trait can be used with `#[derive]` on Icmpv4 payloads,
 /// which also derives the implementation for the [`Packet`] trait.
@@ -300,7 +300,7 @@ impl Icmpv4Payload for () {
 /// }
 /// ```
 ///
-/// ## Remarks
+/// # Remarks
 ///
 /// When using the associated derive macro, the payload struct implementation
 /// must provide an private implementation of the `reconcile` function.
@@ -359,9 +359,9 @@ pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Envelope = Ipv4> {
     }
 }
 
-/// An [`ICMPv4`] message with parsed payload.
+/// An [ICMPv4] message with parsed payload.
 ///
-/// [`ICMPv4`]: `Icmpv4`
+/// [ICMPv4]: `Icmpv4`
 #[derive(Debug)]
 pub enum Icmpv4Message {
     /// Echo Request message.

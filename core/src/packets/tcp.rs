@@ -488,13 +488,11 @@ impl<E: IpPacket> fmt::Debug for Tcp<E> {
 }
 
 impl<E: IpPacket> Packet for Tcp<E> {
-    /// The proceeding packet type that encapsulates a TCP packet.
+    /// The preceding packet type for a TCP packet can be either an [IPv4]
+    /// packet, an [IPv6] packet, or any IPv6 extension packets.
     ///
-    /// The proceeding packet type can be either an [`IPv4`] packet, an
-    /// [`IPv6`] packet, or any IPv6 extension packets.
-    ///
-    /// [`IPv4`]: crate::packets::ip::v4::Ipv4
-    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
+    /// [IPv4]: crate::packets::ip::v4::Ipv4
+    /// [IPv6]: crate::packets::ip::v6::Ipv6
     type Envelope = E;
 
     #[inline]
@@ -528,8 +526,8 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     /// Parses the envelope's payload as a TCP packet.
     ///
-    /// If the envelope is `IPv4`, then [`Ipv4::protocol`] must be set to
-    /// [`ProtocolNumbers::Tcp`]. If the envelope is `IPv6` or an extension
+    /// If the envelope is IPv4, then [`Ipv4::protocol`] must be set to
+    /// [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an extension
     /// header, then [`next_header`] must be set to `ProtocolNumbers::Tcp`.
     /// Otherwise, returns a parsing error.
     ///
@@ -554,10 +552,10 @@ impl<E: IpPacket> Packet for Tcp<E> {
         })
     }
 
-    /// Prepends a TCP packet at the start of the envelope's payload.
+    /// Prepends a TCP packet to the beginning of the envelope's payload.
     ///
-    /// If the envelope is `IPv4`, then [`Ipv4::protocol`] is set to
-    /// [`ProtocolNumbers::Tcp`]. If the envelope is `IPv6` or an extension
+    /// If the envelope is IPv4, then [`Ipv4::protocol`] is set to
+    /// [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an extension
     /// header, then [`next_header`] is set to `ProtocolNumbers::Tcp`.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
@@ -585,8 +583,8 @@ impl<E: IpPacket> Packet for Tcp<E> {
         self.envelope
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
     /// * [`checksum`] is computed based on the [`pseudo-header`] and the
     /// full packet.

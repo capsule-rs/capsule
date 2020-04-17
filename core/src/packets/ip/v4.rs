@@ -384,7 +384,7 @@ impl fmt::Debug for Ipv4 {
 }
 
 impl Packet for Ipv4 {
-    /// The proceeding type for `Ipv4` packet must be `Ethernet`.
+    /// The preceding type for an IPv4 packet must be Ethernet.
     type Envelope = Ethernet;
 
     #[inline]
@@ -418,8 +418,8 @@ impl Packet for Ipv4 {
 
     /// Parses the Ethernet's payload as an IPv4 packet.
     ///
-    /// [`ether_type`] must be set to [`EtherTypes::Ipv4`]. Otherwise returns
-    /// a parsing error.
+    /// [`ether_type`] must be set to [`EtherTypes::Ipv4`]. Otherwise a parsing
+    /// error is returned.
     ///
     /// [`ether_type`]: Ethernet::ether_type
     /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
@@ -441,7 +441,7 @@ impl Packet for Ipv4 {
         })
     }
 
-    /// Prepends an IPv4 packet at the start of the Ethernet's payload.
+    /// Prepends an IPv4 packet to the beginning of the Ethernet's payload.
     ///
     /// [`ether_type`] is set to [`EtherTypes::Ipv4`].
     ///
@@ -469,8 +469,8 @@ impl Packet for Ipv4 {
         self.envelope
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
     /// * [`total_length`] is set to the total length of the header and the
     /// payload.

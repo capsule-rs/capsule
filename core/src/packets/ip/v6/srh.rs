@@ -249,11 +249,8 @@ impl<E: Ipv6Packet> fmt::Debug for SegmentRouting<E> {
 }
 
 impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
-    /// The proceeding packet type that encapsulates an IPv6 segment routing
-    /// packet.
-    ///
-    /// The proceeding type can be either an IPv6 packet or any IPv6 extension
-    /// packets.
+    /// The preceding type for an IPv6 segment routing packet can be either
+    /// an IPv6 packet or any IPv6 extension packets.
     type Envelope = E;
 
     #[inline]
@@ -325,7 +322,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     }
 
     /// Prepends an IPv6 segment routing packet with a segment list of one
-    /// at the start of the envelope's payload.
+    /// to the beginning of the envelope's payload.
     ///
     /// [`next_header`] is set to the value of the `next_header` field of the
     /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Route`].

@@ -32,7 +32,7 @@ use std::slice;
 /// packets.
 ///
 ///
-/// ## Derivable
+/// # Derivable
 ///
 /// The `SizeOf` trait can be used with `#[derive]` and defaults to
 /// `std::mem::size_of::<Self>()`.

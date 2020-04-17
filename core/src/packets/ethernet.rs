@@ -225,7 +225,7 @@ impl fmt::Debug for Ethernet {
 }
 
 impl Packet for Ethernet {
-    /// The proceeding type for `Ethernet` must be `Mbuf`.
+    /// The preceding type for Ethernet must be `Mbuf`.
     type Envelope = Mbuf;
 
     #[inline]
@@ -278,7 +278,7 @@ impl Packet for Ethernet {
             offset,
         };
 
-        // we've only parsed 14 bytes as the ethernet header, in case of
+        // we've only parsed 14 bytes as the Ethernet header, in case of
         // vlan, we need to make sure there's enough data for the whole
         // header including tags, otherwise accessing the union type in the
         // header will cause a panic.

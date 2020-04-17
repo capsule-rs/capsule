@@ -119,10 +119,10 @@ impl<E: Ipv6Packet> Icmpv6Packet<E, ()> for Icmpv6<E, ()> {
 }
 
 impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
-    /// The proceeding type for `ICMPv6` packet must be either an [`IPv6`]
+    /// The preceding type for an ICMPv6 packet must be either an [IPv6]
     /// packet or any IPv6 extension packets.
     ///
-    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
+    /// [IPv6]: crate::packets::ip::v6::Ipv6
     type Envelope = E;
 
     #[inline]
@@ -155,10 +155,10 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         }
     }
 
-    /// Parses the envelope's payload as an `ICMPv6` packet.
+    /// Parses the envelope's payload as an ICMPv6 packet.
     ///
     /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
-    /// Otherwise, returns a parsing error.
+    /// Otherwise, a parsing error is returned.
     ///
     /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
@@ -182,7 +182,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         })
     }
 
-    /// Prepends an `ICMPv6` packet at the start of the envelope's payload.
+    /// Prepends an ICMPv6 packet to the beginning of the envelope's payload.
     ///
     /// [`next_header`] is set to [`ProtocolNumbers::Icmpv6`].
     ///
@@ -220,8 +220,8 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E, ()> {
         self.envelope
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
     /// * [`checksum`] is computed based on the [`pseudo-header`] and the
     /// full packet.
@@ -350,7 +350,7 @@ impl Icmpv6Payload for () {
 
 /// A trait for common behaviors shared by ICMPv6 packets.
 ///
-/// ## Derivable
+/// # Derivable
 ///
 /// The `Icmpv6Packet` trait can be used with `#[derive]` on Icmpv6 payloads,
 /// which also derives the implementation for the [`Packet`] trait.
@@ -362,10 +362,10 @@ impl Icmpv6Payload for () {
 /// }
 /// ```
 ///
-/// ## Remarks
+/// # Remarks
 ///
 /// When using the associated derive macro, the payload struct implementation
-/// must provide an private implementation of the `fix_invariants` function.
+/// must provide an private implementation of the `reconcile` function.
 ///
 /// [`Packet`]: crate::packets::Packet
 pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>: Packet<Envelope = E> {
@@ -425,11 +425,11 @@ pub trait Icmpv6Packet<E: Ipv6Packet, P: Icmpv6Payload>: Packet<Envelope = E> {
     }
 }
 
-/// An [`ICMPv6`] message with parsed payload.
+/// An [ICMPv6] message with parsed payload.
 ///
 /// A list of supported types is under [`Icmpv6Types`].
 ///
-/// [`ICMPv6`]: Icmpv6
+/// [ICMPv6]: Icmpv6
 #[derive(Debug)]
 pub enum Icmpv6Message<E: Ipv6Packet> {
     /// EchoRequest message.
@@ -455,9 +455,9 @@ pub enum Icmpv6Message<E: Ipv6Packet> {
 /// Trait for parsing IPv6 packet payload as an ICMPv6 message.
 pub trait Icmpv6Parse {
     /// The outer packet type that encapsulates the ICMPv6 packet. It can be
-    /// either [`IPv6`] or an extension header.
+    /// either [IPv6] or an extension header.
     ///
-    /// [`IPv6`]: crate::packets::ip::v6::Ipv6
+    /// [IPv6]: crate::packets::ip::v6::Ipv6
     type Envelope: Ipv6Packet;
 
     /// Parses the IPv6 packet payload as an ICMPv6 message. Automatically

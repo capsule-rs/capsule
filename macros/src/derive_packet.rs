@@ -46,10 +46,10 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
         }
 
         impl<E: Ipv6Packet> crate::packets::Packet for crate::packets::icmp::v6::Icmpv6<E, #name> {
-            /// The proceeding type for `ICMPv6` packet must be either an [`IPv6`]
+            /// The preceding type for an ICMPv6 packet must be either an [IPv6]
             /// packet or any IPv6 extension packets.
             ///
-            /// [`IPv6`]: crate::packets::ip::v6::Ipv6
+            /// [IPv6]: crate::packets::ip::v6::Ipv6
             type Envelope = E;
 
             #[inline]
@@ -82,7 +82,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 }
             }
 
-            /// Parses the envelope's payload as an `ICMPv6` packet.
+            /// Parses the envelope's payload as an ICMPv6 packet.
             ///
             /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
             /// Otherwise, returns a parsing error.
@@ -114,7 +114,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
-            /// Prepends an `ICMPv6` packet at the start of the envelope's payload.
+            /// Prepends an ICMPv6 packet to the beginning of the envelope's payload.
             ///
             /// [`next_header`] is set to [`ProtocolNumbers::Icmpv6`].
             ///
@@ -153,7 +153,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
                 self.envelope
             }
 
-            /// Reconciles the derivable attributes against the changes made to the
+            /// Reconciles the derivable header fields against the changes made to the
             /// packet.
             ///
             /// The implementation is delegated to the private `reconcile` function in
@@ -195,7 +195,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
         }
 
         impl crate::packets::Packet for Icmpv4<#name> {
-            /// The proceeding type for `ICMPv4` packet must be `IPv4`.
+            /// The preceding type for an ICMPv4 packet must be IPv4.
             type Envelope = crate::packets::ip::v4::Ipv4;
 
             #[inline]
@@ -228,7 +228,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 }
             }
 
-            /// Parses the envelope's payload as an `ICMPv4` packet.
+            /// Parses the envelope's payload as an ICMPv4 packet.
             ///
             /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
             /// Otherwise, returns a parsing error.
@@ -260,7 +260,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 })
             }
 
-            /// Prepends an `ICMPv4` packet at the start of the envelope's payload.
+            /// Prepends an ICMPv4 packet to the beginning of the IPv4's payload.
             ///
             /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
             ///
@@ -299,7 +299,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                 self.envelope
             }
 
-            /// Reconciles the derivable attributes against the changes made to the
+            /// Reconciles the derivable header fields against the changes made to the
             /// packet.
             ///
             /// The implementation is delegated to the private `reconcile` function in

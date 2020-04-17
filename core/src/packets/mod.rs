@@ -48,17 +48,33 @@ use std::ops::Deref;
 #[derive(Clone, Debug)]
 pub struct Internal(());
 
-/// A trait all network protocols implement.
+/// A trait all network protocols must implement.
+///
+/// This is the main trait for interacting with the message buffer as
+/// statically-typed packets.
+///
+/// # Example
+///
+/// ```
+/// let packet = Mbuf::new()?;
+/// let ethernet = packet.push::<Ethernet>()?;
+/// let ipv4 = ethernet.push::<Ipv4>()?;
+///
+/// let mut tcp = ipv4.push::<Tcp<Ipv4>>()?;
+/// tcp.set_dst_ip(remote_ip);
+/// tcp.set_dst_port(22);
+/// tcp.reconcile_all();
+/// ```
 #[allow(clippy::len_without_is_empty)]
 pub trait Packet {
-    /// The proceeding packet type that encapsulates this packet.
+    /// The preceding packet type that encapsulates this packet.
     ///
     /// The envelope behaves as a constraint to enforce strict ordering
-    /// between packet types. For example, an [`IPv4`] packet must be
-    /// encapsulated by an [`Ethernet`] packet.
+    /// between packet types. For example, an [IPv4] packet must be
+    /// encapsulated by an [Ethernet] packet.
     ///
-    /// [`Ethernet`]: Ethernet
-    /// [`IPv4`]: ip::v4::Ipv4
+    /// [Ethernet]: Ethernet
+    /// [IPv4]: ip::v4::Ipv4
     type Envelope: Packet;
 
     /// Returns a reference to the envelope.
@@ -134,7 +150,7 @@ pub trait Packet {
     ///
     /// The implementation should perform the necessary buffer boundary
     /// checks and validate the invariants if any. For example, before parsing
-    /// the [`Ethernet`]'s payload as an [`IPv4`] packet, there should be a
+    /// the [Ethernet]'s payload as an [IPv4] packet, there should be a
     /// check to assert that [`ether_type`] matches the expectation.
     ///
     /// # Remarks
@@ -142,8 +158,8 @@ pub trait Packet {
     /// This function cannot be invoked directly. It is internally used by
     /// [`parse`].
     ///
-    /// [`Ethernet`]: Ethernet
-    /// [`IPv4`]: ip::v4::Ipv4
+    /// [Ethernet]: Ethernet
+    /// [IPv4]: ip::v4::Ipv4
     /// [`ether_type`]: Ethernet::ether_type
     /// [`parse`]: Packet::parse
     fn try_parse(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
@@ -177,7 +193,7 @@ pub trait Packet {
         clone.parse::<T>().map(Immutable::new)
     }
 
-    /// Prepends a new packet at the start of the envelope's payload.
+    /// Prepends a new packet to the beginning of the envelope's payload.
     ///
     /// When the packet is inserted into an envelope with an existing payload,
     /// the original payload becomes the payload of the new packet. The
@@ -194,7 +210,8 @@ pub trait Packet {
     where
         Self: Sized;
 
-    /// Prepends a new packet of type `T` at the start of the payload.
+    /// Prepends a new packet of type `T` to the beginning of the envelope's
+    /// payload.
     #[inline]
     fn push<T: Packet<Envelope = Self>>(self) -> Fallible<T>
     where
@@ -245,16 +262,16 @@ pub trait Packet {
         self.deparse().reset()
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
-    /// Protocols that have derivable attributes, like a checksum, should
-    /// implement this to recompute those attributes after changes were made
+    /// Protocols that have derivable header fields, like a checksum, should
+    /// implement this to recompute those fields after changes were made
     /// to the packet.
     #[inline]
     fn reconcile(&mut self) {}
 
-    /// Reconciles against the changes recursively through the layers.
+    /// Reconciles against the changes recursively through all layers.
     ///
     /// A change made to a packet can have cascading effects through the
     /// envelope chain. The call will recursively reconcile those changes

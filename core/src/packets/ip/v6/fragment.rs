@@ -140,10 +140,8 @@ impl<E: Ipv6Packet> fmt::Debug for Fragment<E> {
 }
 
 impl<E: Ipv6Packet> Packet for Fragment<E> {
-    /// The proceeding packet type that encapsulates an IPv6 fragment packet.
-    ///
-    /// The proceeding type can be either an IPv6 packet or any IPv6 extension
-    /// packets.
+    /// The preceding type for an IPv6 fragment packet can be either an
+    /// IPv6 packet or any IPv6 extension packets.
     type Envelope = E;
 
     #[inline]
@@ -200,7 +198,8 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
         })
     }
 
-    /// Prepends an IPv6 fragment packet at the start of the envelope's payload.
+    /// Prepends an IPv6 fragment packet to the beginning of the envelope's
+    /// payload.
     ///
     /// [`next_header`] is set to the value of the `next_header` field of the
     /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Frag`].

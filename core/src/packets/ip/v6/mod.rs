@@ -229,7 +229,7 @@ impl fmt::Debug for Ipv6 {
 }
 
 impl Packet for Ipv6 {
-    /// The proceeding type for `Ipv6` packet must be `Ethernet`.
+    /// The preceding type for IPv6 packet must be Ethernet.
     type Envelope = Ethernet;
 
     #[inline]
@@ -286,7 +286,7 @@ impl Packet for Ipv6 {
         })
     }
 
-    /// Prepends an IPv6 packet at the start of the Ethernet's payload.
+    /// Prepends an IPv6 packet to the beginning of the Ethernet's payload.
     ///
     /// [`ether_type`] is set to [`EtherTypes::Ipv6`].
     ///
@@ -314,8 +314,8 @@ impl Packet for Ipv6 {
         self.envelope
     }
 
-    /// Reconciles the derivable attributes against the changes made to the
-    /// packet.
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
     ///
     /// * [`payload_length`] is set to the length of the payload which includes
     /// any extension headers present.
