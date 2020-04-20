@@ -28,7 +28,7 @@ use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::{IpPacket, ProtocolNumbers};
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
-use failure::Fallible;
+use failure::{Fail, Fallible};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -52,30 +52,92 @@ use std::ptr::NonNull;
 /// - *Checksum*:      This field is used to detect data corruption in the
 ///                    ICMPv4 message and parts of the IPv4 header.
 ///
-/// - *Message Body*:  Varies based on the type field and implemented with
-///                    trait [`Icmpv4Payload`]. The packet needs to be first
-///                    parsed with the unit `()` payload before the type field
-///                    can be read.
+/// - *Message Body*:  Varies based on the type field. Each specific type
+///                    is implemented with trait [`Icmpv4Message`].
 ///
 /// # Example
 ///
 /// ```
 /// if ipv4.protocol() == ProtocolNumbers::Icmpv4 {
-///     let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
+///     let icmpv4 = ipv4.parse::<Icmpv4>()?;
 ///     println!("{}", icmpv4.msg_type());
 /// }
 /// ```
 ///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
-/// [`Icmpv4Payload`]: Icmpv4Payload
-pub struct Icmpv4<P: Icmpv4Payload> {
+/// [`Icmpv4Message`]: Icmpv4Message
+pub struct Icmpv4 {
     envelope: Ipv4,
     header: NonNull<Icmpv4Header>,
-    payload: NonNull<P>,
     offset: usize,
 }
 
-impl fmt::Debug for Icmpv4<()> {
+impl Icmpv4 {
+    #[inline]
+    fn header(&self) -> &Icmpv4Header {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut Icmpv4Header {
+        unsafe { self.header.as_mut() }
+    }
+
+    /// Returns the message type.
+    #[inline]
+    pub fn msg_type(&self) -> Icmpv4Type {
+        Icmpv4Type::new(self.header().msg_type)
+    }
+
+    /// Returns the code.
+    #[inline]
+    pub fn code(&self) -> u8 {
+        self.header().code
+    }
+
+    /// Sets the code.
+    #[inline]
+    pub fn set_code(&mut self, code: u8) {
+        self.header_mut().code = code
+    }
+
+    /// Returns the checksum.
+    #[inline]
+    pub fn checksum(&self) -> u16 {
+        u16::from_be(self.header().checksum)
+    }
+
+    /// Computes the checksum.
+    #[inline]
+    pub fn compute_checksum(&mut self) {
+        self.header_mut().checksum = 0;
+
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
+            let data = unsafe { data.as_ref() };
+            let checksum = checksum::compute(0, data);
+            self.header_mut().checksum = u16::to_be(checksum);
+        } else {
+            // we are reading till the end of buffer, should never run out
+            unreachable!()
+        }
+    }
+
+    /// Casts the ICMPv4 packet to a message of type `T`.
+    ///
+    /// Returns an error if the message type in the packet header does not
+    /// match the assigned message type for `T`.
+    #[inline]
+    pub fn downcast<T: Icmpv4Message>(self) -> Fallible<T> {
+        ensure!(
+            self.msg_type() == T::msg_type(),
+            ParseError::new(&format!("The ICMPv4 packet is not {}.", T::msg_type()))
+        );
+
+        T::try_parse(self, Internal(()))
+    }
+}
+
+impl fmt::Debug for Icmpv4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv4")
             .field("type", &format!("{}", self.msg_type()))
@@ -88,29 +150,12 @@ impl fmt::Debug for Icmpv4<()> {
     }
 }
 
-impl Icmpv4Packet<()> for Icmpv4<()> {
-    #[inline]
-    fn header(&self) -> &Icmpv4Header {
-        unsafe { self.header.as_ref() }
-    }
+/// Error when trying to push an ICMPv4 header without a message body.
+#[derive(Debug, Fail)]
+#[fail(display = "Cannot push an ICMPv4 header without a message body.")]
+pub struct NoIcmpv4MessageBody;
 
-    #[inline]
-    fn header_mut(&mut self) -> &mut Icmpv4Header {
-        unsafe { self.header.as_mut() }
-    }
-
-    #[inline]
-    fn payload(&self) -> &() {
-        unsafe { self.payload.as_ref() }
-    }
-
-    #[inline]
-    fn payload_mut(&mut self) -> &mut () {
-        unsafe { self.payload.as_mut() }
-    }
-}
-
-impl Packet for Icmpv4<()> {
+impl Packet for Icmpv4 {
     /// The preceding type for ICMPv4 packet must be IPv4.
     type Envelope = Ipv4;
 
@@ -136,10 +181,9 @@ impl Packet for Icmpv4<()> {
 
     #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
-        Icmpv4::<()> {
+        Icmpv4 {
             envelope: self.envelope.clone(internal),
             header: self.header,
-            payload: self.payload,
             offset: self.offset,
         }
     }
@@ -161,44 +205,21 @@ impl Packet for Icmpv4<()> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
-        let payload = mbuf.read_data(offset + Icmpv4Header::size_of())?;
 
         Ok(Icmpv4 {
             envelope,
             header,
-            payload,
             offset,
         })
     }
 
-    /// Prepends an ICMPv4 packet to the beginning of the IPv4's payload.
+    /// Cannot push an ICMPv4 header without a message body. This function
+    /// will always return [`NoIcmpv4MessageBody`].
     ///
-    /// [`Ipv4::protocol`] is set to [`ProtocolNumbers::Icmpv4`].
-    ///
-    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
-    /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
+    /// [`NoIcmpv4MessageBody`]: NoIcmpv4MessageBody
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Icmpv4Header::size_of() + <()>::size_of())?;
-        let header = mbuf.write_data(offset, &Icmpv4Header::default())?;
-        let payload = mbuf.write_data(offset + Icmpv4Header::size_of(), &<()>::default())?;
-
-        let mut packet = Icmpv4 {
-            envelope,
-            header,
-            payload,
-            offset,
-        };
-
-        packet.header_mut().msg_type = <()>::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_protocol(ProtocolNumbers::Icmpv4);
-
-        Ok(packet)
+    fn try_push(_envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        Err(NoIcmpv4MessageBody.into())
     }
 
     #[inline]
@@ -209,7 +230,7 @@ impl Packet for Icmpv4<()> {
     /// Reconciles the derivable header fields against the changes made to
     /// the packet.
     ///
-    /// * [`checksum`] is computed based on the full packet.
+    /// * [`checksum`] is computed based on the header and the message body.
     ///
     /// [`checksum`]: Icmpv4Packet::checksum
     #[inline]
@@ -218,9 +239,12 @@ impl Packet for Icmpv4<()> {
     }
 }
 
-/// Type of ICMPv4 message.
+/// [IANA] assigned ICMPv4 message types.
 ///
 /// A list of supported types is under [`Icmpv4Types`].
+///
+/// [IANA]: https://www.iana.org/assignments/icmp-parameters/icmp-parameters.xhtml
+/// [`Icmpv4Types`]: Icmpv4Types
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct Icmpv4Type(pub u8);
@@ -242,6 +266,7 @@ pub mod Icmpv4Types {
     ///
     /// [`Echo Request`]: crate::packets::icmp::v4::EchoRequest
     pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
+
     /// Message type for [`Echo Reply`].
     ///
     /// [`Echo Reply`]: crate::packets::icmp::v4::EchoReply
@@ -263,141 +288,198 @@ impl fmt::Display for Icmpv4Type {
 }
 
 /// ICMPv4 header.
-#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
-pub struct Icmpv4Header {
+struct Icmpv4Header {
     msg_type: u8,
     code: u8,
     checksum: u16,
 }
 
-/// Common behaviors for ICMPv4 payloads.
-pub trait Icmpv4Payload: Clone + Default + SizeOf {
-    /// Returns the ICMPv4 message type that corresponds to the payload.
+/// A trait all ICMPv4 messages must implement.
+///
+/// The trait is used for conversion between the generic [ICMPv4] packet
+/// and the more specific messages. Implementors can use this trait to
+/// add custom message types. This trait should not be used directly. Use
+/// either [`Packet`] or [`Icmpv4Packet`] instead.
+///
+/// # Example
+///
+/// ```
+/// let icmpv4 = ipv4.parse::<Icmpv4>()?;
+/// let reply = icmpv4.downcast::<EchoReply>()?;
+/// ```
+///
+/// [ICMPv4]: Icmpv4
+/// [`Packet`]: Packet
+/// [`Icmpv4Packet`]: Icmpv4Packet
+pub trait Icmpv4Message {
+    /// Returns the assigned message type.
     fn msg_type() -> Icmpv4Type;
-}
 
-/// ICMPv4 unit payload `()`.
-impl Icmpv4Payload for () {
-    fn msg_type() -> Icmpv4Type {
-        // Unit payload does not have a type
-        unreachable!();
-    }
-}
+    /// Returns a reference to the generic ICMPv4 packet.
+    fn icmp(&self) -> &Icmpv4;
 
-/// A trait for common behaviors shared by ICMPv4 packets.
-///
-/// # Derivable
-///
-/// The `Icmpv4Packet` trait can be used with `#[derive]` on Icmpv4 payloads,
-/// which also derives the implementation for the [`Packet`] trait.
-///
-/// ```
-/// #[derive(Icmpv4Packet)]
-/// pub struct EchoReply {
-///     ...
-/// }
-/// ```
-///
-/// # Remarks
-///
-/// When using the associated derive macro, the payload struct implementation
-/// must provide an private implementation of the `reconcile` function.
-///
-/// [`Packet`]: crate::packets::Packet
-pub trait Icmpv4Packet<P: Icmpv4Payload>: Packet<Envelope = Ipv4> {
-    /// Returns a reference to the header.
-    fn header(&self) -> &Icmpv4Header;
+    /// Returns a mutable reference to the generic ICMPv4 packet.
+    fn icmp_mut(&mut self) -> &mut Icmpv4;
 
-    /// Returns a mutable reference to the header.
-    fn header_mut(&mut self) -> &mut Icmpv4Header;
+    /// Converts the message back to the generic ICMPv4 packet.
+    fn into_icmp(self) -> Icmpv4;
 
-    /// Returns a reference to the fixed payload.
-    fn payload(&self) -> &P;
+    /// Returns a copy of the message.
+    ///
+    /// # Safety
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`Packet::clone`].
+    ///
+    /// [`Packet::clone`]: Packet::clone
+    unsafe fn clone(&self, internal: Internal) -> Self;
 
-    /// Returns a mutable reference to the fixed payload.
-    fn payload_mut(&mut self) -> &mut P;
+    /// Parses the ICMPv4 packet's payload as this message type.
+    ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`Icmpv4::downcast`]. `downcast` verifies that the [`msg_type`] in
+    /// the packet matches the assigned number before invoking this function.
+    ///
+    /// [`Icmpv4::downcast`]: Icmpv4::downcast
+    /// [`msg_type`]: Icmpv4::msg_type
+    fn try_parse(icmp: Icmpv4, internal: Internal) -> Fallible<Self>
+    where
+        Self: Sized;
 
-    /// Returns the message type.
+    /// Prepends a new ICMPv4 message to the beginning of the envelope's
+    /// payload.
+    ///
+    /// [`msg_type`] is preset to the fixed type number of the message. When
+    /// the packet is inserted into an envelope with an existing payload, the
+    /// original payload becomes part of the ICMPv4 message.
+    ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`Packet::push`].
+    ///
+    /// [`msg_type`]: Icmpv4::msg_type
+    /// [`Packet::push`]: Packet::push
+    fn try_push(icmp: Icmpv4, internal: Internal) -> Fallible<Self>
+    where
+        Self: Sized;
+
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet. The default implementation computes the [`checksum`]
+    /// based on the ICMPv4 header and message body.
+    ///
+    /// [`checksum`]: Icmpv4::checksum
     #[inline]
-    fn msg_type(&self) -> Icmpv4Type {
-        Icmpv4Type::new(self.header().msg_type)
+    fn reconcile(&mut self) {
+        self.icmp_mut().compute_checksum()
     }
+}
+
+// Generic `Packet` implementation for all ICMPv4 messages.
+impl<T: Icmpv4Message> Packet for T {
+    type Envelope = Ipv4;
+
+    #[inline]
+    fn envelope(&self) -> &Self::Envelope {
+        self.icmp().envelope()
+    }
+
+    #[inline]
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
+        self.icmp_mut().envelope_mut()
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.icmp().offset()
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        self.icmp().header_len()
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Icmpv4Message::clone(self, internal)
+    }
+
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+        envelope.parse::<Icmpv4>()?.downcast::<T>()
+    }
+
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope, internal: Internal) -> Fallible<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, Icmpv4Header::size_of())?;
+        let header = mbuf.write_data(offset, &Icmpv4Header::default())?;
+
+        let mut packet = Icmpv4 {
+            envelope,
+            header,
+            offset,
+        };
+
+        packet.header_mut().msg_type = T::msg_type().0;
+        packet
+            .envelope_mut()
+            .set_next_protocol(ProtocolNumbers::Icmpv4);
+
+        T::try_push(packet, internal)
+    }
+
+    #[inline]
+    fn deparse(self) -> Self::Envelope {
+        self.into_icmp().deparse()
+    }
+
+    #[inline]
+    fn reconcile(&mut self) {
+        Icmpv4Message::reconcile(self);
+    }
+}
+
+/// A trait for common ICMPv4 accessors.
+pub trait Icmpv4Packet {
+    /// Returns the message type.
+    fn msg_type(&self) -> Icmpv4Type;
 
     /// Returns the code.
-    #[inline]
-    fn code(&self) -> u8 {
-        self.header().code
-    }
+    fn code(&self) -> u8;
 
     /// Sets the code.
-    #[inline]
-    fn set_code(&mut self, code: u8) {
-        self.header_mut().code = code
-    }
+    fn set_code(&mut self, code: u8);
 
     /// Returns the checksum.
+    fn checksum(&self) -> u16;
+}
+
+impl<T: Icmpv4Message> Icmpv4Packet for T {
+    #[inline]
+    fn msg_type(&self) -> Icmpv4Type {
+        self.icmp().msg_type()
+    }
+
+    #[inline]
+    fn code(&self) -> u8 {
+        self.icmp().code()
+    }
+
+    #[inline]
+    fn set_code(&mut self, code: u8) {
+        self.icmp_mut().set_code(code)
+    }
+
     #[inline]
     fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
-    }
-
-    /// Computes the checksum.
-    #[inline]
-    fn compute_checksum(&mut self) {
-        self.header_mut().checksum = 0;
-
-        if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
-            let data = unsafe { data.as_ref() };
-            let checksum = checksum::compute(0, data);
-            self.header_mut().checksum = u16::to_be(checksum);
-        } else {
-            // we are reading till the end of buffer, should never run out
-            unreachable!()
-        }
-    }
-}
-
-/// An [ICMPv4] message with parsed payload.
-///
-/// [ICMPv4]: `Icmpv4`
-#[derive(Debug)]
-pub enum Icmpv4Message {
-    /// Echo Request message.
-    EchoRequest(Icmpv4<EchoRequest>),
-
-    /// Echo Reply message.
-    EchoReply(Icmpv4<EchoReply>),
-
-    /// An ICMPv4 message with undefined payload.
-    Undefined(Icmpv4<()>),
-}
-
-/// Trait for parsing IPv4 packet payload as an ICMPv4 message.
-pub trait Icmpv4Parse {
-    /// Parses the IPv4 packet payload as an ICMPv4 message.
-    fn parse_icmpv4(self) -> Fallible<Icmpv4Message>;
-}
-
-impl Icmpv4Parse for Ipv4 {
-    fn parse_icmpv4(self) -> Fallible<Icmpv4Message> {
-        if self.next_protocol() == ProtocolNumbers::Icmpv4 {
-            let icmpv4 = self.parse::<Icmpv4<()>>()?;
-            match icmpv4.msg_type() {
-                Icmpv4Types::EchoRequest => {
-                    let packet = icmpv4.deparse().parse::<Icmpv4<EchoRequest>>()?;
-                    Ok(Icmpv4Message::EchoRequest(packet))
-                }
-                Icmpv4Types::EchoReply => {
-                    let packet = icmpv4.deparse().parse::<Icmpv4<EchoReply>>()?;
-                    Ok(Icmpv4Message::EchoReply(packet))
-                }
-                _ => Ok(Icmpv4Message::Undefined(icmpv4)),
-            }
-        } else {
-            Err(ParseError::new("Packet is not Icmpv4").into())
-        }
+        self.icmp().checksum()
     }
 }
 
@@ -419,11 +501,34 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
+        let icmpv4 = ipv4.parse::<Icmpv4>().unwrap();
 
-        assert_eq!(Icmpv4Type::new(0x8), icmpv4.msg_type());
+        // parses the generic header
+        assert_eq!(Icmpv4Types::EchoRequest, icmpv4.msg_type());
         assert_eq!(0, icmpv4.code());
         assert_eq!(0x2a5c, icmpv4.checksum());
+
+        // downcasts to specific message
+        let echo = icmpv4.downcast::<EchoRequest>().unwrap();
+        assert_eq!(Icmpv4Types::EchoRequest, echo.msg_type());
+        assert_eq!(0, echo.code());
+        assert_eq!(0x2a5c, echo.checksum());
+        assert_eq!(0x0200, echo.identifier());
+        assert_eq!(0x2100, echo.seq_no());
+
+        // also can one-step parse
+        let ipv4 = echo.deparse();
+        assert!(ipv4.parse::<EchoRequest>().is_ok());
+    }
+
+    #[capsule::test]
+    fn parse_wrong_icmpv4_type() {
+        let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let icmpv4 = ipv4.parse::<Icmpv4>().unwrap();
+
+        assert!(icmpv4.downcast::<EchoReply>().is_err());
     }
 
     #[capsule::test]
@@ -432,7 +537,7 @@ mod tests {
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
-        assert!(ipv4.parse::<Icmpv4<()>>().is_err());
+        assert!(ipv4.parse::<Icmpv4>().is_err());
     }
 
     #[capsule::test]
@@ -440,7 +545,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut icmpv4 = ipv4.parse::<Icmpv4<()>>().unwrap();
+        let mut icmpv4 = ipv4.parse::<Icmpv4>().unwrap();
 
         let expected = icmpv4.checksum();
         // no payload change but force a checksum recompute anyway
@@ -449,14 +554,11 @@ mod tests {
     }
 
     #[capsule::test]
-    fn matchable_icmpv4_packets() {
-        let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        if let Ok(Icmpv4Message::EchoRequest(icmpv4)) = ipv4.parse_icmpv4() {
-            assert_eq!(Icmpv4Type::new(0x8), icmpv4.msg_type());
-        } else {
-            panic!("bad packet");
-        }
+    fn push_icmpv4_header_without_body() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv4 = ethernet.push::<Ipv4>().unwrap();
+
+        assert!(ipv4.push::<Icmpv4>().is_err());
     }
 }

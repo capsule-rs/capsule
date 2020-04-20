@@ -18,7 +18,7 @@
 
 use capsule::batch::{Batch, Pipeline, Poll};
 use capsule::config::load_config;
-use capsule::packets::icmp::v4::{EchoReply, EchoRequest, Icmpv4};
+use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet};
 use capsule::{Mbuf, PortQueue, Runtime};
@@ -26,7 +26,7 @@ use failure::Fallible;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Fallible<Icmpv4<EchoReply>> {
+fn reply_echo(packet: &Mbuf) -> Fallible<EchoReply> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -40,8 +40,8 @@ fn reply_echo(packet: &Mbuf) -> Fallible<Icmpv4<EchoReply>> {
     reply.set_dst(ipv4.src());
     reply.set_ttl(255);
 
-    let request = ipv4.peek::<Icmpv4<EchoRequest>>()?;
-    let mut reply = reply.push::<Icmpv4<EchoReply>>()?;
+    let request = ipv4.peek::<EchoRequest>()?;
+    let mut reply = reply.push::<EchoReply>()?;
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;
