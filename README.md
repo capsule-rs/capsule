@@ -79,7 +79,7 @@ vagrant$ docker run -it --rm \
     --security-opt seccomp=unconfined \
     -v /lib/modules:/lib/modules \
     -v /dev/hugepages:/dev/hugepages \
-    getcapsule/sandbox:18.11.6-1.42 /bin/bash
+    getcapsule/sandbox:18.11.7-1.42 /bin/bash
 ```
 
 Remember to also mount the working directory of your project as a volume for the sandbox. Then you can use `Cargo` commands inside the container as normal.
