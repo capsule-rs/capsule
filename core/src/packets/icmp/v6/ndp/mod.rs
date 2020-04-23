@@ -16,9 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! The Neighbor Discovery Protocol is a protocol used in IPv6, using ICMPv6
-//! messages and operates at the link layer of the Internet model, as
-//! per [`IETF RFC 4861`]. It defines three mechanisms:
+//! Neighbor Discovery Protocol
+//!
+//! NDP is a protocol used in IPv6, using ICMPv6 messages and operates at
+//! the link layer of the Internet model, as per [`IETF RFC 4861`]. It
+//! defines three mechanisms:
 //!
 //! - Substitute of ARP for use in IPv6 domains.
 //! - Stateless auto-configuration, allowing nodes on the local link to
@@ -39,35 +41,22 @@ pub use self::options::*;
 pub use self::router_advert::*;
 pub use self::router_solicit::*;
 
-use super::{Icmpv6, Icmpv6Packet, Icmpv6Payload};
-use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::Packet;
 use failure::Fallible;
 
-/// NDP message payload marker.
-pub trait NdpPayload: Icmpv6Payload {}
+/// A trait for common NDP accessors.
+pub trait NdpPacket: Packet {
+    /// Returns the buffer offset where the options begin.
+    fn options_offset(&self) -> usize;
 
-/// Common behaviors shared by NDP packets.
-///
-/// NDP packets are also ICMPv6 packets.
-pub trait NdpPacket<E: Ipv6Packet, P: NdpPayload>: Icmpv6Packet<E, P> {
     /// Returns an iterator that iterates through the options in the NDP packet.
-    fn options(&self) -> NdpOptionsIterator<'_>;
-
-    /// Add option to NDP messaged.
-    fn push_option<T: NdpOption>(&mut self) -> Fallible<T>;
-}
-
-impl<E: Ipv6Packet, P: NdpPayload> NdpPacket<E, P> for Icmpv6<E, P>
-where
-    Icmpv6<E, P>: Icmpv6Packet<E, P>,
-{
     fn options(&self) -> NdpOptionsIterator<'_> {
         let mbuf = self.mbuf();
-        let offset = self.payload_offset() + P::size_of();
+        let offset = self.options_offset();
         NdpOptionsIterator::new(mbuf, offset)
     }
 
+    /// Add option to NDP messaged.
     fn push_option<T: NdpOption>(&mut self) -> Fallible<T> {
         T::do_push(self.mbuf_mut())
     }
@@ -79,26 +68,49 @@ mod tests {
     use crate::net::MacAddr;
     use crate::packets::icmp::v6::ndp::NdpOptions;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::ip::ProtocolNumbers;
     use crate::packets::{Ethernet, Packet};
+    use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
     use crate::Mbuf;
     use fallible_iterator::FallibleIterator;
     use std::str::FromStr;
 
     #[capsule::test]
-    fn test_add_source_link_layer_address() {
+    fn find_source_link_layer_address() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut source_link_address: LinkLayerAddress = advert.push_option().unwrap();
+        source_link_address.set_addr(MacAddr::from_str("70:3a:cb:1b:f9:7a").unwrap());
+        source_link_address.set_option_type_source();
+
+        let mut slla_found = false;
+        let mut iter = advert.options();
+        while let Ok(Some(option)) = iter.next() {
+            if let NdpOptions::SourceLinkLayerAddress(addr) = option {
+                assert_eq!(1, addr.length());
+                assert_eq!("70:3a:cb:1b:f9:7a", addr.addr().to_string());
+                slla_found = true;
+            }
+        }
+
+        assert!(slla_found);
+    }
+
+    #[capsule::test]
+    fn add_source_link_layer_address() {
         let mac_addr = MacAddr::from_str("01:00:00:00:00:00").unwrap();
         let raw_packet = Mbuf::new().unwrap();
         let eth = raw_packet.push::<Ethernet>().unwrap();
-        let mut ipv6 = eth.push::<Ipv6>().unwrap();
-        ipv6.set_next_header(ProtocolNumbers::Icmpv6);
-        let mut router_advert = ipv6.push::<Icmpv6<Ipv6, RouterAdvertisement>>().unwrap();
+        let ipv6 = eth.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
 
-        let mut option: LinkLayerAddress = router_advert.push_option().unwrap();
+        let mut option: LinkLayerAddress = advert.push_option().unwrap();
         option.set_addr(mac_addr);
         option.set_option_type_source();
 
-        let mut iter = router_advert.options();
+        let mut iter = advert.options();
 
         while let Ok(Some(option_parse)) = iter.next() {
             if let NdpOptions::SourceLinkLayerAddress(option_type) = option_parse {

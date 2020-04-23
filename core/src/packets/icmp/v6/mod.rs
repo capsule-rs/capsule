@@ -20,7 +20,7 @@
 
 mod echo_reply;
 mod echo_request;
-//pub mod ndp;
+pub mod ndp;
 mod time_exceeded;
 mod too_big;
 
@@ -30,7 +30,6 @@ pub use self::time_exceeded::*;
 pub use self::too_big::*;
 pub use capsule_macros::Icmpv6Packet;
 
-//use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, Internal, Packet, ParseError};
@@ -302,22 +301,22 @@ pub mod Icmpv6Types {
 
     /// Message type for [`Router Solicitation`].
     ///
-    /// [`Router Solicitation`]: crate::packets::icmp::v6::RouterSolicitation
+    /// [`Router Solicitation`]: crate::packets::icmp::v6::ndp::RouterSolicitation
     pub const RouterSolicitation: Icmpv6Type = Icmpv6Type(133);
 
     /// Message type for [`Router Advertisement`].
     ///
-    /// [`Router Advertisement`]: crate::packets::icmp::v6::RouterAdvertisement
+    /// [`Router Advertisement`]: crate::packets::icmp::v6::ndp::RouterAdvertisement
     pub const RouterAdvertisement: Icmpv6Type = Icmpv6Type(134);
 
     /// Message type for [`Neighbor Solicitation`].
     ///
-    /// [`Neighbor Solicitation`]: crate::packets::icmp::v6::NeighborSolicitation
+    /// [`Neighbor Solicitation`]: crate::packets::icmp::v6::ndp::NeighborSolicitation
     pub const NeighborSolicitation: Icmpv6Type = Icmpv6Type(135);
 
     /// Message type for [`Neighbor Advertisement`].
     ///
-    /// [`Neighbor Advertisement`]: crate::packets::icmp::v6::NeighborAdvertisement
+    /// [`Neighbor Advertisement`]: crate::packets::icmp::v6::ndp::NeighborAdvertisement
     pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
 
     /// Message type for `Redirect`.
@@ -481,6 +480,7 @@ pub trait Icmpv6Packet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::icmp::v6::ndp::RouterAdvertisement;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
@@ -493,14 +493,31 @@ mod tests {
 
     #[capsule::test]
     fn parse_icmpv6_packet() {
-        let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
 
-        assert_eq!(Icmpv6Type::new(0xFF), icmpv6.msg_type());
+        // parses the generic header
+        assert_eq!(Icmpv6Types::RouterAdvertisement, icmpv6.msg_type());
         assert_eq!(0, icmpv6.code());
-        assert_eq!(0x01f0, icmpv6.checksum());
+        assert_eq!(0xf50c, icmpv6.checksum());
+
+        // downcasts to specific message
+        let advert = icmpv6.downcast::<RouterAdvertisement<Ipv6>>().unwrap();
+        assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
+        assert_eq!(0, advert.code());
+        assert_eq!(0xf50c, advert.checksum());
+        assert_eq!(64, advert.current_hop_limit());
+        assert!(!advert.managed_addr_cfg());
+        assert!(advert.other_cfg());
+        assert_eq!(3600, advert.router_lifetime());
+        assert_eq!(0, advert.reachable_time());
+        assert_eq!(0, advert.retrans_timer());
+
+        // also can one-step parse
+        let ipv6 = advert.deparse();
+        assert!(ipv6.parse::<RouterAdvertisement<Ipv6>>().is_ok());
     }
 
     #[capsule::test]

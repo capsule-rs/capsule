@@ -198,8 +198,7 @@ const UNDEFINED_OPTION: [u8;78] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::icmp::v6::ndp::NdpPacket;
-    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse};
+    use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::{Ethernet, Packet};
 
@@ -208,12 +207,9 @@ mod tests {
         let packet = Mbuf::from_bytes(&INVALID_OPTION_LENGTH).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
-        if let Ok(Icmpv6Message::RouterAdvertisement(advert)) = ipv6.parse_icmpv6() {
-            assert!(advert.options().next().is_err());
-        } else {
-            panic!("bad packet");
-        }
+        assert!(advert.options().next().is_err());
     }
 
     #[capsule::test]
@@ -221,21 +217,18 @@ mod tests {
         let packet = Mbuf::from_bytes(&UNDEFINED_OPTION).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
-        if let Ok(Icmpv6Message::RouterAdvertisement(advert)) = ipv6.parse_icmpv6() {
-            let mut undefined = false;
-            let mut iter = advert.options();
-            while let Ok(Some(option)) = iter.next() {
-                if let NdpOptions::Undefined(option_type, length) = option {
-                    assert_eq!(7, option_type);
-                    assert_eq!(1, length);
-                    undefined = true;
-                }
+        let mut undefined = false;
+        let mut iter = advert.options();
+        while let Ok(Some(option)) = iter.next() {
+            if let NdpOptions::Undefined(option_type, length) = option {
+                assert_eq!(7, option_type);
+                assert_eq!(1, length);
+                undefined = true;
             }
-
-            assert!(undefined);
-        } else {
-            panic!("bad packet");
         }
+
+        assert!(undefined);
     }
 }

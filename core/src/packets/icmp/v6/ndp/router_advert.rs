@@ -16,11 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::icmp::v6::ndp::NdpPayload;
-use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use super::NdpPacket;
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::{Icmpv6Packet, SizeOf};
+use crate::packets::{Internal, Packet};
+use crate::SizeOf;
+use failure::Fallible;
 use std::fmt;
+use std::ptr::NonNull;
 
 const M_FLAG: u8 = 0b1000_0000;
 const O_FLAG: u8 = 0b0100_0000;
@@ -131,125 +134,114 @@ const O_FLAG: u8 = 0b0100_0000;
 ///                                 interface when sending traffic to its
 ///                                 neighbors.
 ///
-/// The fields are accessible through [`Icmpv6<E, RouterAdvertisement>`].
-///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.2
-/// [`Icmpv6<E, RouterAdvertisement>`]: Icmpv6
-#[derive(Clone, Copy, Debug, Default, Icmpv6Packet, SizeOf)]
-#[repr(C, packed)]
-pub struct RouterAdvertisement {
-    current_hop_limit: u8,
-    flags: u8,
-    router_lifetime: u16,
-    reachable_time: u32,
-    retrans_timer: u32,
+#[derive(Icmpv6Packet)]
+pub struct RouterAdvertisement<E: Ipv6Packet> {
+    icmp: Icmpv6<E>,
+    body: NonNull<RouterAdvertisementBody>,
 }
 
-impl Icmpv6Payload for RouterAdvertisement {
+impl<E: Ipv6Packet> RouterAdvertisement<E> {
     #[inline]
-    fn msg_type() -> Icmpv6Type {
-        Icmpv6Types::RouterAdvertisement
+    fn body(&self) -> &RouterAdvertisementBody {
+        unsafe { self.body.as_ref() }
     }
-}
 
-impl NdpPayload for RouterAdvertisement {}
+    #[inline]
+    fn body_mut(&mut self) -> &mut RouterAdvertisementBody {
+        unsafe { self.body.as_mut() }
+    }
 
-impl<E: Ipv6Packet> Icmpv6<E, RouterAdvertisement> {
     /// Returns the current hop limit.
     #[inline]
     pub fn current_hop_limit(&self) -> u8 {
-        self.payload().current_hop_limit
+        self.body().current_hop_limit
     }
 
     /// Sets the current hop limit.
     #[inline]
     pub fn set_current_hop_limit(&mut self, current_hop_limit: u8) {
-        self.payload_mut().current_hop_limit = current_hop_limit;
+        self.body_mut().current_hop_limit = current_hop_limit;
     }
 
     /// Returns a flag indicating that addresses are available via DHCPv6.
     #[inline]
     pub fn managed_addr_cfg(&self) -> bool {
-        self.payload().flags & M_FLAG != 0
+        self.body().flags & M_FLAG != 0
     }
 
     /// Sets the managed address flag.
     #[inline]
     pub fn set_managed_addr_cfg(&mut self) {
-        self.payload_mut().flags |= M_FLAG;
+        self.body_mut().flags |= M_FLAG;
     }
 
     /// Unsets the managed address flag.
     #[inline]
     pub fn unset_managed_addr_cfg(&mut self) {
-        self.payload_mut().flags &= !M_FLAG;
+        self.body_mut().flags &= !M_FLAG;
     }
 
     /// Returns a flag indicating that other configuration information is
     /// available via DHCPv6.
     #[inline]
     pub fn other_cfg(&self) -> bool {
-        self.payload().flags & O_FLAG != 0
+        self.body().flags & O_FLAG != 0
     }
 
     /// Sets the other configuration flag.
     #[inline]
     pub fn set_other_cfg(&mut self) {
-        self.payload_mut().flags |= O_FLAG;
+        self.body_mut().flags |= O_FLAG;
     }
 
     /// Unsets the other configuration flag.
     #[inline]
     pub fn unset_other_cfg(&mut self) {
-        self.payload_mut().flags &= !O_FLAG;
+        self.body_mut().flags &= !O_FLAG;
     }
 
     /// Returns the lifetime associated with the default router in units
     /// of seconds.
     #[inline]
     pub fn router_lifetime(&self) -> u16 {
-        u16::from_be(self.payload().router_lifetime)
+        u16::from_be(self.body().router_lifetime)
     }
 
     /// Sets the router's default lifetime.
     #[inline]
     pub fn set_router_lifetime(&mut self, router_lifetime: u16) {
-        self.payload_mut().router_lifetime = u16::to_be(router_lifetime);
+        self.body_mut().router_lifetime = u16::to_be(router_lifetime);
     }
 
     /// Returns the time, in milliseconds, that a node assumes a neighbor
     /// is reachable.
     #[inline]
     pub fn reachable_time(&self) -> u32 {
-        u32::from_be(self.payload().reachable_time)
+        u32::from_be(self.body().reachable_time)
     }
 
     /// Sets the neighbor reachable time.
     #[inline]
     pub fn set_reachable_time(&mut self, reachable_time: u32) {
-        self.payload_mut().reachable_time = u32::to_be(reachable_time);
+        self.body_mut().reachable_time = u32::to_be(reachable_time);
     }
 
     /// Returns the time, in milliseconds, between retransmitted Neighbor
     /// Solicitation messages.
     #[inline]
     pub fn retrans_timer(&self) -> u32 {
-        u32::from_be(self.payload().retrans_timer)
+        u32::from_be(self.body().retrans_timer)
     }
 
     /// Sets the retransmission timer.
     #[inline]
     pub fn set_retrans_timer(&mut self, retrans_timer: u32) {
-        self.payload_mut().retrans_timer = u32::to_be(retrans_timer);
-    }
-
-    #[inline]
-    fn reconcile(&mut self) {
-        self.compute_checksum();
+        self.body_mut().retrans_timer = u32::to_be(retrans_timer);
     }
 }
 
-impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
+impl<E: Ipv6Packet> fmt::Debug for RouterAdvertisement<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("router advertisement")
             .field("type", &format!("{}", self.msg_type()))
@@ -265,69 +257,116 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, RouterAdvertisement> {
     }
 }
 
+impl<E: Ipv6Packet> Icmpv6Message for RouterAdvertisement<E> {
+    type Envelope = E;
+
+    #[inline]
+    fn msg_type() -> Icmpv6Type {
+        Icmpv6Types::RouterAdvertisement
+    }
+
+    #[inline]
+    fn icmp(&self) -> &Icmpv6<Self::Envelope> {
+        &self.icmp
+    }
+
+    #[inline]
+    fn icmp_mut(&mut self) -> &mut Icmpv6<Self::Envelope> {
+        &mut self.icmp
+    }
+
+    #[inline]
+    fn into_icmp(self) -> Icmpv6<Self::Envelope> {
+        self.icmp
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        RouterAdvertisement {
+            icmp: self.icmp.clone(internal),
+            body: self.body,
+        }
+    }
+
+    #[inline]
+    fn try_parse(icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let mbuf = icmp.mbuf();
+        let offset = icmp.payload_offset();
+        let body = mbuf.read_data(offset)?;
+
+        Ok(RouterAdvertisement { icmp, body })
+    }
+
+    #[inline]
+    fn try_push(mut icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let offset = icmp.payload_offset();
+        let mbuf = icmp.mbuf_mut();
+
+        mbuf.extend(offset, RouterAdvertisementBody::size_of())?;
+        let body = mbuf.write_data(offset, &RouterAdvertisementBody::default())?;
+
+        Ok(RouterAdvertisement { icmp, body })
+    }
+}
+
+impl<E: Ipv6Packet> NdpPacket for RouterAdvertisement<E> {
+    fn options_offset(&self) -> usize {
+        self.payload_offset() + RouterAdvertisementBody::size_of()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[repr(C, packed)]
+struct RouterAdvertisementBody {
+    current_hop_limit: u8,
+    flags: u8,
+    router_lifetime: u16,
+    reachable_time: u32,
+    retrans_timer: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::MacAddr;
-    use crate::packets::icmp::v6::ndp::{LinkLayerAddress, NdpOptions, NdpPacket};
-    use crate::packets::icmp::v6::{Icmpv6Message, Icmpv6Parse, Icmpv6Types};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet};
-    use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
-    use crate::{Mbuf, SizeOf};
-    use fallible_iterator::FallibleIterator;
-    use std::str::FromStr;
+    use crate::packets::Ethernet;
+    use crate::Mbuf;
 
     #[test]
-    fn size_of_router_advertisement() {
-        assert_eq!(12, RouterAdvertisement::size_of());
+    fn size_of_router_advertisement_body() {
+        assert_eq!(12, RouterAdvertisementBody::size_of());
     }
 
     #[capsule::test]
-    fn parse_router_advertisement_packet() {
-        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+    fn push_and_set_router_advertisement() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
 
-        if let Ok(Icmpv6Message::RouterAdvertisement(advert)) = ipv6.parse_icmpv6() {
-            assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
-            assert_eq!(0, advert.code());
-            assert_eq!(0xf50c, advert.checksum());
-            assert_eq!(64, advert.current_hop_limit());
-            assert!(!advert.managed_addr_cfg());
-            assert!(advert.other_cfg());
-            assert_eq!(3600, advert.router_lifetime());
-            assert_eq!(0, advert.reachable_time());
-            assert_eq!(0, advert.retrans_timer());
-        } else {
-            panic!("bad packet");
-        }
-    }
+        assert_eq!(4, advert.header_len());
+        assert_eq!(RouterAdvertisementBody::size_of(), advert.payload_len());
+        assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
+        assert_eq!(0, advert.code());
 
-    #[capsule::test]
-    fn find_source_link_layer_address() {
-        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
-        let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        advert.set_current_hop_limit(64);
+        assert_eq!(64, advert.current_hop_limit());
+        advert.set_managed_addr_cfg();
+        assert!(advert.managed_addr_cfg());
+        advert.unset_managed_addr_cfg();
+        assert!(!advert.managed_addr_cfg());
+        advert.set_other_cfg();
+        assert!(advert.other_cfg());
+        advert.unset_other_cfg();
+        assert!(!advert.other_cfg());
+        advert.set_router_lifetime(3600);
+        assert_eq!(3600, advert.router_lifetime());
+        advert.set_reachable_time(300);
+        assert_eq!(300, advert.reachable_time());
+        advert.set_retrans_timer(60);
+        assert_eq!(60, advert.retrans_timer());
 
-        if let Ok(Icmpv6Message::RouterAdvertisement(mut advert)) = ipv6.parse_icmpv6() {
-            let mut source_link_address: LinkLayerAddress = advert.push_option().unwrap();
-            source_link_address.set_addr(MacAddr::from_str("70:3a:cb:1b:f9:7a").unwrap());
-            source_link_address.set_option_type_source();
-
-            let mut slla_found = false;
-            let mut iter = advert.options();
-            while let Ok(Some(option)) = iter.next() {
-                if let NdpOptions::SourceLinkLayerAddress(addr) = option {
-                    assert_eq!(1, addr.length());
-                    assert_eq!("70:3a:cb:1b:f9:7a", addr.addr().to_string());
-                    slla_found = true;
-                }
-            }
-
-            assert!(slla_found);
-        } else {
-            panic!("not a router advertisement packet");
-        }
+        advert.reconcile_all();
+        assert!(advert.checksum() != 0);
     }
 }
