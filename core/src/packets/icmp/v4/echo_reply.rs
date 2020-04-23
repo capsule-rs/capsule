@@ -139,22 +139,27 @@ impl fmt::Debug for EchoReply {
 }
 
 impl Icmpv4Message for EchoReply {
+    #[inline]
     fn msg_type() -> Icmpv4Type {
         Icmpv4Types::EchoReply
     }
 
+    #[inline]
     fn icmp(&self) -> &Icmpv4 {
         &self.icmp
     }
 
+    #[inline]
     fn icmp_mut(&mut self) -> &mut Icmpv4 {
         &mut self.icmp
     }
 
+    #[inline]
     fn into_icmp(self) -> Icmpv4 {
         self.icmp
     }
 
+    #[inline]
     unsafe fn clone(&self, internal: Internal) -> Self {
         EchoReply {
             icmp: self.icmp.clone(internal),
@@ -162,6 +167,7 @@ impl Icmpv4Message for EchoReply {
         }
     }
 
+    #[inline]
     fn try_parse(icmp: Icmpv4, _internal: Internal) -> Fallible<Self> {
         let mbuf = icmp.mbuf();
         let offset = icmp.payload_offset();
@@ -170,6 +176,7 @@ impl Icmpv4Message for EchoReply {
         Ok(EchoReply { icmp, body })
     }
 
+    #[inline]
     fn try_push(mut icmp: Icmpv4, _internal: Internal) -> Fallible<Self> {
         let offset = icmp.payload_offset();
         let mbuf = icmp.mbuf_mut();
@@ -200,7 +207,7 @@ mod tests {
     use crate::Mbuf;
 
     #[test]
-    fn size_of_echo_reply() {
+    fn size_of_echo_reply_body() {
         assert_eq!(4, EchoReplyBody::size_of());
     }
 
@@ -211,8 +218,7 @@ mod tests {
         let ipv4 = ethernet.push::<Ipv4>().unwrap();
         let mut echo = ipv4.push::<EchoReply>().unwrap();
 
-        // 4 is the Icmpv4Header
-        assert_eq!(4 + EchoReplyBody::size_of(), echo.len());
+        assert_eq!(4, echo.header_len());
         assert_eq!(EchoReplyBody::size_of(), echo.payload_len());
         assert_eq!(Icmpv4Types::EchoReply, echo.msg_type());
         assert_eq!(0, echo.code());

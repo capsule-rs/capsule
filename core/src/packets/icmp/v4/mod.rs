@@ -233,7 +233,7 @@ impl Packet for Icmpv4 {
     ///
     /// * [`checksum`] is computed based on the header and the message body.
     ///
-    /// [`checksum`]: Icmpv4Packet::checksum
+    /// [`checksum`]: Icmpv4::checksum
     #[inline]
     fn reconcile(&mut self) {
         self.compute_checksum();

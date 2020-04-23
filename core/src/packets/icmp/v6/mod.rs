@@ -18,20 +18,21 @@
 
 //! Internet Control Message Protocol for IPv6.
 
-//mod echo_reply;
-//mod echo_request;
+mod echo_reply;
+mod echo_request;
 //pub mod ndp;
-//mod time_exceeded;
-//mod too_big;
+mod time_exceeded;
+mod too_big;
 
-//pub use self::echo_reply::*;
-//pub use self::echo_request::*;
-//pub use self::time_exceeded::*;
-//pub use self::too_big::*;
+pub use self::echo_reply::*;
+pub use self::echo_request::*;
+pub use self::time_exceeded::*;
+pub use self::too_big::*;
+pub use capsule_macros::Icmpv6Packet;
 
 //use self::ndp::*;
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::ip::{IpPacket, ProtocolNumbers};
+use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
@@ -248,7 +249,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
     /// * [`checksum`] is computed based on the [`pseudo-header`] and the
     /// full packet.
     ///
-    /// [`checksum`]: Icmpv6Packet::checksum
+    /// [`checksum`]: Icmpv6::checksum
     /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
     #[inline]
     fn reconcile(&mut self) {
@@ -365,7 +366,7 @@ pub struct Icmpv6Header {
 ///
 /// ```
 /// let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>()?;
-/// let reply = icmpv6.downcast::<EchoReply>()?;
+/// let reply = icmpv6.downcast::<EchoReply<Ipv6>>()?;
 /// ```
 ///
 /// [ICMPv6]: Icmpv6
@@ -442,73 +443,27 @@ pub trait Icmpv6Message {
     }
 }
 
-// Generic `Packet` implementation for all ICMPv6 messages.
-impl<T: Icmpv6Message> Packet for T {
-    type Envelope = T::Envelope;
-
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        self.icmp().envelope()
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        self.icmp_mut().envelope_mut()
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.icmp().offset()
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        self.icmp().header_len()
-    }
-
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Icmpv6Message::clone(self, internal)
-    }
-
-    #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
-        envelope.parse::<Icmpv6<Self::Envelope>>()?.downcast::<T>()
-    }
-
-    #[inline]
-    fn try_push(mut envelope: Self::Envelope, internal: Internal) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Icmpv6Header::size_of())?;
-        let header = mbuf.write_data(offset, &Icmpv6Header::default())?;
-
-        let mut icmp = Icmpv6 {
-            envelope,
-            header,
-            offset,
-        };
-
-        icmp.header_mut().msg_type = T::msg_type().0;
-        icmp.envelope_mut()
-            .set_next_protocol(ProtocolNumbers::Icmpv6);
-
-        T::try_push(icmp, internal)
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.into_icmp().deparse()
-    }
-
-    #[inline]
-    fn reconcile(&mut self) {
-        Icmpv6Message::reconcile(self);
-    }
-}
-
 /// A trait for common ICMPv6 accessors.
+///
+/// # Derivable
+///
+/// This trait should be used with `#[derive]`. The struct must manually
+/// implement [`Icmpv6Message`] trait. `#[derive]` will also provide an
+/// implementation of [`Packet`] trait for the struct as well.
+///
+/// ```
+/// #[derive(Icmpv6Packet)]
+/// pub struct EchoReply {
+///     ...
+/// }
+///
+/// impl<E: Ipv6Packet> Icmpv6Message for EchoReply<E> {
+///     ...
+/// }
+/// ```
+///
+/// [`Icmpv6Message`]: Icmpv6Message
+/// [`Packet`]: Packet
 pub trait Icmpv6Packet {
     /// Returns the message type.
     fn msg_type(&self) -> Icmpv6Type;
@@ -521,28 +476,6 @@ pub trait Icmpv6Packet {
 
     /// Returns the checksum.
     fn checksum(&self) -> u16;
-}
-
-impl<T: Icmpv6Message> Icmpv6Packet for T {
-    #[inline]
-    fn msg_type(&self) -> Icmpv6Type {
-        self.icmp().msg_type()
-    }
-
-    #[inline]
-    fn code(&self) -> u8 {
-        self.icmp().code()
-    }
-
-    #[inline]
-    fn set_code(&mut self, code: u8) {
-        self.icmp_mut().set_code(code)
-    }
-
-    #[inline]
-    fn checksum(&self) -> u16 {
-        self.icmp().checksum()
-    }
 }
 
 #[cfg(test)]
@@ -571,6 +504,16 @@ mod tests {
     }
 
     #[capsule::test]
+    fn parse_wrong_icmpv6_type() {
+        let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
+
+        assert!(icmpv6.downcast::<EchoReply<Ipv6>>().is_err());
+    }
+
+    #[capsule::test]
     fn parse_non_icmpv6_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
@@ -590,5 +533,14 @@ mod tests {
         // no payload change but force a checksum recompute anyway
         icmpv6.reconcile_all();
         assert_eq!(expected, icmpv6.checksum());
+    }
+
+    #[capsule::test]
+    fn push_icmpv6_header_without_body() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+
+        assert!(ipv6.push::<Icmpv6<Ipv6>>().is_err());
     }
 }
