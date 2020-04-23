@@ -45,6 +45,7 @@ use std::ptr::NonNull;
 /// *Data*:             The data from the invoking Echo Request message.
 ///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+#[derive(Icmpv4Packet)]
 pub struct EchoReply {
     icmp: Icmpv4,
     body: NonNull<EchoReplyBody>,

@@ -23,9 +23,10 @@ mod echo_request;
 
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
+pub use capsule_macros::Icmpv4Packet;
 
 use crate::packets::ip::v4::Ipv4;
-use crate::packets::ip::{IpPacket, ProtocolNumbers};
+use crate::packets::ip::ProtocolNumbers;
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
@@ -288,9 +289,10 @@ impl fmt::Display for Icmpv4Type {
 }
 
 /// ICMPv4 header.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
-struct Icmpv4Header {
+pub struct Icmpv4Header {
     msg_type: u8,
     code: u8,
     checksum: u16,
@@ -379,74 +381,27 @@ pub trait Icmpv4Message {
     }
 }
 
-// Generic `Packet` implementation for all ICMPv4 messages.
-impl<T: Icmpv4Message> Packet for T {
-    type Envelope = Ipv4;
-
-    #[inline]
-    fn envelope(&self) -> &Self::Envelope {
-        self.icmp().envelope()
-    }
-
-    #[inline]
-    fn envelope_mut(&mut self) -> &mut Self::Envelope {
-        self.icmp_mut().envelope_mut()
-    }
-
-    #[inline]
-    fn offset(&self) -> usize {
-        self.icmp().offset()
-    }
-
-    #[inline]
-    fn header_len(&self) -> usize {
-        self.icmp().header_len()
-    }
-
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Icmpv4Message::clone(self, internal)
-    }
-
-    #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
-        envelope.parse::<Icmpv4>()?.downcast::<T>()
-    }
-
-    #[inline]
-    fn try_push(mut envelope: Self::Envelope, internal: Internal) -> Fallible<Self> {
-        let offset = envelope.payload_offset();
-        let mbuf = envelope.mbuf_mut();
-
-        mbuf.extend(offset, Icmpv4Header::size_of())?;
-        let header = mbuf.write_data(offset, &Icmpv4Header::default())?;
-
-        let mut packet = Icmpv4 {
-            envelope,
-            header,
-            offset,
-        };
-
-        packet.header_mut().msg_type = T::msg_type().0;
-        packet
-            .envelope_mut()
-            .set_next_protocol(ProtocolNumbers::Icmpv4);
-
-        T::try_push(packet, internal)
-    }
-
-    #[inline]
-    fn deparse(self) -> Self::Envelope {
-        self.into_icmp().deparse()
-    }
-
-    #[inline]
-    fn reconcile(&mut self) {
-        Icmpv4Message::reconcile(self);
-    }
-}
-
 /// A trait for common ICMPv4 accessors.
+///
+/// # Derivable
+///
+/// This trait should be used with `#[derive]`. The struct must manually
+/// implement [`Icmpv4Message`] trait. `#[derive]` will also provide an
+/// implementation of [`Packet`] trait for the struct as well.
+///
+/// ```
+/// #[derive(Icmpv4Packet)]
+/// pub struct EchoReply {
+///     ...
+/// }
+///
+/// impl Icmpv4Message for EchoReply {
+///     ...
+/// }
+/// ```
+///
+/// [`Icmpv4Message`]: Icmpv4Message
+/// [`Packet`]: Packet
 pub trait Icmpv4Packet {
     /// Returns the message type.
     fn msg_type(&self) -> Icmpv4Type;
@@ -459,28 +414,6 @@ pub trait Icmpv4Packet {
 
     /// Returns the checksum.
     fn checksum(&self) -> u16;
-}
-
-impl<T: Icmpv4Message> Icmpv4Packet for T {
-    #[inline]
-    fn msg_type(&self) -> Icmpv4Type {
-        self.icmp().msg_type()
-    }
-
-    #[inline]
-    fn code(&self) -> u8 {
-        self.icmp().code()
-    }
-
-    #[inline]
-    fn set_code(&mut self, code: u8) {
-        self.icmp_mut().set_code(code)
-    }
-
-    #[inline]
-    fn checksum(&self) -> u16 {
-        self.icmp().checksum()
-    }
 }
 
 #[cfg(test)]

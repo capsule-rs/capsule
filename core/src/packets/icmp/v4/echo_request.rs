@@ -46,6 +46,7 @@ use std::ptr::NonNull;
 /// *Data*:             Zero or more octets of arbitrary data.
 ///
 /// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+#[derive(Icmpv4Packet)]
 pub struct EchoRequest {
     icmp: Icmpv4,
     body: NonNull<EchoRequestBody>,
