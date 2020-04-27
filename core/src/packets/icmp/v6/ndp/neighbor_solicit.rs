@@ -16,12 +16,15 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::icmp::v6::ndp::NdpPayload;
-use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use super::NdpPacket;
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::{Icmpv6Packet, SizeOf};
+use crate::packets::{Internal, Packet};
+use crate::SizeOf;
+use failure::Fallible;
 use std::fmt;
 use std::net::Ipv6Addr;
+use std::ptr::NonNull;
 
 /// Neighbor Solicitation Message defined in [`IETF RFC 4861`].
 ///
@@ -57,78 +60,150 @@ use std::net::Ipv6Addr;
 ///                                 multicast solicitations and *SHOULD* be
 ///                                 included in unicast solicitations.
 ///
-/// The fields are accessible through [`Icmpv6<E, NeighborSolicitation>`].
-///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.3
-/// [`Icmpv6<E, NeighborSolicitation>`]: Icmpv6
-#[derive(Clone, Copy, Debug, Icmpv6Packet, SizeOf)]
+#[derive(Icmpv6Packet)]
+pub struct NeighborSolicitation<E: Ipv6Packet> {
+    icmp: Icmpv6<E>,
+    body: NonNull<NeighborSolicitationBody>,
+}
+
+impl<E: Ipv6Packet> NeighborSolicitation<E> {
+    #[inline]
+    fn body(&self) -> &NeighborSolicitationBody {
+        unsafe { self.body.as_ref() }
+    }
+
+    #[inline]
+    fn body_mut(&mut self) -> &mut NeighborSolicitationBody {
+        unsafe { self.body.as_mut() }
+    }
+
+    /// Returns the target address.
+    #[inline]
+    pub fn target_addr(&self) -> Ipv6Addr {
+        self.body().target_addr
+    }
+
+    /// Sets the target address.
+    #[inline]
+    pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
+        self.body_mut().target_addr = target_addr
+    }
+}
+
+impl<E: Ipv6Packet> fmt::Debug for NeighborSolicitation<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("neighbor solicit")
+            .field("type", &format!("{}", self.msg_type()))
+            .field("code", &self.code())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("target_addr", &self.target_addr())
+            .finish()
+    }
+}
+
+impl<E: Ipv6Packet> Icmpv6Message for NeighborSolicitation<E> {
+    type Envelope = E;
+
+    #[inline]
+    fn msg_type() -> Icmpv6Type {
+        Icmpv6Types::NeighborSolicitation
+    }
+
+    #[inline]
+    fn icmp(&self) -> &Icmpv6<Self::Envelope> {
+        &self.icmp
+    }
+
+    #[inline]
+    fn icmp_mut(&mut self) -> &mut Icmpv6<Self::Envelope> {
+        &mut self.icmp
+    }
+
+    #[inline]
+    fn into_icmp(self) -> Icmpv6<Self::Envelope> {
+        self.icmp
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        NeighborSolicitation {
+            icmp: self.icmp.clone(internal),
+            body: self.body,
+        }
+    }
+
+    #[inline]
+    fn try_parse(icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let mbuf = icmp.mbuf();
+        let offset = icmp.payload_offset();
+        let body = mbuf.read_data(offset)?;
+
+        Ok(NeighborSolicitation { icmp, body })
+    }
+
+    #[inline]
+    fn try_push(mut icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let offset = icmp.payload_offset();
+        let mbuf = icmp.mbuf_mut();
+
+        mbuf.extend(offset, NeighborSolicitationBody::size_of())?;
+        let body = mbuf.write_data(offset, &NeighborSolicitationBody::default())?;
+
+        Ok(NeighborSolicitation { icmp, body })
+    }
+}
+
+impl<E: Ipv6Packet> NdpPacket for NeighborSolicitation<E> {
+    fn options_offset(&self) -> usize {
+        self.payload_offset() + NeighborSolicitationBody::size_of()
+    }
+}
+
+#[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
-pub struct NeighborSolicitation {
+struct NeighborSolicitationBody {
     reserved: u32,
     target_addr: Ipv6Addr,
 }
 
-impl Default for NeighborSolicitation {
-    fn default() -> NeighborSolicitation {
-        NeighborSolicitation {
+impl Default for NeighborSolicitationBody {
+    fn default() -> Self {
+        NeighborSolicitationBody {
             reserved: 0,
             target_addr: Ipv6Addr::UNSPECIFIED,
         }
     }
 }
 
-impl Icmpv6Payload for NeighborSolicitation {
-    #[inline]
-    fn msg_type() -> Icmpv6Type {
-        Icmpv6Types::NeighborSolicitation
-    }
-}
-
-impl NdpPayload for NeighborSolicitation {}
-
-impl<E: Ipv6Packet> Icmpv6<E, NeighborSolicitation> {
-    #[inline]
-    fn reserved(&self) -> u32 {
-        u32::from_be(self.payload().reserved)
-    }
-
-    /// Returns the target address.
-    #[inline]
-    pub fn target_addr(&self) -> Ipv6Addr {
-        self.payload().target_addr
-    }
-
-    /// Sets the target address.
-    #[inline]
-    pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
-        self.payload_mut().target_addr = target_addr
-    }
-
-    #[inline]
-    fn reconcile(&mut self) {
-        self.compute_checksum();
-    }
-}
-
-impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, NeighborSolicitation> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("neighbor solicit")
-            .field("type", &format!("{}", self.msg_type()))
-            .field("code", &self.code())
-            .field("checksum", &format!("0x{:04x}", self.checksum()))
-            .field("reserved", &self.reserved())
-            .field("target_addr", &self.target_addr())
-            .finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::SizeOf;
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::Ethernet;
+    use crate::Mbuf;
 
     #[test]
-    fn size_of_neighbor_solicitation() {
-        assert_eq!(20, NeighborSolicitation::size_of());
+    fn size_of_neighbor_solicitation_body() {
+        assert_eq!(20, NeighborSolicitationBody::size_of());
+    }
+
+    #[capsule::test]
+    fn push_and_set_neighbor_solicitation() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut solicit = ipv6.push::<NeighborSolicitation<Ipv6>>().unwrap();
+
+        assert_eq!(4, solicit.header_len());
+        assert_eq!(NeighborSolicitationBody::size_of(), solicit.payload_len());
+        assert_eq!(Icmpv6Types::NeighborSolicitation, solicit.msg_type());
+        assert_eq!(0, solicit.code());
+
+        solicit.set_target_addr(Ipv6Addr::LOCALHOST);
+        assert_eq!(Ipv6Addr::LOCALHOST, solicit.target_addr());
+
+        solicit.reconcile_all();
+        assert!(solicit.checksum() != 0);
     }
 }

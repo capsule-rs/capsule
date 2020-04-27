@@ -108,8 +108,7 @@
 //! [`skeleton`]: https://github.com/capsule-rs/capsule/tree/master/examples/skeleton
 //! [`syn-flood`]: https://github.com/capsule-rs/capsule/tree/master/examples/syn-flood
 
-// alias for the test macro
-#[cfg(test)]
+// alias for the macros
 extern crate self as capsule;
 
 pub mod batch;
@@ -132,7 +131,7 @@ pub mod testils;
 
 pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
 pub use self::runtime::{Runtime, UnixSignal};
+pub use capsule_macros::SizeOf;
 #[cfg(any(test, feature = "testils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub use capsule_macros::{bench, test};
-pub use capsule_macros::{Icmpv4Packet, Icmpv6Packet, SizeOf};

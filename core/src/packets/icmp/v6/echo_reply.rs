@@ -16,12 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::packets::icmp::v6::{Icmpv6, Icmpv6Packet, Icmpv6Payload, Icmpv6Type, Icmpv6Types};
+use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
-use crate::packets::Packet;
-use crate::{Icmpv6Packet, SizeOf};
+use crate::packets::{Internal, Packet};
+use crate::SizeOf;
 use failure::Fallible;
 use std::fmt;
+use std::ptr::NonNull;
 
 /// Echo Reply Message defined in [`IETF RFC 4443`].
 ///
@@ -44,64 +45,65 @@ use std::fmt;
 ///
 /// - *Data*:             The data from the invoking Echo Request message.
 ///
-/// The fields are accessible through [`Icmpv6<E, EchoReply>`].
-///
 /// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-4.2
-/// [`Icmpv6<E, EchoReply>`]: Icmpv6
-#[derive(Clone, Copy, Debug, Default, SizeOf, Icmpv6Packet)]
-#[repr(C, packed)]
-pub struct EchoReply {
-    identifier: u16,
-    seq_no: u16,
+#[derive(Icmpv6Packet)]
+pub struct EchoReply<E: Ipv6Packet> {
+    icmp: Icmpv6<E>,
+    body: NonNull<EchoReplyBody>,
 }
 
-impl Icmpv6Payload for EchoReply {
-    fn msg_type() -> Icmpv6Type {
-        Icmpv6Types::EchoReply
+impl<E: Ipv6Packet> EchoReply<E> {
+    #[inline]
+    fn body(&self) -> &EchoReplyBody {
+        unsafe { self.body.as_ref() }
     }
-}
 
-impl<E: Ipv6Packet> Icmpv6<E, EchoReply> {
+    #[inline]
+    fn body_mut(&mut self) -> &mut EchoReplyBody {
+        unsafe { self.body.as_mut() }
+    }
+
     /// Returns the identifier.
     #[inline]
     pub fn identifier(&self) -> u16 {
-        u16::from_be(self.payload().identifier)
+        u16::from_be(self.body().identifier)
     }
 
     /// Sets the identifier.
     #[inline]
     pub fn set_identifier(&mut self, identifier: u16) {
-        self.payload_mut().identifier = u16::to_be(identifier);
+        self.body_mut().identifier = u16::to_be(identifier);
     }
 
     /// Returns the sequence number.
     #[inline]
     pub fn seq_no(&self) -> u16 {
-        u16::from_be(self.payload().seq_no)
+        u16::from_be(self.body().seq_no)
     }
 
     /// Sets the sequence number.
     #[inline]
     pub fn set_seq_no(&mut self, seq_no: u16) {
-        self.payload_mut().seq_no = u16::to_be(seq_no);
+        self.body_mut().seq_no = u16::to_be(seq_no);
     }
 
     /// Returns the offset where the data field in the message body starts.
     #[inline]
     fn data_offset(&self) -> usize {
-        self.payload_offset() + EchoReply::size_of()
+        self.payload_offset() + EchoReplyBody::size_of()
     }
 
     /// Returns the length of the data field in the message body.
     #[inline]
     fn data_len(&self) -> usize {
-        self.payload_len() - EchoReply::size_of()
+        self.payload_len() - EchoReplyBody::size_of()
     }
 
     /// Returns the data as a `u8` slice.
     #[inline]
     pub fn data(&self) -> &[u8] {
         if let Ok(data) = self
+            .icmp()
             .mbuf()
             .read_data_slice(self.data_offset(), self.data_len())
         {
@@ -116,18 +118,13 @@ impl<E: Ipv6Packet> Icmpv6<E, EchoReply> {
     pub fn set_data(&mut self, data: &[u8]) -> Fallible<()> {
         let offset = self.data_offset();
         let len = data.len() as isize - self.data_len() as isize;
-        self.mbuf_mut().resize(offset, len)?;
-        self.mbuf_mut().write_data_slice(offset, data)?;
+        self.icmp_mut().mbuf_mut().resize(offset, len)?;
+        self.icmp_mut().mbuf_mut().write_data_slice(offset, data)?;
         Ok(())
-    }
-
-    #[inline]
-    fn reconcile(&mut self) {
-        self.compute_checksum();
     }
 }
 
-impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, EchoReply> {
+impl<E: Ipv6Packet> fmt::Debug for EchoReply<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("icmpv6")
             .field("type", &format!("{}", self.msg_type()))
@@ -142,12 +139,100 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E, EchoReply> {
     }
 }
 
+impl<E: Ipv6Packet> Icmpv6Message for EchoReply<E> {
+    type Envelope = E;
+
+    #[inline]
+    fn msg_type() -> Icmpv6Type {
+        Icmpv6Types::EchoReply
+    }
+
+    #[inline]
+    fn icmp(&self) -> &Icmpv6<Self::Envelope> {
+        &self.icmp
+    }
+
+    #[inline]
+    fn icmp_mut(&mut self) -> &mut Icmpv6<Self::Envelope> {
+        &mut self.icmp
+    }
+
+    #[inline]
+    fn into_icmp(self) -> Icmpv6<Self::Envelope> {
+        self.icmp
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        EchoReply {
+            icmp: self.icmp.clone(internal),
+            body: self.body,
+        }
+    }
+
+    #[inline]
+    fn try_parse(icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let mbuf = icmp.mbuf();
+        let offset = icmp.payload_offset();
+        let body = mbuf.read_data(offset)?;
+
+        Ok(EchoReply { icmp, body })
+    }
+
+    #[inline]
+    fn try_push(mut icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+        let offset = icmp.payload_offset();
+        let mbuf = icmp.mbuf_mut();
+
+        mbuf.extend(offset, EchoReplyBody::size_of())?;
+        let body = mbuf.write_data(offset, &EchoReplyBody::default())?;
+
+        Ok(EchoReply { icmp, body })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[repr(C, packed)]
+struct EchoReplyBody {
+    identifier: u16,
+    seq_no: u16,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::Ethernet;
+    use crate::Mbuf;
 
     #[test]
-    fn size_of_echo_reply() {
-        assert_eq!(4, EchoReply::size_of());
+    fn size_of_echo_reply_body() {
+        assert_eq!(4, EchoReplyBody::size_of());
+    }
+
+    #[capsule::test]
+    fn push_and_set_echo_reply() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut echo = ipv6.push::<EchoReply<Ipv6>>().unwrap();
+
+        assert_eq!(4, echo.header_len());
+        assert_eq!(EchoReplyBody::size_of(), echo.payload_len());
+        assert_eq!(Icmpv6Types::EchoReply, echo.msg_type());
+        assert_eq!(0, echo.code());
+
+        echo.set_identifier(42);
+        assert_eq!(42, echo.identifier());
+        echo.set_seq_no(7);
+        assert_eq!(7, echo.seq_no());
+
+        let data = [0; 10];
+        assert!(echo.set_data(&data).is_ok());
+        assert_eq!(&data, echo.data());
+        assert_eq!(EchoReplyBody::size_of() + 10, echo.payload_len());
+
+        echo.reconcile_all();
+        assert!(echo.checksum() != 0);
     }
 }
