@@ -151,9 +151,9 @@ impl fmt::Debug for Icmpv4 {
     }
 }
 
-/// Error when trying to push an ICMPv4 header without a message body.
+/// Error when trying to push a generic ICMPv4 header without a message body.
 #[derive(Debug, Fail)]
-#[fail(display = "Cannot push an ICMPv4 header without a message body.")]
+#[fail(display = "Cannot push a generic ICMPv4 header without a message body.")]
 pub struct NoIcmpv4MessageBody;
 
 impl Packet for Icmpv4 {
@@ -214,10 +214,13 @@ impl Packet for Icmpv4 {
         })
     }
 
-    /// Cannot push an ICMPv4 header without a message body. This function
-    /// will always return [`NoIcmpv4MessageBody`].
+    /// Cannot push a generic ICMPv4 header without a message body. This
+    /// will always return [`NoIcmpv4MessageBody`]. Instead, push a specific
+    /// message type like [`EchoRequest`], which includes the header and
+    /// the message body.
     ///
     /// [`NoIcmpv4MessageBody`]: NoIcmpv4MessageBody
+    /// [`EchoRequest`]: EchoRequest
     #[inline]
     fn try_push(_envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
         Err(NoIcmpv4MessageBody.into())
@@ -302,8 +305,8 @@ pub struct Icmpv4Header {
 ///
 /// The trait is used for conversion between the generic [ICMPv4] packet
 /// and the more specific messages. Implementors can use this trait to
-/// add custom message types. This trait should not be used directly. Use
-/// either [`Packet`] or [`Icmpv4Packet`] instead.
+/// add custom message types. This trait should not be imported and used
+/// directly. Use either [`Packet`] or [`Icmpv4Packet`] instead.
 ///
 /// # Example
 ///
@@ -385,9 +388,10 @@ pub trait Icmpv4Message {
 ///
 /// # Derivable
 ///
-/// This trait should be used with `#[derive]`. The struct must manually
-/// implement [`Icmpv4Message`] trait. `#[derive]` will also provide an
-/// implementation of [`Packet`] trait for the struct as well.
+/// This trait should be used with `#[derive]`. `#[derive]` provides
+/// implementations for both `Icmpv4Packet` trait and [`Packet`] trait.
+/// Those implementations depend on functions defined in [`Icmpv4Message`]
+/// trait, therefore the struct must manually implement `Icmpv4Message`.
 ///
 /// ```
 /// #[derive(Icmpv4Packet)]
@@ -410,6 +414,12 @@ pub trait Icmpv4Packet {
     fn code(&self) -> u8;
 
     /// Sets the code.
+    ///
+    /// # Remarks
+    ///
+    /// Not all code values are applicable to all message types. This setter
+    /// does not perform any validation. It's the caller's responsibility to
+    /// ensure that the value provided follows the spec.
     fn set_code(&mut self, code: u8);
 
     /// Returns the checksum.

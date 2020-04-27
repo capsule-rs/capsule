@@ -179,6 +179,9 @@ mod tests {
         assert_eq!(0, exceeded.code());
         assert_eq!(tcp_len, exceeded.data().len());
 
+        exceeded.set_code(1);
+        assert_eq!(1, exceeded.code());
+
         exceeded.reconcile_all();
         assert!(exceeded.checksum() != 0);
     }

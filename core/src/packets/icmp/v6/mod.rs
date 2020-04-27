@@ -162,9 +162,9 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E> {
     }
 }
 
-/// Error when trying to push an ICMPv6 header without a message body.
+/// Error when trying to push a generic ICMPv6 header without a message body.
 #[derive(Debug, Fail)]
-#[fail(display = "Cannot push an ICMPv6 header without a message body.")]
+#[fail(display = "Cannot push a generic ICMPv6 header without a message body.")]
 pub struct NoIcmpv6MessageBody;
 
 impl<E: Ipv6Packet> Packet for Icmpv6<E> {
@@ -228,10 +228,13 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
         })
     }
 
-    /// Cannot push an ICMPv6 header without a message body. This function
-    /// will always return [`NoIcmpv6MessageBody`].
+    /// Cannot push a generic ICMPv6 header without a message body. This
+    /// will always return [`NoIcmpv6MessageBody`]. Instead, push a specific
+    /// message type like [`EchoRequest`], which includes the header and the
+    /// message body.
     ///
     /// [`NoIcmpv6MessageBody`]: NoIcmpv6MessageBody
+    /// [`EchoRequest`]: EchoRequest
     #[inline]
     fn try_push(_envelope: Self::Envelope, _internal: crate::packets::Internal) -> Fallible<Self> {
         Err(NoIcmpv6MessageBody.into())
@@ -358,8 +361,8 @@ pub struct Icmpv6Header {
 ///
 /// The trait is used for conversion between the generic [ICMPv6] packet
 /// and the more specific messages. Implementors can use this trait to
-/// add custom message types. This trait should not be used directly. Use
-/// either [`Packet`] or [`Icmpv6Packet`] instead.
+/// add custom message types. This trait should not be imported and used
+/// directly. Use either [`Packet`] or [`Icmpv6Packet`] instead.
 ///
 /// # Example
 ///
@@ -446,9 +449,10 @@ pub trait Icmpv6Message {
 ///
 /// # Derivable
 ///
-/// This trait should be used with `#[derive]`. The struct must manually
-/// implement [`Icmpv6Message`] trait. `#[derive]` will also provide an
-/// implementation of [`Packet`] trait for the struct as well.
+/// This trait should be used with `#[derive]`. `#[derive]` provides
+/// implementations for both `Icmpv6Packet` trait and [`Packet`] trait.
+/// Those implementations depend on functions defined in [`Icmpv6Message`]
+/// trait, therefore the struct must manually implement `Icmpv6Message`.
 ///
 /// ```
 /// #[derive(Icmpv6Packet)]
@@ -471,6 +475,12 @@ pub trait Icmpv6Packet {
     fn code(&self) -> u8;
 
     /// Sets the code.
+    ///
+    /// # Remarks
+    ///
+    /// Not all code values are applicable to all message types. This setter
+    /// does not perform any validation. It's the caller's responsibility to
+    /// ensure that the value provided follows the spec.
     fn set_code(&mut self, code: u8);
 
     /// Returns the checksum.

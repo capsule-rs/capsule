@@ -56,7 +56,7 @@ pub trait NdpPacket: Packet {
         NdpOptionsIterator::new(mbuf, offset)
     }
 
-    /// Add option to NDP messaged.
+    /// Pushes a new option to the NDP message.
     fn push_option<T: NdpOption>(&mut self) -> Fallible<T> {
         T::do_push(self.mbuf_mut())
     }
