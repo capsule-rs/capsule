@@ -37,7 +37,12 @@ static TEST_INIT: Once = Once::new();
 /// Run once initialization of EAL for `cargo test`.
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
-        dpdk::eal_init(vec!["capsule_test".to_owned(), "--no-huge".to_owned()]).unwrap();
+        dpdk::eal_init(vec![
+            "capsule_test".to_owned(),
+            "--no-huge".to_owned(),
+            "--iova-mode=va".to_owned(),
+        ])
+        .unwrap();
         let _ = metrics::init();
     });
 }

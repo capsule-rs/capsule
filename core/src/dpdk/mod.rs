@@ -197,7 +197,7 @@ pub(crate) fn eal_cleanup() -> Fallible<()> {
 
 /// Returns the `MacAddr` of a port.
 fn eth_macaddr_get(port_id: u16) -> MacAddr {
-    let mut addr = ffi::ether_addr::default();
+    let mut addr = ffi::rte_ether_addr::default();
     unsafe {
         ffi::rte_eth_macaddr_get(port_id, &mut addr);
     }
