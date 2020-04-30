@@ -48,9 +48,9 @@ The goal of `Capsule` is to offer an ergonomic framework for network function de
 
 The easiest way to start developing `Capsule` applications is to use the `Vagrant` [virtual machine](https://github.com/capsule-rs/sandbox/blob/master/Vagrantfile) and the `Docker` [sandbox](https://hub.docker.com/repository/docker/getcapsule/sandbox) provided by our team. The sandbox is preconfigured with all the necessary tools and libraries for `Capsule` development, including:
 
-* [`DPDK` 18.11](https://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html)
+* [`DPDK` 19.11](https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html)
 * [`Clang`](https://clang.llvm.org/) and [`LLVM`](https://www.llvm.org/)
-* [`Rust` 1.42](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
+* [`Rust` 1.43](https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html)
 * [`rr`](https://rr-project.org/) 5.3
 
 First install [`Vagrant`](https://www.vagrantup.com/) and [`VirtualBox`](https://www.virtualbox.org/) on your system. Also install the following `Vagrant` plugins,
@@ -79,7 +79,7 @@ vagrant$ docker run -it --rm \
     --security-opt seccomp=unconfined \
     -v /lib/modules:/lib/modules \
     -v /dev/hugepages:/dev/hugepages \
-    getcapsule/sandbox:18.11.7-1.42 /bin/bash
+    getcapsule/sandbox:19.11.1-1.43 /bin/bash
 ```
 
 Remember to also mount the working directory of your project as a volume for the sandbox. Then you can use `Cargo` commands inside the container as normal.

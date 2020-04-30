@@ -20,4 +20,4 @@ capsule = { version = "0.1", path = "../../core" }
 colored = "1.8"
 failure = "0.1"
 tracing = "0.1"
-tracing-subscriber = "0.1"
+tracing-subscriber = "0.2"
