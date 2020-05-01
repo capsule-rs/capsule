@@ -21,8 +21,8 @@ use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
-use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
-use capsule::{compose, PortQueue, Runtime};
+use capsule::packets::{Ethernet, Packet, Tcp};
+use capsule::{Mbuf, PortQueue, Runtime};
 use chashmap::CHashMap;
 use failure::Fallible;
 use once_cell::sync::Lazy;
@@ -86,7 +86,8 @@ fn map6to4(addr: Ipv6Addr) -> Ipv4Addr {
 }
 
 #[inline]
-fn nat_4to6(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
+fn nat_4to6(packet: Mbuf) -> Fallible<Either<Mbuf>> {
+    let ethernet = packet.parse::<Ethernet>()?;
     let v4 = ethernet.parse::<Ipv4>()?;
     if v4.protocol() == ProtocolNumbers::Tcp && v4.fragment_offset() == 0 && !v4.more_fragments() {
         let tcp = v4.peek::<Tcp<Ipv4>>()?;
@@ -110,7 +111,7 @@ fn nat_4to6(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
             tcp.set_dst_port(port);
             tcp.reconcile_all();
 
-            Ok(Either::Keep(tcp.deparse().deparse()))
+            Ok(Either::Keep(tcp.reset()))
         } else {
             Ok(Either::Drop(v4.reset()))
         }
@@ -120,7 +121,8 @@ fn nat_4to6(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
 }
 
 #[inline]
-fn nat_6to4(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
+fn nat_6to4(packet: Mbuf) -> Fallible<Either<Mbuf>> {
+    let ethernet = packet.parse::<Ethernet>()?;
     let v6 = ethernet.parse::<Ipv6>()?;
     if v6.next_header() == ProtocolNumbers::Tcp {
         let dscp = v6.dscp();
@@ -144,32 +146,22 @@ fn nat_6to4(ethernet: Ethernet) -> Fallible<Either<Ethernet>> {
         tcp.set_src_port(assigned_port(src, port));
         tcp.reconcile_all();
 
-        Ok(Either::Keep(tcp.deparse().deparse()))
+        Ok(Either::Keep(tcp.reset()))
     } else {
         Ok(Either::Drop(v6.reset()))
     }
 }
 
-fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
+fn install_6to4(qs: HashMap<String, PortQueue>) -> impl Pipeline {
     Poll::new(qs["eth1"].clone())
-        .map(|packet| packet.parse::<Ethernet>())
-        .group_by(
-            |ethernet| ethernet.ether_type(),
-            |groups| {
-                compose!( groups {
-                    EtherTypes::Ipv4 => |group| {
-                        group.filter_map(nat_4to6)
-                    }
-                    EtherTypes::Ipv6 => |group| {
-                        group.filter_map(nat_6to4)
-                    }
-                    _ => |group| {
-                        group.filter(|_| false)
-                    }
-                })
-            },
-        )
+        .filter_map(nat_6to4)
         .send(qs["eth2"].clone())
+}
+
+fn install_4to6(qs: HashMap<String, PortQueue>) -> impl Pipeline {
+    Poll::new(qs["eth2"].clone())
+        .filter_map(nat_4to6)
+        .send(qs["eth1"].clone())
 }
 
 fn main() -> Fallible<()> {
@@ -182,6 +174,7 @@ fn main() -> Fallible<()> {
     debug!(?config);
 
     Runtime::build(config)?
-        .add_pipeline_to_core(1, install)?
+        .add_pipeline_to_core(1, install_6to4)?
+        .add_pipeline_to_core(1, install_4to6)?
         .execute()
 }
