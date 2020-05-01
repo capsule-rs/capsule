@@ -53,7 +53,7 @@ The **NAT64** gateway is configured with two ports. `eth1` is the port connected
     txd = 512
 ```
 
-Because they are assigned the same core, we can install a pipeline that forwards packets received on `eth1` through `eth2` by using `add_pipeline_to_core`.
+Because they are assigned the same core, we can install pipelines that forward packets received on `eth1` through `eth2` and `eth2` to `eth1` by using `add_pipeline_to_core`.
 
 ### 6-to-4 translation
 
