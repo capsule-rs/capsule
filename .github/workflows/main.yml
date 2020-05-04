@@ -42,11 +42,14 @@ jobs:
       options: --privileged
 
     steps:
+      - name: install git
+        run: |
+          apt-get update && apt-get install -y git
+
       - uses: actions/checkout@v2
 
       - name: fetch git branches
         run: |
-          apt-get update && apt-get install -y git
           git fetch --no-tags --prune --depth=1 origin +refs/heads/*:refs/remotes/origin/*
 
       - name: install-critcmp
