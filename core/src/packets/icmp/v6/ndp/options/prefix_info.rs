@@ -16,8 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{NdpOption, PREFIX_INFORMATION};
-use crate::packets::ParseError;
+use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
+use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -28,7 +28,7 @@ use std::ptr::NonNull;
 const ONLINK: u8 = 0b1000_0000;
 const AUTO: u8 = 0b0100_0000;
 
-/// Prefix Information option defined in [`IETF RFC 4861`].
+/// Prefix Information option defined in [IETF RFC 4861].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -46,94 +46,53 @@ const AUTO: u8 = 0b0100_0000;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
-/// - *Type*:                3
+/// - *Type*:           3
 ///
-/// - *Length*:              4
+/// - *Length*:         4
 ///
-/// - *Prefix Length*:       8-bit unsigned integer. The number of leading bits
-///                          in the Prefix that are valid. The value ranges
-///                          from 0 to 128. The prefix length field provides
-///                          necessary information for on-link determination
-///                          (when combined with the L flag in the prefix
-///                          information option). It also assists with address
-///                          auto-configuration as specified in `ADDRCONF`, for
-///                          which there may be more restrictions on the prefix
-///                          length.
+/// - *Prefix Length*:  8-bit unsigned integer. The number of leading bits
+///                     in the Prefix that are valid. The value ranges
+///                     from 0 to 128.
 ///
-/// - *L*:                   1-bit on-link flag. When set, indicates that this
-///                          prefix can be used for on-link determination. When
-///                          not set the advertisement makes no statement about
-///                          on-link or off-link properties of the prefix. In
-///                          other words, if the L flag is not set a host
-///                          **MUST NOT** conclude that an address derived from
-///                          the prefix is off-link.  That is, it **MUST NOT**
-///                          update a previous indication that the address is
-///                          on-link.
+/// - *L*:              1-bit on-link flag. When set, indicates that this
+///                     prefix can be used for on-link determination.
 ///
-/// - *A*:                   1-bit autonomous address-configuration flag. When
-///                          set indicates that this prefix can be used for
-///                          stateless address configuration as specified in
-///                          `ADDRCONF`.
+/// - *A*:              1-bit autonomous address-configuration flag. When
+///                     set indicates that this prefix can be used for
+///                     stateless address configuration.
 ///
-/// - *Reserved1*:           6-bit unused field. It **MUST** be initialized to
-///                          zero by the sender and **MUST** be ignored by the
-///                          receiver.
+/// - *Reserved1*:      6-bit unused field. It MUST be initialized to zero
+///                     by the sender and MUST be ignored by the receiver.
 ///
-/// - *Valid Lifetime*:      32-bit unsigned integer. The length of time in
-///                          seconds (relative to the time the packet is sent)
-///                          that the prefix is valid for the purpose of on-link
-///                          determination. A value of all one bits
-///                          (0xffffffff) represents infinity. The Valid
-///                          Lifetime is also used by `ADDRCONF`.
+/// - *Valid Lifetime*:
+///                     32-bit unsigned integer. The length of time in
+///                     seconds (relative to the time the packet is sent)
+///                     that the prefix is valid for the purpose of on-link
+///                     determination.
 ///
-/// - *Preferred Lifetime*:  32-bit unsigned integer. The length of time in
-///                          seconds (relative to the time the packet is sent)
-///                          that addresses generated from the prefix via
-///                          stateless address auto-configuration remain
-///                          preferred `ADDRCONF`.  A value of all one bits
-///                          (0xffffffff) represents infinity.  See `ADDRCONF`.
-///                          Note that the value of this field MUST NOT exceed
-///                          the Valid Lifetime field to avoid preferring
-///                          addresses that are no longer valid.
+/// - *Preferred Lifetime*:
+///                     32-bit unsigned integer. The length of time in
+///                     seconds (relative to the time the packet is sent)
+///                     that addresses generated from the prefix via
+///                     stateless address autoconfiguration remain
+///                     preferred.
 ///
-/// - *Reserved2*:           This field is unused.  It MUST be initialized to
-///                          zero by the sender and MUST be ignored by the
-///                          receiver.
+/// - *Reserved2*:      This field is unused. It MUST be initialized to
+///                     zero by the sender and MUST be ignored by the
+///                     receiver.
 ///
-/// - *Prefix*:              An IP address or a prefix of an IP address.  The
-///                          Prefix Length field contains the number of valid
-///                          leading bits in the prefix. The bits in the prefix
-///                          after the prefix length are reserved and MUST be
-///                          initialized to zero by the sender and ignored by
-///                          the receiver. A router *SHOULD NOT* send a prefix
-///                          option for the link-local prefix and a host *SHOULD*
-///                          ignore such a prefix option.
+/// - *Prefix*:         An IP address or a prefix of an IP address. The
+///                     Prefix Length field contains the number of valid
+///                     leading bits in the prefix.
 ///
-/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.2
-pub struct PrefixInformation {
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.6.2
+pub struct PrefixInformation<'a> {
+    _mbuf: &'a mut Mbuf,
     fields: NonNull<PrefixInformationFields>,
     offset: usize,
 }
 
-impl PrefixInformation {
-    /// Parses the prefix information option from the message buffer at offset.
-    #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<PrefixInformation> {
-        let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
-
-        ensure!(
-            unsafe { fields.as_ref().length } == (PrefixInformationFields::size_of() as u8 / 8),
-            ParseError::new("Invalid prefix information option length.")
-        );
-
-        Ok(PrefixInformation { fields, offset })
-    }
-
-    /// Returns the message buffer offset for this option.
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
+impl PrefixInformation<'_> {
     #[inline]
     fn fields(&self) -> &PrefixInformationFields {
         unsafe { self.fields.as_ref() }
@@ -142,19 +101,6 @@ impl PrefixInformation {
     #[inline]
     fn fields_mut(&mut self) -> &mut PrefixInformationFields {
         unsafe { self.fields.as_mut() }
-    }
-
-    /// Returns the option type. Should always be `3`.
-    #[inline]
-    pub fn option_type(&self) -> u8 {
-        self.fields().option_type
-    }
-
-    /// Returns the length of the option measured in units of 8 octets.
-    /// Should always be `4`.
-    #[inline]
-    pub fn length(&self) -> u8 {
-        self.fields().length
     }
 
     /// Returns the number of leading bits in the prefix that are valid.
@@ -246,9 +192,9 @@ impl PrefixInformation {
     }
 }
 
-impl fmt::Debug for PrefixInformation {
+impl fmt::Debug for PrefixInformation<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("prefix information")
+        f.debug_struct("PrefixInformation")
             .field("type", &self.option_type())
             .field("length", &self.length())
             .field("prefix_length", &self.prefix_length())
@@ -257,20 +203,64 @@ impl fmt::Debug for PrefixInformation {
             .field("valid_lifetime", &self.valid_lifetime())
             .field("preferred_lifetime", &self.preferred_lifetime())
             .field("prefix", &self.prefix())
+            .field("$offset", &self.offset)
             .finish()
     }
 }
 
-impl NdpOption for PrefixInformation {
+impl<'a> NdpOption<'a> for PrefixInformation<'a> {
+    /// Returns the option type. Should always be `3`.
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        let offset = mbuf.data_len();
+    fn option_type(&self) -> NdpOptionType {
+        NdpOptionType(self.fields().option_type)
+    }
+
+    /// Returns the length of the option measured in units of 8 octets.
+    /// Should always be `4`.
+    #[inline]
+    fn length(&self) -> u8 {
+        self.fields().length
+    }
+
+    #[inline]
+    fn try_parse(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<PrefixInformation<'a>> {
+        let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
+        let option = PrefixInformation {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        };
+
+        ensure!(
+            option.option_type() == NdpOptionTypes::PrefixInformation,
+            ParseError::new("Option is not prefix information.")
+        );
+
+        ensure!(
+            option.length() * 8 == PrefixInformationFields::size_of() as u8,
+            ParseError::new("Invalid prefix information option length.")
+        );
+
+        Ok(option)
+    }
+
+    #[inline]
+    fn try_push(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<PrefixInformation<'a>> {
         mbuf.extend(offset, PrefixInformationFields::size_of())?;
         let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
-        Ok(PrefixInformation { fields, offset })
+        Ok(PrefixInformation {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        })
     }
 }
 
@@ -291,7 +281,7 @@ struct PrefixInformationFields {
 impl Default for PrefixInformationFields {
     fn default() -> PrefixInformationFields {
         PrefixInformationFields {
-            option_type: PREFIX_INFORMATION,
+            option_type: NdpOptionTypes::PrefixInformation.0,
             length: 4,
             prefix_length: 0,
             flags: 0,
@@ -306,9 +296,81 @@ impl Default for PrefixInformationFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::{Ethernet, Packet};
+    use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
     #[test]
-    fn size_of_prefix_information() {
+    fn size_of_prefix_information_fields() {
         assert_eq!(32, PrefixInformationFields::size_of());
+    }
+
+    #[capsule::test]
+    fn parse_prefix_information() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options_mut();
+        let mut iter = options.iter();
+
+        let mut pass = false;
+        while let Some(mut option) = iter.next().unwrap() {
+            if let Ok(prefix) = option.downcast::<PrefixInformation<'_>>() {
+                assert_eq!(NdpOptionTypes::PrefixInformation, prefix.option_type());
+                assert_eq!(4, prefix.length());
+                assert_eq!(64, prefix.prefix_length());
+                assert!(prefix.on_link());
+                assert!(prefix.autonomous());
+                assert_eq!(2366, prefix.valid_lifetime());
+                assert_eq!(2366, prefix.preferred_lifetime());
+                assert_eq!(
+                    Ipv6Addr::new(0x2607, 0xfcc8, 0xf142, 0xb0f0, 0, 0, 0, 0),
+                    prefix.prefix()
+                );
+
+                pass = true;
+                break;
+            }
+        }
+
+        assert!(pass);
+    }
+
+    #[capsule::test]
+    fn push_and_set_prefix_information() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options_mut();
+        let mut prefix = options.append::<PrefixInformation<'_>>().unwrap();
+
+        assert_eq!(NdpOptionTypes::PrefixInformation, prefix.option_type());
+        assert_eq!(4, prefix.length());
+        assert_eq!(0, prefix.prefix_length());
+        assert!(!prefix.on_link());
+        assert!(!prefix.autonomous());
+        assert_eq!(0, prefix.valid_lifetime());
+        assert_eq!(0, prefix.preferred_lifetime());
+        assert_eq!(Ipv6Addr::UNSPECIFIED, prefix.prefix());
+
+        prefix.set_prefix_length(64);
+        assert_eq!(64, prefix.prefix_length());
+        prefix.set_on_link();
+        assert!(prefix.on_link());
+        prefix.unset_on_link();
+        assert!(!prefix.on_link());
+        prefix.set_autonomous();
+        assert!(prefix.autonomous());
+        prefix.unset_autonomous();
+        assert!(!prefix.autonomous());
+        prefix.set_valid_lifetime(255);
+        assert_eq!(255, prefix.valid_lifetime());
+        prefix.set_preferred_lifetime(600);
+        assert_eq!(600, prefix.preferred_lifetime());
+        prefix.set_prefix(Ipv6Addr::LOCALHOST);
+        assert_eq!(Ipv6Addr::LOCALHOST, prefix.prefix());
     }
 }

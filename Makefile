@@ -42,6 +42,9 @@ test:
 	@pushd core && cargo test --all-targets --features full && popd
 	@cargo test --all-targets --workspace --exclude capsule
 
+compile-failure:
+	@pushd core && cargo test --features compile_failure && popd
+
 watch:
 ifdef WATCH
 	@cargo watch --poll -x build -w $(WATCH)

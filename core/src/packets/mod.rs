@@ -185,7 +185,7 @@ pub trait Packet {
     /// `peek` returns an immutable reference to the payload. The caller
     /// retains full ownership of the packet.
     #[inline]
-    fn peek<'a, T: Packet<Envelope = Self>>(&'a self) -> Fallible<Immutable<'a, T>>
+    fn peek<T: Packet<Envelope = Self>>(&self) -> Fallible<Immutable<'_, T>>
     where
         Self: Sized,
     {
@@ -284,25 +284,26 @@ pub trait Packet {
     }
 }
 
-/// Immutable smart pointer to a packet.
+/// Immutable smart pointer to a struct.
 ///
-/// A smart pointer that prevents the packet from being modified. The main
+/// A smart pointer that prevents the struct from being modified. The main
 /// use is allow safe lookahead of packet payload while retaining ownership
 /// of the original packet. The lifetime of the smart pointer is constrained
-/// by the original packet.
-pub struct Immutable<'a, T: Packet> {
+/// by the original packet. The pointer can be generally used on all structs
+/// other than packets as well.
+pub struct Immutable<'a, T> {
     value: T,
     phantom: PhantomData<&'a T>,
 }
 
-impl<T: Packet + fmt::Debug> fmt::Debug for Immutable<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for Immutable<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.value.fmt(f)
     }
 }
 
-impl<T: Packet> Immutable<'_, T> {
-    /// Creates a new immutable smart pointer to a packet.
+impl<T> Immutable<'_, T> {
+    /// Creates a new immutable smart pointer to a struct `T`.
     pub fn new(value: T) -> Self {
         Immutable {
             value,
@@ -311,7 +312,7 @@ impl<T: Packet> Immutable<'_, T> {
     }
 }
 
-impl<T: Packet> Deref for Immutable<'_, T> {
+impl<T> Deref for Immutable<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -391,5 +392,43 @@ mod tests {
 
         let v4 = udp.remove().unwrap();
         assert_eq!(0, v4.payload_len());
+    }
+
+    /// Demonstrates that `Packet::peek` behaves as an immutable borrow on
+    /// the envelope. Compilation will fail because it tries to have a
+    /// mutable borrow on `Ethernet` while there's already an immutable
+    /// borrow through peek.
+    ///
+    /// ```
+    /// |         let ipv4 = ethernet.peek::<Ipv4>().unwrap();
+    /// |                    -------- immutable borrow occurs here
+    /// |         ethernet.set_src(MacAddr::UNSPECIFIED);
+    /// |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+    /// |         assert!(ipv4.payload_len() > 0);
+    /// |                 ---- immutable borrow later used here
+    /// ```
+    #[test]
+    #[cfg(feature = "compile_failure")]
+    fn cannot_mutate_packet_while_peeking_into_payload() {
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv4 = ethernet.peek::<Ipv4>().unwrap();
+        ethernet.set_src(MacAddr::UNSPECIFIED);
+        assert!(ipv4.payload_len() > 0);
+    }
+
+    /// Demonstrates that `Packet::peek` returns an immutable packet wrapper.
+    /// Compilation will fail because it tries to mutate the ethernet packet.
+    ///
+    /// ```
+    /// |         ethernet.set_src(MacAddr::UNSPECIFIED);
+    /// |         ^^^^^^^^ cannot borrow as mutable
+    /// ```
+    #[test]
+    #[cfg(feature = "compile_failure")]
+    fn cannot_mutate_immutable_packet() {
+        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let ethernet = packet.peek::<Ethernet>().unwrap();
+        ethernet.set_src(MacAddr::UNSPECIFIED);
     }
 }
