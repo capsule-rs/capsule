@@ -266,14 +266,14 @@ impl Icmpv4Type {
 pub mod Icmpv4Types {
     use super::Icmpv4Type;
 
-    /// Message type for [`Echo Request`].
+    /// Message type for [Echo Request].
     ///
-    /// [`Echo Request`]: crate::packets::icmp::v4::EchoRequest
+    /// [Echo Request]: EchoRequest
     pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
 
-    /// Message type for [`Echo Reply`].
+    /// Message type for [Echo Reply].
     ///
-    /// [`Echo Reply`]: crate::packets::icmp::v4::EchoReply
+    /// [Echo Reply]: EchoReply
     pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
 }
 
