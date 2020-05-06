@@ -38,7 +38,7 @@ use failure::{Fail, Fallible};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Internet Control Message Protocol v6 packet based on [`IETF RFC 4443`].
+/// Internet Control Message Protocol v6 packet based on [IETF RFC 4443].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -72,7 +72,7 @@ use std::ptr::NonNull;
 /// }
 /// ```
 ///
-/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443
+/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443
 /// [`Icmpv6Message`]: Icmpv6Message
 pub struct Icmpv6<E: Ipv6Packet> {
     envelope: E,
@@ -263,7 +263,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
 ///
 /// A list of supported types is under [`Icmpv6Types`].
 ///
-/// [IANA]: https://www.iana.org/assignments/icmpv6-parameters/icmpv6-parameters.xhtml
+/// [IANA]: https://www.iana.org/assignments/icmpv6-parameters/icmpv6-parameters.xhtml#icmpv6-parameters-2
 /// [`Icmpv6Types`]: Icmpv6Types
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
@@ -282,47 +282,49 @@ impl Icmpv6Type {
 pub mod Icmpv6Types {
     use super::Icmpv6Type;
 
-    /// Message type for [`Packet Too Big`].
+    /// Message type for [Packet Too Big].
     ///
-    /// [`Packet Too Big`]: crate::packets::icmp::v6::PacketTooBig
+    /// [Packet Too Big]: crate::packets::icmp::v6::PacketTooBig
     pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
 
-    /// Message type for [`Time Exceeded`].
+    /// Message type for [Time Exceeded].
     ///
-    /// [`Time Exceeded`]: crate::packets::icmp::v6::TimeExceeded
+    /// [Time Exceeded]: crate::packets::icmp::v6::TimeExceeded
     pub const TimeExceeded: Icmpv6Type = Icmpv6Type(3);
 
-    /// Message type for [`Echo Request`].
+    /// Message type for [Echo Request].
     ///
-    /// [`Echo Request`]: crate::packets::icmp::v6::EchoRequest
+    /// [Echo Request]: crate::packets::icmp::v6::EchoRequest
     pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
 
-    /// Message type for [`Echo Reply`].
+    /// Message type for [Echo Reply].
     ///
-    /// [`Echo Reply`]: crate::packets::icmp::v6::EchoReply
+    /// [Echo Reply]: crate::packets::icmp::v6::EchoReply
     pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
 
-    /// Message type for [`Router Solicitation`].
+    /// Message type for [Router Solicitation].
     ///
-    /// [`Router Solicitation`]: crate::packets::icmp::v6::ndp::RouterSolicitation
+    /// [Router Solicitation]: crate::packets::icmp::v6::ndp::RouterSolicitation
     pub const RouterSolicitation: Icmpv6Type = Icmpv6Type(133);
 
-    /// Message type for [`Router Advertisement`].
+    /// Message type for [Router Advertisement].
     ///
-    /// [`Router Advertisement`]: crate::packets::icmp::v6::ndp::RouterAdvertisement
+    /// [Router Advertisement]: crate::packets::icmp::v6::ndp::RouterAdvertisement
     pub const RouterAdvertisement: Icmpv6Type = Icmpv6Type(134);
 
-    /// Message type for [`Neighbor Solicitation`].
+    /// Message type for [Neighbor Solicitation].
     ///
-    /// [`Neighbor Solicitation`]: crate::packets::icmp::v6::ndp::NeighborSolicitation
+    /// [Neighbor Solicitation]: crate::packets::icmp::v6::ndp::NeighborSolicitation
     pub const NeighborSolicitation: Icmpv6Type = Icmpv6Type(135);
 
-    /// Message type for [`Neighbor Advertisement`].
+    /// Message type for [Neighbor Advertisement].
     ///
-    /// [`Neighbor Advertisement`]: crate::packets::icmp::v6::ndp::NeighborAdvertisement
+    /// [Neighbor Advertisement]: crate::packets::icmp::v6::ndp::NeighborAdvertisement
     pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
 
-    /// Message type for `Redirect`.
+    /// Message type for [Redirect].
+    ///
+    /// [Redirect]: crate::packets::icmp::v6::ndp::Redirect
     pub const Redirect: Icmpv6Type = Icmpv6Type(137);
 }
 
@@ -378,9 +380,7 @@ pub trait Icmpv6Message {
     /// The preceding packet type that encapsulates this message.
     type Envelope: Ipv6Packet;
 
-    /// Returns the [IANA] assigned message type.
-    ///
-    /// [IANA]: https://www.iana.org/assignments/icmpv6-parameters/icmpv6-parameters.xhtml
+    /// Returns the assigned message type.
     fn msg_type() -> Icmpv6Type;
 
     /// Returns a reference to the generic ICMPv6 packet.

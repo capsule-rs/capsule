@@ -23,7 +23,7 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Echo Request Message defined in [`IETF RFC 792`].
+/// Echo Request Message defined in [IETF RFC 792].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -45,7 +45,7 @@ use std::ptr::NonNull;
 ///
 /// *Data*:             Zero or more octets of arbitrary data.
 ///
-/// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Icmpv4Packet)]
 pub struct EchoRequest {
     icmp: Icmpv4,
@@ -126,7 +126,7 @@ impl EchoRequest {
 
 impl fmt::Debug for EchoRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("icmpv4")
+        f.debug_struct("EchoRequest")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))

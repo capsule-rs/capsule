@@ -31,7 +31,7 @@ const R_FLAG: u8 = 0b1000_0000;
 const S_FLAG: u8 = 0b0100_0000;
 const O_FLAG: u8 = 0b0010_0000;
 
-/// Neighbor Advertisement Message defined in [`IETF RFC 4861`].
+/// Neighbor Advertisement Message defined in [IETF RFC 4861].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -47,58 +47,36 @@ const O_FLAG: u8 = 0b0010_0000;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *R*:                          Router flag. When set, the R-bit
-///                                 indicates that the sender is a router.
-///                                 The R-bit is used by Neighbor
-///                                 Unreachability Detection to detect a
-///                                 router that changes to a host.
+/// - *R*:              Router flag. When set, the R-bit indicates that
+///                     the sender is a router.
 ///
-/// - *S*:                          Solicited flag. When set, the S-bit
-///                                 indicates that the advertisement was sent in
-///                                 response to a Neighbor Solicitation from the
-///                                 Destination address. The S-bit is used as a
-///                                 reachability confirmation for Neighbor
-///                                 Unreachability Detection. It *MUST NOT*
-///                                 be set in multicast advertisements or in
-///                                 unsolicited unicast advertisements.
+/// - *S*:              Solicited flag. When set, the S-bit indicates that
+///                     the advertisement was sent in response to a
+///                     Neighbor Solicitation from the Destination address.
 ///
-/// - *O*:                          Override flag. When set, the O-bit
-///                                 indicates that the advertisement should
-///                                 override an existing cache entry and update
-///                                 the cached link-layer address. When it is
-///                                 not set the advertisement will not update a
-///                                 cached link-layer address though it will
-///                                 update an existing Neighbor Cache entry for
-///                                 which no link-layer address is known. It
-///                                 *SHOULD NOT* be set in solicited
-///                                 advertisements for anycast addresses and in
-///                                 solicited proxy advertisements. It *SHOULD*
-///                                 be set in other solicited advertisements and
-///                                 in unsolicited advertisements.
+/// - *O*:              Override flag. When set, the O-bit indicates that
+///                     the advertisement should override an existing cache
+///                     entry and update the cached link-layer address.
 ///
-/// - *Reserved*:                   29-bit unused field. It *MUST* be
-///                                 initialized to zero by the sender and *MUST*
-///                                 be ignored by the receiver.
+/// - *Reserved*:       29-bit unused field. It MUST be initialized to
+///                     zero by the sender and MUST be ignored by the
+///                     receiver.
 ///
-/// - *Target Address*:             For solicited advertisements, the Target
-///                                 Address field in the Neighbor Solicitation
-///                                 message that prompted this advertisement.
-///                                 For an unsolicited advertisement, the
-///                                 address whose link-layer address has changed.
-///                                 The Target Address *MUST NOT* be a
-///                                 multicast address.
+/// - *Target Address*:
+///                     For solicited advertisements, the Target Address
+///                     field in the Neighbor Solicitation message that
+///                     prompted this advertisement. For an unsolicited
+///                     advertisement, the address whose link-layer address
+///                     has changed. The Target Address MUST NOT be a
+///                     multicast address.
 ///
 /// Possible options:
 ///
-/// - *Target link-layer address*:  The link-layer address for the target, i.e.,
-///                                 the sender of the advertisement. This
-///                                 option *MUST* be included on link layers
-///                                 that have addresses when responding to
-///                                 multicast solicitations. When responding to
-///                                 a unicast Neighbor Solicitation this option
-///                                 *SHOULD* be included.
+/// - *Target link-layer address*:
+///                     The link-layer address for the target, i.e., the
+///                     sender of the advertisement.
 ///
-/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.4
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.4
 #[derive(Icmpv6Packet)]
 pub struct NeighborAdvertisement<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -174,27 +152,27 @@ impl<E: Ipv6Packet> NeighborAdvertisement<E> {
 
     /// Returns the target address.
     #[inline]
-    pub fn target_addr(&self) -> Ipv6Addr {
-        self.body().target_addr
+    pub fn target(&self) -> Ipv6Addr {
+        self.body().target
     }
 
     /// Sets the target address.
     #[inline]
-    pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
-        self.body_mut().target_addr = target_addr
+    pub fn set_target(&mut self, target: Ipv6Addr) {
+        self.body_mut().target = target
     }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for NeighborAdvertisement<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("neighbor advertisement")
+        f.debug_struct("NeighborAdvertisement")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
             .field("router", &self.router())
             .field("solicited", &self.solicited())
             .field("override", &self.r#override())
-            .field("target_addr", &self.target_addr())
+            .field("target", &self.target())
             .finish()
     }
 }
@@ -263,7 +241,7 @@ struct NeighborAdvertisementBody {
     flags: u8,
     reserved1: u8,
     reserved2: u16,
-    target_addr: Ipv6Addr,
+    target: Ipv6Addr,
 }
 
 impl Default for NeighborAdvertisementBody {
@@ -272,7 +250,7 @@ impl Default for NeighborAdvertisementBody {
             flags: 0,
             reserved1: 0,
             reserved2: 0,
-            target_addr: Ipv6Addr::UNSPECIFIED,
+            target: Ipv6Addr::UNSPECIFIED,
         }
     }
 }
@@ -313,8 +291,8 @@ mod tests {
         assert!(advert.r#override());
         advert.unset_override();
         assert!(!advert.r#override());
-        advert.set_target_addr(Ipv6Addr::LOCALHOST);
-        assert_eq!(Ipv6Addr::LOCALHOST, advert.target_addr());
+        advert.set_target(Ipv6Addr::LOCALHOST);
+        assert_eq!(Ipv6Addr::LOCALHOST, advert.target());
 
         advert.reconcile_all();
         assert!(advert.checksum() != 0);

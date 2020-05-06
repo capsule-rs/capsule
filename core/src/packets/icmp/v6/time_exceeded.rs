@@ -24,7 +24,7 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Time Exceeded Message defined in [`IETF RFC 4443`].
+/// Time Exceeded Message defined in [IETF RFC 4443].
 ///
 /// ```
 /// 0                   1                   2                   3
@@ -39,7 +39,7 @@ use std::ptr::NonNull;
 /// |               exceeding the minimum IPv6 MTU [IPv6]           |
 /// ```
 ///
-/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-3.3
+/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.3
 #[derive(Icmpv6Packet)]
 pub struct TimeExceeded<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -56,14 +56,14 @@ impl<E: Ipv6Packet> TimeExceeded<E> {
         if let Ok(data) = self.icmp().mbuf().read_data_slice(offset, len) {
             unsafe { &*data.as_ptr() }
         } else {
-            unreachable!()
+            &[]
         }
     }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for TimeExceeded<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("icmpv6")
+        f.debug_struct("TimeExceeded")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
@@ -194,12 +194,12 @@ mod tests {
         let ipv6 = ethernet.push::<Ipv6>().unwrap();
 
         // the max packet len is MTU + Ethernet header
-        const MAX_LEN: usize = IPV6_MIN_MTU + 14;
+        let max_len = IPV6_MIN_MTU + 14;
 
         let mut exceeded = ipv6.push::<TimeExceeded<Ipv6>>().unwrap();
-        assert!(exceeded.mbuf().data_len() > MAX_LEN);
+        assert!(exceeded.mbuf().data_len() > max_len);
 
         exceeded.reconcile_all();
-        assert_eq!(MAX_LEN, exceeded.mbuf().data_len());
+        assert_eq!(max_len, exceeded.mbuf().data_len());
     }
 }

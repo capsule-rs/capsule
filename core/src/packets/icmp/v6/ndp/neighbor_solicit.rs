@@ -26,7 +26,7 @@ use std::fmt;
 use std::net::Ipv6Addr;
 use std::ptr::NonNull;
 
-/// Neighbor Solicitation Message defined in [`IETF RFC 4861`].
+/// Neighbor Solicitation Message defined in [IETF RFC 4861].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -42,25 +42,19 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *Reserved*:                   This field is unused. It *MUST* be
-///                                 initialized to zero by the sender and
-///                                 *MUST* be ignored by the receiver.
+/// - *Reserved*:       This field is unused. It MUST be initialized to
+///                     zero by the sender and MUST be ignored by the
+///                     receiver.
 ///
-/// - *Target Address*:             The IP address of the target of the
-///                                 solicitation. It *MUST NOT* be a
-///                                 multicast address.
+/// - *Target Address*: The IP address of the target of the solicitation.
+///                     It MUST NOT be a multicast address.
 ///
 /// Possible options:
 ///
-/// - *Source link-layer address*:  The link-layer address for the sender.
-///                                 *MUST NOT* be included when the source IP
-///                                 address is the unspecified address.
-///                                 Otherwise, on link layers that have
-///                                 addresses this option *MUST* be included in
-///                                 multicast solicitations and *SHOULD* be
-///                                 included in unicast solicitations.
+/// - *Source link-layer address*:
+///                     The link-layer address for the sender.
 ///
-/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.3
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.3
 #[derive(Icmpv6Packet)]
 pub struct NeighborSolicitation<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -80,24 +74,24 @@ impl<E: Ipv6Packet> NeighborSolicitation<E> {
 
     /// Returns the target address.
     #[inline]
-    pub fn target_addr(&self) -> Ipv6Addr {
-        self.body().target_addr
+    pub fn target(&self) -> Ipv6Addr {
+        self.body().target
     }
 
     /// Sets the target address.
     #[inline]
-    pub fn set_target_addr(&mut self, target_addr: Ipv6Addr) {
-        self.body_mut().target_addr = target_addr
+    pub fn set_target(&mut self, target: Ipv6Addr) {
+        self.body_mut().target = target
     }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for NeighborSolicitation<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("neighbor solicit")
+        f.debug_struct("NeighborSolicitation")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
-            .field("target_addr", &self.target_addr())
+            .field("target", &self.target())
             .finish()
     }
 }
@@ -164,14 +158,14 @@ impl<E: Ipv6Packet> NdpPacket for NeighborSolicitation<E> {
 #[repr(C)]
 struct NeighborSolicitationBody {
     reserved: u32,
-    target_addr: Ipv6Addr,
+    target: Ipv6Addr,
 }
 
 impl Default for NeighborSolicitationBody {
     fn default() -> Self {
         NeighborSolicitationBody {
             reserved: 0,
-            target_addr: Ipv6Addr::UNSPECIFIED,
+            target: Ipv6Addr::UNSPECIFIED,
         }
     }
 }
@@ -200,8 +194,8 @@ mod tests {
         assert_eq!(Icmpv6Types::NeighborSolicitation, solicit.msg_type());
         assert_eq!(0, solicit.code());
 
-        solicit.set_target_addr(Ipv6Addr::LOCALHOST);
-        assert_eq!(Ipv6Addr::LOCALHOST, solicit.target_addr());
+        solicit.set_target(Ipv6Addr::LOCALHOST);
+        assert_eq!(Ipv6Addr::LOCALHOST, solicit.target());
 
         solicit.reconcile_all();
         assert!(solicit.checksum() != 0);

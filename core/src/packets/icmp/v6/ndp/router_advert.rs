@@ -28,7 +28,7 @@ use std::ptr::NonNull;
 const M_FLAG: u8 = 0b1000_0000;
 const O_FLAG: u8 = 0b0100_0000;
 
-/// Router Advertisement Message defined in [`IETF RFC 4861`].
+/// Router Advertisement Message defined in [IETF RFC 4861].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -46,95 +46,56 @@ const O_FLAG: u8 = 0b0100_0000;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *Cur Hop Limit*:              8-bit unsigned integer. The default value
-///                                 that should be placed in the Hop Count field
-///                                 of the IP header for outgoing IP packets. A
-///                                 value of zero means unspecified (by this
-///                                 router).
+/// - *Cur Hop Limit*:  8-bit unsigned integer. The default value that
+///                     should be placed in the Hop Count field of the IP
+///                     header for outgoing IP packets. A value of zero
+///                     means unspecified (by this router).
 ///
-/// - *M*:                          1-bit "Managed address configuration" flag.
-///                                 When set, it indicates that addresses are
-///                                 available via Dynamic Host Configuration
-///                                 Protocol (DHCPv6). *Note*: If the M flag is
-///                                 set, the O flag is redundant and can be
-///                                 ignored because DHCPv6 will return all
-///                                 available configuration information.
+/// - *M*:              1-bit "Managed address configuration" flag. When
+///                     set, it indicates that addresses are available via
+///                     Dynamic Host Configuration Protocol DHCPv6.
 ///
-/// - *O*:                          1-bit "Other configuration" flag. When set,
-///                                 it indicates that other configuration
-///                                 information is available via DHCPv6.
-///                                 Examples of such information are DNS-related
-///                                 information or information on other servers
-///                                 within the network.
+/// - *O*:              1-bit "Other configuration" flag. When set, it
+///                     indicates that other configuration information is
+///                     available via DHCPv6.
 ///
 /// Note: If neither M nor O flags are set, this indicates that no
-///         information is available via DHCPv6.
+/// information is available via DHCPv6.
 ///
-/// - *Reserved*                    A 6-bit unused field. It *MUST* be
-///                                 initialized to zero by the sender and
-///                                 *MUST* be ignored by the receiver.
+/// - *Reserved*:       A 6-bit unused field. It MUST be initialized to
+///                     zero by the sender and MUST be ignored by the
+///                     receiver.
 ///
-/// - *Router Lifetime*:            16-bit unsigned integer. The lifetime
-///                                 associated with the default router in units
-///                                 of seconds. The field can contain values up
-///                                 to 65535 and receivers should handle any
-///                                 value, while the sending rules in Section 6
-///                                 limit the lifetime to 9000 seconds. A
-///                                 Lifetime of 0 indicates that the router is
-///                                 not a default router and *SHOULD NOT* appear
-///                                 on the default router list. The Router
-///                                 Lifetime applies only to the router's
-///                                 usefulness as a default router; it does not
-///                                 apply to information contained in other
-///                                 message fields or options. Options that need
-///                                 time limits for their information include
-///                                 their own lifetime fields.
+/// - *Router Lifetime*:
+///                     16-bit unsigned integer. The lifetime associated
+///                     with the default router in units of seconds.
 ///
-/// - *Reachable Time*:             32-bit unsigned integer. The time, in
-///                                 milliseconds, that a node assumes a neighbor
-///                                 is reachable after having received a
-///                                 reachability confirmation. Used by the
-///                                 Neighbor Unreachability Detection algorithm
-///                                 (see Section 7.3).  A value of zero means
-///                                 unspecified (by this router).
+/// - *Reachable Time*: 32-bit unsigned integer. The time, in
+///                     milliseconds, that a node assumes a neighbor is
+///                     reachable after having received a reachability
+///                     confirmation.
 ///
-/// - *Retrans Timer*:              32-bit unsigned integer.  The time, in
-///                                 milliseconds, between retransmitted Neighbor
-///                                 Solicitation messages.  Used by address
-///                                 resolution and the Neighbor Unreachability
-///                                 Detection algorithm (see Sections 7.2
-///                                 and 7.3).  A value of zero means unspecified
-///                                 (by this router).
+/// - *Retrans Timer*:  32-bit unsigned integer. The time, in
+///                     milliseconds, between retransmitted Neighbor
+///                     Solicitation messages.
 ///
 /// Possible options:
 ///
-/// - *Source link-layer address*:  The link-layer address of the interface from
-///                                 which the Router Advertisement is sent. Only
-///                                 used on link layers that have addresses. A
-///                                 router MAY omit this option in order to
-///                                 enable inbound load sharing across multiple
-///                                 link-layer addresses.
+/// - *Source link-layer address*:
+///                     The link-layer address of the interface from which
+///                     the Router Advertisement is sent.
 ///
-/// - *MTU*:                        *SHOULD* be sent on links that have a
-///                                 variable MTU (as specified in the document
-///                                 that describes how to run IP over the
-///                                 particular link type). *MAY* be sent on
-///                                 other links.
+/// - *MTU*:            SHOULD be sent on links that have a variable MTU
+///                     (as specified in the document that describes how to
+///                     run IP over the particular link type). MAY be sent
+///                     on other links.
 ///
-/// - *Prefix Information*:         These options specify the prefixes that are
-///                                 on-link and/or are used for stateless
-///                                 address auto-configuration. A router *SHOULD*
-///                                 include all its on-link prefixes (except the
-///                                 link-local prefix) so that multihomed hosts
-///                                 have complete prefix information about
-///                                 on-link destinations for the links to which
-///                                 they attach. If complete information is
-///                                 lacking, a host with multiple interfaces may
-///                                 not be able to choose the correct outgoing
-///                                 interface when sending traffic to its
-///                                 neighbors.
+/// - *Prefix Information*:
+///                     These options specify the prefixes that are on-link
+///                     and/or are used for stateless address
+///                     autoconfiguration.
 ///
-/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.2
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.2
 #[derive(Icmpv6Packet)]
 pub struct RouterAdvertisement<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -243,7 +204,7 @@ impl<E: Ipv6Packet> RouterAdvertisement<E> {
 
 impl<E: Ipv6Packet> fmt::Debug for RouterAdvertisement<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("router advertisement")
+        f.debug_struct("RouterAdvertisement")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))

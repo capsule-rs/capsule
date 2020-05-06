@@ -24,7 +24,7 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Echo Request Message defined in [`IETF RFC 4443`].
+/// Echo Request Message defined in [IETF RFC 4443].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -46,7 +46,7 @@ use std::ptr::NonNull;
 ///
 /// - *Data*:             Zero or more octets of arbitrary data.
 ///
-/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-4.1
+/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.1
 #[derive(Icmpv6Packet)]
 pub struct EchoRequest<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -127,7 +127,7 @@ impl<E: Ipv6Packet> EchoRequest<E> {
 
 impl<E: Ipv6Packet> fmt::Debug for EchoRequest<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("icmpv6")
+        f.debug_struct("EchoRequest")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))

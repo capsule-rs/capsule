@@ -33,7 +33,7 @@ use failure::{Fail, Fallible};
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Internet Control Message Protocol v4 packet based on [`IETF RFC 792`].
+/// Internet Control Message Protocol v4 packet based on [IETF RFC 792].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -65,7 +65,7 @@ use std::ptr::NonNull;
 /// }
 /// ```
 ///
-/// [`IETF RFC 792`]: https://tools.ietf.org/html/rfc792
+/// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 /// [`Icmpv4Message`]: Icmpv4Message
 pub struct Icmpv4 {
     envelope: Ipv4,
@@ -266,14 +266,14 @@ impl Icmpv4Type {
 pub mod Icmpv4Types {
     use super::Icmpv4Type;
 
-    /// Message type for [`Echo Request`].
+    /// Message type for [Echo Request].
     ///
-    /// [`Echo Request`]: crate::packets::icmp::v4::EchoRequest
+    /// [Echo Request]: crate::packets::icmp::v4::EchoRequest
     pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
 
-    /// Message type for [`Echo Reply`].
+    /// Message type for [Echo Reply].
     ///
-    /// [`Echo Reply`]: crate::packets::icmp::v4::EchoReply
+    /// [Echo Reply]: crate::packets::icmp::v4::EchoReply
     pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
 }
 

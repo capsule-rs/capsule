@@ -24,7 +24,7 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Packet Too Big Message defined in [`IETF RFC 4443`].
+/// Packet Too Big Message defined in [IETF RFC 4443].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -41,7 +41,7 @@ use std::ptr::NonNull;
 ///
 /// - *MTU*:        The Maximum Transmission Unit of the next-hop link.
 ///
-/// [`IETF RFC 4443`]: https://tools.ietf.org/html/rfc4443#section-3.2
+/// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.2
 #[derive(Icmpv6Packet)]
 pub struct PacketTooBig<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -80,14 +80,14 @@ impl<E: Ipv6Packet> PacketTooBig<E> {
         if let Ok(data) = self.icmp().mbuf().read_data_slice(offset, len) {
             unsafe { &*data.as_ptr() }
         } else {
-            unreachable!()
+            &[]
         }
     }
 }
 
 impl<E: Ipv6Packet> fmt::Debug for PacketTooBig<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("icmpv6")
+        f.debug_struct("PacketTooBig")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
@@ -216,12 +216,12 @@ mod tests {
         let ipv6 = ethernet.push::<Ipv6>().unwrap();
 
         // the max packet len is MTU + Ethernet header
-        const MAX_LEN: usize = IPV6_MIN_MTU + 14;
+        let max_len = IPV6_MIN_MTU + 14;
 
         let mut too_big = ipv6.push::<PacketTooBig<Ipv6>>().unwrap();
-        assert!(too_big.mbuf().data_len() > MAX_LEN);
+        assert!(too_big.mbuf().data_len() > max_len);
 
         too_big.reconcile_all();
-        assert_eq!(MAX_LEN, too_big.mbuf().data_len());
+        assert_eq!(max_len, too_big.mbuf().data_len());
     }
 }

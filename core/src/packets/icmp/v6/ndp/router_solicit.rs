@@ -25,7 +25,7 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
-/// Router Solicitation Message defined in [`IETF RFC 4861`].
+/// Router Solicitation Message defined in [IETF RFC 4861].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -39,19 +39,15 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *Reserved*:                   This field is unused. It *MUST* be
-///                                 initialized to zero by the sender and
-///                                 *MUST* be ignored by the receiver.
-///
+/// - *Reserved*:       This field is unused. It MUST be initialized to
+///                     zero by the sender and MUST be ignored by the
+///                     receiver.
 /// Valid Options:
 ///
-/// - *Source link-layer address*:  The link-layer address of the sender, if
-///                                 known. *MUST NOT* be included if the
-///                                 Source Address is the unspecified address.
-///                                 Otherwise, it *SHOULD* be included on link
-///                                 layers that have addresses.
+/// - *Source link-layer address*:
+///                     The link-layer address of the sender, if known.
 ///
-/// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.1
+/// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.1
 #[derive(Icmpv6Packet)]
 pub struct RouterSolicitation<E: Ipv6Packet> {
     icmp: Icmpv6<E>,
@@ -60,7 +56,7 @@ pub struct RouterSolicitation<E: Ipv6Packet> {
 
 impl<E: Ipv6Packet> fmt::Debug for RouterSolicitation<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("router solicit")
+        f.debug_struct("RouterSolicitation")
             .field("type", &format!("{}", self.msg_type()))
             .field("code", &self.code())
             .field("checksum", &format!("0x{:04x}", self.checksum()))
