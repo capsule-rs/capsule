@@ -42,10 +42,11 @@ pub use self::router_advert::*;
 pub use self::router_solicit::*;
 
 use crate::dpdk::BufferError;
-use crate::packets::{Immutable, Packet};
+use crate::packets::{Immutable, Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 /// A trait for common NDP accessors.
@@ -55,10 +56,14 @@ pub trait NdpPacket: Packet {
 
     /// Returns an iterator that iterates through the options in the packet.
     #[inline]
-    fn options(&mut self) -> ImmutableNdpOptionsIterator<'_> {
+    fn options(&self) -> ImmutableNdpOptionsIterator<'_> {
         let offset = self.options_offset();
-        let mbuf = self.mbuf_mut();
-        ImmutableNdpOptionsIterator { mbuf, offset }
+        let mbuf = unsafe { self.mbuf().clone(Internal(())) };
+        ImmutableNdpOptionsIterator {
+            mbuf,
+            offset,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -180,9 +185,9 @@ impl<'a> ImmutableNdpOption<'a> {
         self.offset + self.length() as usize * 8
     }
 
-    /// Casts the untyped immutable option to option `T`.
+    /// Casts the untyped immutable option to typed option `T`.
     #[inline]
-    pub fn downcast<'x, T: NdpOption<'x>>(&'x mut self) -> Fallible<Immutable<'x, T>> {
+    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Fallible<Immutable<'b, T>> {
         T::try_parse(self.mbuf, self.offset).map(Immutable::new)
     }
 }
@@ -201,8 +206,9 @@ impl fmt::Debug for ImmutableNdpOption<'_> {
 /// An iterator that iterates through the options in the NDP message body
 /// immutably.
 pub struct ImmutableNdpOptionsIterator<'a> {
-    mbuf: &'a mut Mbuf,
+    mbuf: Mbuf,
     offset: usize,
+    _phantom: PhantomData<&'a Mbuf>,
 }
 
 impl ImmutableNdpOptionsIterator<'_> {
@@ -212,7 +218,7 @@ impl ImmutableNdpOptionsIterator<'_> {
     /// parse error is encountered during iteration.
     pub fn next(&mut self) -> Fallible<Option<ImmutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
-            match ImmutableNdpOption::new(self.mbuf, self.offset) {
+            match ImmutableNdpOption::new(&mut self.mbuf, self.offset) {
                 Ok(item) => {
                     // advances the offset to the next option
                     self.offset = item.end_offset();
@@ -265,7 +271,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
         let mut prefix = false;
         let mut mtu = false;
@@ -294,7 +300,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&INVALID_OPTION_LENGTH).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
         assert!(advert.options().next().is_err());
     }
@@ -302,22 +308,69 @@ mod tests {
     #[capsule::test]
     fn downcast_immutable_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.peek::<Ethernet>().unwrap();
+        let ipv6 = ethernet.peek::<Ipv6>().unwrap();
+        let advert = ipv6.peek::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut iter = advert.options();
+
+        // first one is the prefix information option.
+        let mut prefix = iter.next().unwrap().unwrap();
+        assert!(prefix.downcast::<PrefixInformation<'_>>().is_ok());
+
+        // next one is the MTU option.
+        let mut mtu = iter.next().unwrap().unwrap();
+        assert!(mtu.downcast::<PrefixInformation<'_>>().is_err());
+    }
+
+    /// Demonstrates that `NdpPacket::options` behaves as an immutable
+    /// borrow on the `NdpPacket`. Compilation will fail because it tries
+    /// to have a mutable borrow on `RouterAdvertisement` while there's
+    /// already an immutable borrow through the options iterator.
+    ///
+    /// ```
+    /// |         let mut options = advert.options();
+    /// |                           ------ immutable borrow occurs here
+    /// |         advert.set_code(0);
+    /// |         ^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+    /// |         let _ = options.next();
+    /// |                 ------- immutable borrow later used here
+    /// ```
+    #[test]
+    #[cfg(feature = "compile_failure")]
+    fn cannot_mutate_packet_while_iterating_options() {
+        use crate::packets::icmp::v6::Icmpv6Packet;
+
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
         let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
-        let mut iter = advert.options();
+        let mut options = advert.options();
+        advert.set_code(0);
+        let _ = options.next();
+    }
 
-        while let Ok(Some(mut option)) = iter.next() {
-            match option.option_type() {
-                NdpOptionTypes::SourceLinkLayerAddress => {
-                    assert!(option.downcast::<LinkLayerAddress<'_>>().is_ok());
-                }
-                _ => {
-                    assert!(option.downcast::<LinkLayerAddress<'_>>().is_err());
-                }
-            }
-        }
+    /// Demonstrates that `ImmutableNdpOptionsIterator` returns an immutable
+    /// option wrapper. Compilation will fail because it tries to mutate the
+    /// `PrefixInformation` option.
+    ///
+    /// ```
+    /// |         prefix.set_prefix_length(64);
+    /// |         ^^^^^^ cannot borrow as mutable
+    /// ```
+    #[test]
+    #[cfg(feature = "compile_failure")]
+    fn cannot_mutate_immutable_option() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options();
+
+        let mut option = options.next().unwrap().unwrap();
+        let prefix = option.downcast::<PrefixInformation<'_>>().unwrap();
+        prefix.set_prefix_length(64);
     }
 
     /// ICMPv6 packet with invalid MTU-option length.

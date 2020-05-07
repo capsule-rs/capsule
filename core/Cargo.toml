@@ -46,6 +46,7 @@ proptest = { version = "0.9", default-features = false, features = ["default-cod
 
 [features]
 default = ["metrics"]
+compile_failure = []
 full = ["metrics", "pcap-dump", "testils"]
 metrics = ["metrics-core", "metrics-runtime"]
 pcap-dump = []
