@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-CLIPPY_ARGS = --all-targets --all-features -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
+CLIPPY_ARGS = -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warnings
 CRITERION_PLOTS_DIR = bench/target/criterion
 NIGHTLY := $(shell rustup show|grep nightly 2> /dev/null)
 
@@ -10,7 +10,8 @@ bench:
 	@cargo bench
 
 check:
-	@cargo check --workspace --all-targets --all-features
+	@pushd core && cargo check --all-targets --features full && popd
+	@cargo check --all-targets --workspace --exclude capsule
 
 clean:
 	@cargo clean
@@ -34,10 +35,11 @@ fmt:
 	@cargo fmt --all
 
 lint:
-	@cargo clippy $(CLIPPY_ARGS)
+	@pushd core && cargo clippy --all-targets --features full $(CLIPPY_ARGS) && popd
+	@cargo clippy --all-targets --workspace --exclude capsule $(CLIPPY_ARGS)
 
 test:
-	@pushd core && cargo test --features full && popd
+	@pushd core && cargo test --all-targets --features full && popd
 	@cargo test --all-targets --workspace --exclude capsule
 
 compile-failure:
