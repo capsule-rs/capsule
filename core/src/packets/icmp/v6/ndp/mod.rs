@@ -31,18 +31,18 @@
 
 mod neighbor_advert;
 mod neighbor_solicit;
-//mod options;
+mod options;
 mod router_advert;
 mod router_solicit;
 
 pub use self::neighbor_advert::*;
 pub use self::neighbor_solicit::*;
-//pub use self::options::*;
+pub use self::options::*;
 pub use self::router_advert::*;
 pub use self::router_solicit::*;
 
 use crate::dpdk::BufferError;
-use crate::packets::Packet;
+use crate::packets::{Immutable, Packet};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -54,15 +54,11 @@ pub trait NdpPacket: Packet {
     fn options_offset(&self) -> usize;
 
     /// Returns an iterator that iterates through the options in the packet.
-    fn options(&mut self) -> NdpOptionsIterator<'_> {
+    #[inline]
+    fn options(&mut self) -> ImmutableNdpOptionsIterator<'_> {
         let offset = self.options_offset();
         let mbuf = self.mbuf_mut();
-        NdpOptionsIterator { mbuf, offset }
-    }
-
-    /// Pushes a new option `T` to the end of the packet.
-    fn push_option<T: NdpOption>(&mut self) -> Fallible<T> {
-        T::try_push(self.mbuf_mut())
+        ImmutableNdpOptionsIterator { mbuf, offset }
     }
 }
 
@@ -74,51 +70,51 @@ pub trait NdpPacket: Packet {
 /// [`OptionTypes`]: OptionTypes
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
-pub struct OptionType(pub u8);
+pub struct NdpOptionType(pub u8);
 
 /// Supported neighbor discovery option types.
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
-pub mod OptionTypes {
-    use super::OptionType;
+pub mod NdpOptionTypes {
+    use super::NdpOptionType;
 
     /// Option type for [Source Link-layer Address].
     ///
     /// [Source Link-layer Address]: LinkLayerAddress
-    pub const SourceLinkLayerAddress: OptionType = OptionType(1);
+    pub const SourceLinkLayerAddress: NdpOptionType = NdpOptionType(1);
 
     /// Option type for [Target Link-layer Address].
     ///
     /// [Target Link-layer Address]: LinkLayerAddress
-    pub const TargetLinkLayerAddress: OptionType = OptionType(2);
+    pub const TargetLinkLayerAddress: NdpOptionType = NdpOptionType(2);
 
     /// Option type for [Prefix Information].
     ///
     /// [Prefix Information]: PrefixInformation
-    pub const PrefixInformation: OptionType = OptionType(3);
+    pub const PrefixInformation: NdpOptionType = NdpOptionType(3);
 
     /// Option type for [Redirected Header].
     ///
     /// [Redirected Header]: RedirectedHeader
-    pub const RedirectedHeader: OptionType = OptionType(4);
+    pub const RedirectedHeader: NdpOptionType = NdpOptionType(4);
 
     /// Option type for [MTU].
     ///
     /// [MTU]: Mtu
-    pub const Mtu: OptionType = OptionType(5);
+    pub const Mtu: NdpOptionType = NdpOptionType(5);
 }
 
-impl fmt::Display for OptionType {
+impl fmt::Display for NdpOptionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
             match *self {
-                OptionTypes::SourceLinkLayerAddress => "Source Link-layer Address".to_string(),
-                OptionTypes::TargetLinkLayerAddress => "Target Link-layer Address".to_string(),
-                OptionTypes::PrefixInformation => "Prefix Information".to_string(),
-                OptionTypes::RedirectedHeader => "Redirected Header".to_string(),
-                OptionTypes::Mtu => "MTU".to_string(),
+                NdpOptionTypes::SourceLinkLayerAddress => "Source Link-layer Address".to_string(),
+                NdpOptionTypes::TargetLinkLayerAddress => "Target Link-layer Address".to_string(),
+                NdpOptionTypes::PrefixInformation => "Prefix Information".to_string(),
+                NdpOptionTypes::RedirectedHeader => "Redirected Header".to_string(),
+                NdpOptionTypes::Mtu => "MTU".to_string(),
                 _ => format!("{}", self.0),
             }
         )
@@ -133,19 +129,20 @@ struct TypeLengthTuple {
     length: u8,
 }
 
-/// An untyped NDP option that can be downcasted to a concrete option.
-pub struct AnyOption<'a> {
+/// An immutable untyped NDP option that can be downcasted to a concrete
+/// option.
+pub struct ImmutableNdpOption<'a> {
     mbuf: &'a mut Mbuf,
     tuple: NonNull<TypeLengthTuple>,
     offset: usize,
 }
 
-impl<'a> AnyOption<'a> {
-    /// Creates a new untyped NDP option.
+impl<'a> ImmutableNdpOption<'a> {
+    /// Creates a new immutable untyped NDP option.
     #[inline]
-    pub fn new(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self> {
+    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self> {
         let tuple = mbuf.read_data(offset)?;
-        let option = AnyOption {
+        let option = ImmutableNdpOption {
             mbuf,
             tuple,
             offset,
@@ -168,8 +165,8 @@ impl<'a> AnyOption<'a> {
 
     /// Returns the option type.
     #[inline]
-    pub fn option_type(&self) -> OptionType {
-        OptionType(self.tuple().option_type)
+    pub fn option_type(&self) -> NdpOptionType {
+        NdpOptionType(self.tuple().option_type)
     }
 
     /// Returns the length of the option in units of 8 octets.
@@ -182,11 +179,17 @@ impl<'a> AnyOption<'a> {
     fn end_offset(&self) -> usize {
         self.offset + self.length() as usize * 8
     }
+
+    /// Casts the untyped immutable option to option `T`.
+    #[inline]
+    pub fn downcast<'x, T: NdpOption<'x>>(&'x mut self) -> Fallible<Immutable<'x, T>> {
+        T::try_parse(self.mbuf, self.offset).map(Immutable::new)
+    }
 }
 
-impl fmt::Debug for AnyOption<'_> {
+impl fmt::Debug for ImmutableNdpOption<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AnyOption")
+        f.debug_struct("ImmutableNdpOption")
             .field("option_type", &self.option_type())
             .field("length", &self.length())
             .field("$offset", &self.offset)
@@ -195,24 +198,25 @@ impl fmt::Debug for AnyOption<'_> {
     }
 }
 
-/// An iterator that iterates through the options in the NDP message body.
-pub struct NdpOptionsIterator<'a> {
+/// An iterator that iterates through the options in the NDP message body
+/// immutably.
+pub struct ImmutableNdpOptionsIterator<'a> {
     mbuf: &'a mut Mbuf,
     offset: usize,
 }
 
-impl NdpOptionsIterator<'_> {
+impl ImmutableNdpOptionsIterator<'_> {
     /// Advances the iterator and returns the next value.
     ///
     /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
     /// parse error is encountered during iteration.
-    pub fn next<'x>(&'x mut self) -> Fallible<Option<AnyOption<'x>>> {
+    pub fn next(&mut self) -> Fallible<Option<ImmutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
-            match AnyOption::new(self.mbuf, self.offset) {
-                Ok(any) => {
+            match ImmutableNdpOption::new(self.mbuf, self.offset) {
+                Ok(item) => {
                     // advances the offset to the next option
-                    self.offset = any.end_offset();
-                    Ok(Some(any))
+                    self.offset = item.end_offset();
+                    Ok(Some(item))
                 }
                 Err(e) => Err(e),
             }
@@ -222,21 +226,29 @@ impl NdpOptionsIterator<'_> {
     }
 }
 
-impl fmt::Debug for NdpOptionsIterator<'_> {
+impl fmt::Debug for ImmutableNdpOptionsIterator<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("NdpOptionsIterator")
+        f.debug_struct("ImmutableNdpOptionsIterator")
             .field("offset", &self.offset)
             .finish()
     }
 }
 
 /// A trait all NDP options must implement.
-pub trait NdpOption {
-    /// Returns the assigned option type.
-    fn option_type() -> OptionType;
+pub trait NdpOption<'a> {
+    /// Returns the option type.
+    fn option_type(&self) -> NdpOptionType;
 
-    /// Appends a new NDP option to the end of the message body.
-    fn try_push(mbuf: &mut Mbuf) -> Fallible<Self>
+    /// Returns the length of the option in units of 8 octets.
+    fn length(&self) -> u8;
+
+    /// Parses the buffer at offset as this NDP option.
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self>
+    where
+        Self: NdpOption<'a> + Sized;
+
+    /// Pushes a new NDP option to the buffer at offset.
+    fn try_push(mbuf: &mut Mbuf, offset: usize) -> Fallible<Self>
     where
         Self: Sized;
 }
@@ -244,14 +256,12 @@ pub trait NdpOption {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::MacAddr;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::{Ethernet, Packet};
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
-    use std::str::FromStr;
 
     #[capsule::test]
-    fn iterate_ndp_options() {
+    fn iterate_immutable_ndp_options() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv6 = ethernet.parse::<Ipv6>().unwrap();
@@ -264,11 +274,11 @@ mod tests {
 
         let mut iter = advert.options();
 
-        while let Ok(Some(any)) = iter.next() {
-            match any.option_type() {
-                OptionTypes::PrefixInformation => prefix = true,
-                OptionTypes::Mtu => mtu = true,
-                OptionTypes::SourceLinkLayerAddress => source = true,
+        while let Ok(Some(option)) = iter.next() {
+            match option.option_type() {
+                NdpOptionTypes::PrefixInformation => prefix = true,
+                NdpOptionTypes::Mtu => mtu = true,
+                NdpOptionTypes::SourceLinkLayerAddress => source = true,
                 _ => other = true,
             }
         }
@@ -287,6 +297,27 @@ mod tests {
         let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
         assert!(advert.options().next().is_err());
+    }
+
+    #[capsule::test]
+    fn downcast_immutable_ndp_option() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut iter = advert.options();
+
+        while let Ok(Some(mut option)) = iter.next() {
+            match option.option_type() {
+                NdpOptionTypes::SourceLinkLayerAddress => {
+                    assert!(option.downcast::<LinkLayerAddress<'_>>().is_ok());
+                }
+                _ => {
+                    assert!(option.downcast::<LinkLayerAddress<'_>>().is_err());
+                }
+            }
+        }
     }
 
     /// ICMPv6 packet with invalid MTU-option length.

@@ -284,13 +284,14 @@ pub trait Packet {
     }
 }
 
-/// Immutable smart pointer to a packet.
+/// Immutable smart pointer to a struct.
 ///
-/// A smart pointer that prevents the packet from being modified. The main
+/// A smart pointer that prevents the struct from being modified. The main
 /// use is allow safe lookahead of packet payload while retaining ownership
 /// of the original packet. The lifetime of the smart pointer is constrained
-/// by the original packet.
-pub struct Immutable<'a, T: Packet> {
+/// by the original packet. The pointer can be generally used on all structs
+/// other than packets as well.
+pub struct Immutable<'a, T> {
     value: T,
     phantom: PhantomData<&'a T>,
 }
@@ -301,8 +302,8 @@ impl<T: Packet + fmt::Debug> fmt::Debug for Immutable<'_, T> {
     }
 }
 
-impl<T: Packet> Immutable<'_, T> {
-    /// Creates a new immutable smart pointer to a packet.
+impl<T> Immutable<'_, T> {
+    /// Creates a new immutable smart pointer to a struct `T`.
     pub fn new(value: T) -> Self {
         Immutable {
             value,
@@ -311,7 +312,7 @@ impl<T: Packet> Immutable<'_, T> {
     }
 }
 
-impl<T: Packet> Deref for Immutable<'_, T> {
+impl<T> Deref for Immutable<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {

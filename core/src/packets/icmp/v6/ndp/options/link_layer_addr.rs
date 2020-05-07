@@ -16,8 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{NdpOption, SOURCE_LINK_LAYER_ADDR, TARGET_LINK_LAYER_ADDR};
 use crate::net::MacAddr;
+use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::ParseError;
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -48,30 +48,13 @@ use std::ptr::NonNull;
 ///                          operates over different link layers.
 ///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.1
-pub struct LinkLayerAddress {
+pub struct LinkLayerAddress<'a> {
+    _mbuf: &'a mut Mbuf,
     fields: NonNull<LinkLayerAddressFields>,
     offset: usize,
 }
 
-impl LinkLayerAddress {
-    /// Parses the link-layer address option from the message buffer at offset.
-    #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<LinkLayerAddress> {
-        let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
-
-        ensure!(
-            unsafe { fields.as_ref().length } == (LinkLayerAddressFields::size_of() as u8 / 8),
-            ParseError::new("Invalid link-layer address option length.")
-        );
-
-        Ok(LinkLayerAddress { fields, offset })
-    }
-
-    /// Returns the message buffer offset for this option.
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
+impl LinkLayerAddress<'_> {
     #[inline]
     fn fields(&self) -> &LinkLayerAddressFields {
         unsafe { self.fields.as_ref() }
@@ -82,29 +65,16 @@ impl LinkLayerAddress {
         unsafe { self.fields.as_mut() }
     }
 
-    /// Returns the option type. `1` for source link-layer address and `2`
-    /// for target link-layer address.
-    #[inline]
-    pub fn option_type(&self) -> u8 {
-        self.fields().option_type
-    }
-
     /// Sets the option type to source link-layer address.
     #[inline]
     pub fn set_option_type_source(&mut self) {
-        self.fields_mut().option_type = SOURCE_LINK_LAYER_ADDR;
+        self.fields_mut().option_type = NdpOptionTypes::SourceLinkLayerAddress.0;
     }
 
     /// Sets the option type to target link-layer address.
     #[inline]
     pub fn set_option_type_target(&mut self) {
-        self.fields_mut().option_type = TARGET_LINK_LAYER_ADDR;
-    }
-
-    /// Returns the length of the option measured in units of 8 octets.
-    #[inline]
-    pub fn length(&self) -> u8 {
-        self.fields().length
+        self.fields_mut().option_type = NdpOptionTypes::TargetLinkLayerAddress.0;
     }
 
     /// Returns the link-layer address.
@@ -120,26 +90,59 @@ impl LinkLayerAddress {
     }
 }
 
-impl fmt::Debug for LinkLayerAddress {
+impl fmt::Debug for LinkLayerAddress<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("link layer address")
+        f.debug_struct("LinkLayerAddress")
             .field("type", &self.option_type())
             .field("length", &self.length())
             .field("addr", &self.addr())
+            .field("$offset", &self.offset)
             .finish()
     }
 }
 
-impl NdpOption for LinkLayerAddress {
+impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
+    /// Returns the option type. `1` for source link-layer address and `2`
+    /// for target link-layer address.
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        let offset = mbuf.data_len();
-        mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
-        let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
-        Ok(LinkLayerAddress { fields, offset })
+    fn option_type(&self) -> NdpOptionType {
+        NdpOptionType(self.fields().option_type)
+    }
+
+    #[inline]
+    fn length(&self) -> u8 {
+        self.fields().length
+    }
+
+    #[inline]
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<LinkLayerAddress<'a>> {
+        let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
+        let option = LinkLayerAddress {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        };
+
+        ensure!(
+            option.option_type() == NdpOptionTypes::SourceLinkLayerAddress
+                || option.option_type() == NdpOptionTypes::TargetLinkLayerAddress,
+            ParseError::new("Option is not source/target link-layer address.")
+        );
+
+        ensure!(
+            option.length() * 8 == LinkLayerAddressFields::size_of() as u8,
+            ParseError::new("Invalid link-layer address option length.")
+        );
+
+        Ok(option)
+    }
+
+    #[inline]
+    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
+        unimplemented!();
+        // mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
+        // let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
+        // Ok(LinkLayerAddress { mbuf, fields, offset })
     }
 }
 
@@ -167,7 +170,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn size_of_link_layer_address() {
+    fn size_of_link_layer_address_fields() {
         assert_eq!(8, LinkLayerAddressFields::size_of());
     }
 }
