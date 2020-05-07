@@ -16,13 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-mod link_layer_addr;
-//mod mtu;
-//mod prefix_info;
+// https://github.com/rust-lang/rust/issues/57411
+#![allow(unreachable_pub)]
 
-#[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
+mod link_layer_addr;
+mod mtu;
+mod prefix_info;
+
 pub use self::link_layer_addr::*;
-//#[allow(unreachable_pub)]
-//pub use self::mtu::*;
-//#[allow(unreachable_pub)]
-//pub use self::prefix_info::*;
+pub use self::mtu::*;
+pub use self::prefix_info::*;

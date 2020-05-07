@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{NdpOption, MTU};
+use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::ParseError;
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -47,30 +47,13 @@ use std::ptr::NonNull;
 ///                      the link.
 ///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.4
-pub struct Mtu {
+pub struct Mtu<'a> {
+    _mbuf: &'a mut Mbuf,
     fields: NonNull<MtuFields>,
     offset: usize,
 }
 
-impl Mtu {
-    /// Parses the MTU option from the message buffer at offset.
-    #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<Mtu> {
-        let fields = mbuf.read_data::<MtuFields>(offset)?;
-
-        ensure!(
-            unsafe { fields.as_ref().length } == (MtuFields::size_of() as u8 / 8),
-            ParseError::new("Invalid MTU option length.")
-        );
-
-        Ok(Mtu { fields, offset })
-    }
-
-    /// Returns the message buffer offset for this option.
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
+impl Mtu<'_> {
     #[inline]
     fn fields(&self) -> &MtuFields {
         unsafe { self.fields.as_ref() }
@@ -79,18 +62,6 @@ impl Mtu {
     #[inline]
     fn fields_mut(&mut self) -> &mut MtuFields {
         unsafe { self.fields.as_mut() }
-    }
-
-    /// Returns the option type. Should always be `5`.
-    #[inline]
-    pub fn option_type(&self) -> u8 {
-        self.fields().option_type
-    }
-
-    /// Returns the length of the option measured in units of 8 octets.
-    /// Should always be `1`.
-    pub fn length(&self) -> u8 {
-        self.fields().length
     }
 
     /// Returns the recommended MTU for the link.
@@ -104,26 +75,60 @@ impl Mtu {
     }
 }
 
-impl fmt::Debug for Mtu {
+impl fmt::Debug for Mtu<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("link layer address")
+        f.debug_struct("Mtu")
             .field("type", &self.option_type())
             .field("length", &self.length())
             .field("mtu", &self.mtu())
+            .field("$offset", &self.offset)
             .finish()
     }
 }
 
-impl NdpOption for Mtu {
+impl<'a> NdpOption<'a> for Mtu<'a> {
+    /// Returns the option type. Should always be `5`.
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        let offset = mbuf.data_len();
-        mbuf.extend(offset, MtuFields::size_of())?;
-        let fields = mbuf.write_data(offset, &MtuFields::default())?;
-        Ok(Mtu { fields, offset })
+    fn option_type(&self) -> NdpOptionType {
+        NdpOptionType(self.fields().option_type)
+    }
+
+    /// Returns the length of the option measured in units of 8 octets.
+    /// Should always be `1`.
+    #[inline]
+    fn length(&self) -> u8 {
+        self.fields().length
+    }
+
+    /// Parses the MTU option from the message buffer at offset.
+    #[inline]
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Mtu<'a>> {
+        let fields = mbuf.read_data::<MtuFields>(offset)?;
+        let option = Mtu {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        };
+
+        ensure!(
+            option.option_type() == NdpOptionTypes::Mtu,
+            ParseError::new("Option is not MTU.")
+        );
+
+        ensure!(
+            option.length() * 8 == MtuFields::size_of() as u8,
+            ParseError::new("Invalid MTU option length.")
+        );
+
+        Ok(option)
+    }
+
+    #[inline]
+    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
+        unimplemented!();
+        // mbuf.extend(offset, MtuFields::size_of())?;
+        // let fields = mbuf.write_data(offset, &MtuFields::default())?;
+        // Ok(Mtu { fields, offset })
     }
 }
 
@@ -140,7 +145,7 @@ struct MtuFields {
 impl Default for MtuFields {
     fn default() -> MtuFields {
         MtuFields {
-            option_type: MTU,
+            option_type: NdpOptionTypes::Mtu.0,
             length: 1,
             reserved: 0,
             mtu: 0,
@@ -153,7 +158,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn size_of_mtu() {
+    fn size_of_mtu_fields() {
         assert_eq!(8, MtuFields::size_of());
     }
 }

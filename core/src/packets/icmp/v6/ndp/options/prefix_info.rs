@@ -16,7 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{NdpOption, PREFIX_INFORMATION};
+use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::ParseError;
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -110,30 +110,13 @@ const AUTO: u8 = 0b0100_0000;
 ///                          ignore such a prefix option.
 ///
 /// [`IETF RFC 4861`]: https://tools.ietf.org/html/rfc4861#section-4.6.2
-pub struct PrefixInformation {
+pub struct PrefixInformation<'a> {
+    _mbuf: &'a mut Mbuf,
     fields: NonNull<PrefixInformationFields>,
     offset: usize,
 }
 
-impl PrefixInformation {
-    /// Parses the prefix information option from the message buffer at offset.
-    #[inline]
-    pub fn parse(mbuf: &Mbuf, offset: usize) -> Fallible<PrefixInformation> {
-        let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
-
-        ensure!(
-            unsafe { fields.as_ref().length } == (PrefixInformationFields::size_of() as u8 / 8),
-            ParseError::new("Invalid prefix information option length.")
-        );
-
-        Ok(PrefixInformation { fields, offset })
-    }
-
-    /// Returns the message buffer offset for this option.
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
+impl PrefixInformation<'_> {
     #[inline]
     fn fields(&self) -> &PrefixInformationFields {
         unsafe { self.fields.as_ref() }
@@ -142,19 +125,6 @@ impl PrefixInformation {
     #[inline]
     fn fields_mut(&mut self) -> &mut PrefixInformationFields {
         unsafe { self.fields.as_mut() }
-    }
-
-    /// Returns the option type. Should always be `3`.
-    #[inline]
-    pub fn option_type(&self) -> u8 {
-        self.fields().option_type
-    }
-
-    /// Returns the length of the option measured in units of 8 octets.
-    /// Should always be `4`.
-    #[inline]
-    pub fn length(&self) -> u8 {
-        self.fields().length
     }
 
     /// Returns the number of leading bits in the prefix that are valid.
@@ -246,9 +216,9 @@ impl PrefixInformation {
     }
 }
 
-impl fmt::Debug for PrefixInformation {
+impl fmt::Debug for PrefixInformation<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("prefix information")
+        f.debug_struct("PrefixInformation")
             .field("type", &self.option_type())
             .field("length", &self.length())
             .field("prefix_length", &self.prefix_length())
@@ -257,20 +227,53 @@ impl fmt::Debug for PrefixInformation {
             .field("valid_lifetime", &self.valid_lifetime())
             .field("preferred_lifetime", &self.preferred_lifetime())
             .field("prefix", &self.prefix())
+            .field("$offset", &self.offset)
             .finish()
     }
 }
 
-impl NdpOption for PrefixInformation {
+impl<'a> NdpOption<'a> for PrefixInformation<'a> {
+    /// Returns the option type. Should always be `3`.
     #[inline]
-    fn do_push(mbuf: &mut Mbuf) -> Fallible<Self>
-    where
-        Self: Sized,
-    {
-        let offset = mbuf.data_len();
-        mbuf.extend(offset, PrefixInformationFields::size_of())?;
-        let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
-        Ok(PrefixInformation { fields, offset })
+    fn option_type(&self) -> NdpOptionType {
+        NdpOptionType(self.fields().option_type)
+    }
+
+    /// Returns the length of the option measured in units of 8 octets.
+    /// Should always be `4`.
+    #[inline]
+    fn length(&self) -> u8 {
+        self.fields().length
+    }
+
+    #[inline]
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'_>> {
+        let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
+        let option = PrefixInformation {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        };
+
+        ensure!(
+            option.option_type() == NdpOptionTypes::PrefixInformation,
+            ParseError::new("Option is not prefix information.")
+        );
+
+        ensure!(
+            option.length() * 8 == PrefixInformationFields::size_of() as u8,
+            ParseError::new("Invalid prefix information option length.")
+        );
+
+        Ok(option)
+    }
+
+    #[inline]
+    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
+        unimplemented!();
+        // mbuf.extend(offset, PrefixInformationFields::size_of())?;
+        // let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
+        // Ok(PrefixInformation { fields, offset })
     }
 }
 
@@ -291,7 +294,7 @@ struct PrefixInformationFields {
 impl Default for PrefixInformationFields {
     fn default() -> PrefixInformationFields {
         PrefixInformationFields {
-            option_type: PREFIX_INFORMATION,
+            option_type: NdpOptionTypes::PrefixInformation.0,
             length: 4,
             prefix_length: 0,
             flags: 0,
@@ -308,7 +311,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn size_of_prefix_information() {
+    fn size_of_prefix_information_fields() {
         assert_eq!(32, PrefixInformationFields::size_of());
     }
 }

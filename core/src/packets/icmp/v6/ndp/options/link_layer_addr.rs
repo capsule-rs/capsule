@@ -109,6 +109,8 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
         NdpOptionType(self.fields().option_type)
     }
 
+    /// Returns the length of the option measured in units of 8 octets.
+    /// Should always be `1`.
     #[inline]
     fn length(&self) -> u8 {
         self.fields().length
@@ -158,7 +160,7 @@ struct LinkLayerAddressFields {
 impl Default for LinkLayerAddressFields {
     fn default() -> LinkLayerAddressFields {
         LinkLayerAddressFields {
-            option_type: 1,
+            option_type: NdpOptionTypes::SourceLinkLayerAddress.0,
             length: 1,
             addr: MacAddr::UNSPECIFIED,
         }
