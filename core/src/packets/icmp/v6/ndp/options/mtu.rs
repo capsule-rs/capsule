@@ -17,7 +17,7 @@
 */
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::ParseError;
+use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -102,7 +102,7 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
 
     /// Parses the MTU option from the message buffer at offset.
     #[inline]
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Mtu<'a>> {
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Fallible<Mtu<'a>> {
         let fields = mbuf.read_data::<MtuFields>(offset)?;
         let option = Mtu {
             _mbuf: mbuf,
@@ -124,7 +124,7 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
     }
 
     #[inline]
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Mtu<'a>> {
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Fallible<Mtu<'a>> {
         mbuf.extend(offset, MtuFields::size_of())?;
         let fields = mbuf.write_data(offset, &MtuFields::default())?;
         Ok(Mtu {

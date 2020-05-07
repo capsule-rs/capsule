@@ -18,7 +18,7 @@
 
 use crate::net::MacAddr;
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::ParseError;
+use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -117,7 +117,11 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
     }
 
     #[inline]
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<LinkLayerAddress<'a>> {
+    fn try_parse(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<LinkLayerAddress<'a>> {
         let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
         let option = LinkLayerAddress {
             _mbuf: mbuf,
@@ -140,7 +144,11 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
     }
 
     #[inline]
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<LinkLayerAddress<'a>> {
+    fn try_push(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<LinkLayerAddress<'a>> {
         mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
         let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
         Ok(LinkLayerAddress {

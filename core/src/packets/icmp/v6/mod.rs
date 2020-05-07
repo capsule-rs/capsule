@@ -284,22 +284,22 @@ pub mod Icmpv6Types {
 
     /// Message type for [Packet Too Big].
     ///
-    /// [Packet Too Big]: PacketTooBig
+    /// [Packet Too Big]: crate::packets::icmp::v6::PacketTooBig
     pub const PacketTooBig: Icmpv6Type = Icmpv6Type(2);
 
     /// Message type for [Time Exceeded].
     ///
-    /// [Time Exceeded]: TimeExceeded
+    /// [Time Exceeded]: crate::packets::icmp::v6::TimeExceeded
     pub const TimeExceeded: Icmpv6Type = Icmpv6Type(3);
 
     /// Message type for [Echo Request].
     ///
-    /// [Echo Request]: EchoRequest
+    /// [Echo Request]: crate::packets::icmp::v6::EchoRequest
     pub const EchoRequest: Icmpv6Type = Icmpv6Type(128);
 
     /// Message type for [Echo Reply].
     ///
-    /// [Echo Reply]: EchoReply
+    /// [Echo Reply]: crate::packets::icmp::v6::EchoReply
     pub const EchoReply: Icmpv6Type = Icmpv6Type(129);
 
     /// Message type for [Router Solicitation].
@@ -322,9 +322,9 @@ pub mod Icmpv6Types {
     /// [Neighbor Advertisement]: crate::packets::icmp::v6::ndp::NeighborAdvertisement
     pub const NeighborAdvertisement: Icmpv6Type = Icmpv6Type(136);
 
-    /// Message type for [Redirect].
+    /// Message type for Redirect.
     ///
-    /// [Redirect]: crate::packets::icmp::v6::ndp::Redirect
+    /// Redirect: crate::packets::icmp::v6::ndp::Redirect
     pub const Redirect: Icmpv6Type = Icmpv6Type(137);
 }
 

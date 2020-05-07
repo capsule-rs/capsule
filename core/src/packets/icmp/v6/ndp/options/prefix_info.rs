@@ -17,7 +17,7 @@
 */
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::ParseError;
+use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
 use std::fmt;
@@ -247,7 +247,11 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
     }
 
     #[inline]
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'a>> {
+    fn try_parse(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<PrefixInformation<'a>> {
         let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
         let option = PrefixInformation {
             _mbuf: mbuf,
@@ -269,7 +273,11 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
     }
 
     #[inline]
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'a>> {
+    fn try_push(
+        mbuf: &'a mut Mbuf,
+        offset: usize,
+        _internal: Internal,
+    ) -> Fallible<PrefixInformation<'a>> {
         mbuf.extend(offset, PrefixInformationFields::size_of())?;
         let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
         Ok(PrefixInformation {

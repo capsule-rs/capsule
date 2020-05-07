@@ -268,12 +268,12 @@ pub mod Icmpv4Types {
 
     /// Message type for [Echo Request].
     ///
-    /// [Echo Request]: EchoRequest
+    /// [Echo Request]: crate::packets::icmp::v4::EchoRequest
     pub const EchoRequest: Icmpv4Type = Icmpv4Type(8);
 
     /// Message type for [Echo Reply].
     ///
-    /// [Echo Reply]: EchoReply
+    /// [Echo Reply]: crate::packets::icmp::v4::EchoReply
     pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
 }
 

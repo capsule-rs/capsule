@@ -94,10 +94,10 @@ pub trait NdpPacket: Packet {
 
 /// [IANA] assigned neighbor discovery option type.
 ///
-/// A list of supported types is under [`OptionTypes`].
+/// A list of supported types is under [`NdpOptionTypes`].
 ///
 /// [IANA]: https://www.iana.org/assignments/icmpv6-parameters/icmpv6-parameters.xhtml#icmpv6-parameters-5
-/// [`OptionTypes`]: OptionTypes
+/// [`NdpOptionTypes`]: NdpOptionTypes
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
 pub struct NdpOptionType(pub u8);
@@ -110,27 +110,27 @@ pub mod NdpOptionTypes {
 
     /// Option type for [Source Link-layer Address].
     ///
-    /// [Source Link-layer Address]: LinkLayerAddress
+    /// [Source Link-layer Address]: crate::packets::icmp::v6::ndp::LinkLayerAddress
     pub const SourceLinkLayerAddress: NdpOptionType = NdpOptionType(1);
 
     /// Option type for [Target Link-layer Address].
     ///
-    /// [Target Link-layer Address]: LinkLayerAddress
+    /// [Target Link-layer Address]: crate::packets::icmp::v6::ndp::LinkLayerAddress
     pub const TargetLinkLayerAddress: NdpOptionType = NdpOptionType(2);
 
     /// Option type for [Prefix Information].
     ///
-    /// [Prefix Information]: PrefixInformation
+    /// [Prefix Information]: crate::packets::icmp::v6::ndp::PrefixInformation
     pub const PrefixInformation: NdpOptionType = NdpOptionType(3);
 
-    /// Option type for [Redirected Header].
+    /// Option type for Redirected Header.
     ///
-    /// [Redirected Header]: RedirectedHeader
+    /// Redirected Header: crate::packets::icmp::v6::ndp::RedirectedHeader
     pub const RedirectedHeader: NdpOptionType = NdpOptionType(4);
 
     /// Option type for [MTU].
     ///
-    /// [MTU]: Mtu
+    /// [MTU]: crate::packets::icmp::v6::ndp::Mtu
     pub const Mtu: NdpOptionType = NdpOptionType(5);
 }
 
@@ -224,7 +224,7 @@ impl<'a> ImmutableNdpOption<'a> {
     /// ```
     #[inline]
     pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Fallible<Immutable<'b, T>> {
-        T::try_parse(self.mbuf, self.offset).map(Immutable::new)
+        T::try_parse(self.mbuf, self.offset, Internal(())).map(Immutable::new)
     }
 }
 
@@ -252,6 +252,7 @@ impl ImmutableNdpOptionsIterator<'_> {
     ///
     /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
     /// parse error is encountered during iteration.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Fallible<Option<ImmutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
             match ImmutableNdpOption::new(&mut self.mbuf, self.offset) {
@@ -341,7 +342,7 @@ impl<'a> MutableNdpOption<'a> {
     /// ```
     #[inline]
     pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Fallible<T> {
-        T::try_parse(self.mbuf, self.offset)
+        T::try_parse(self.mbuf, self.offset, Internal(()))
     }
 }
 
@@ -368,6 +369,7 @@ impl MutableNdpOptionsIterator<'_> {
     ///
     /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
     /// parse error is encountered during iteration.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Fallible<Option<MutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
             match MutableNdpOption::new(&mut self.mbuf, self.offset) {
@@ -421,12 +423,12 @@ impl NdpOptions<'_> {
 
     /// Prepends a new option `T` at the beginning of the options.
     pub fn prepend<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
-        T::try_push(self.mbuf, self.offset)
+        T::try_push(self.mbuf, self.offset, Internal(()))
     }
 
     /// Appends a new option `T` at the end of the options.
     pub fn append<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
-        T::try_push(self.mbuf, self.mbuf.data_len())
+        T::try_push(self.mbuf, self.mbuf.data_len(), Internal(()))
     }
 
     /// Retains only the options specified by the predicate.
@@ -462,6 +464,11 @@ impl fmt::Debug for NdpOptions<'_> {
 }
 
 /// A trait all NDP options must implement.
+///
+/// The trait is used for conversion between the generic NDP option
+/// and the more specific options. Implementors can use this trait to
+/// add custom NDP options. This trait should not be imported and used
+/// directly.
 pub trait NdpOption<'a> {
     /// Returns the option type.
     fn option_type(&self) -> NdpOptionType;
@@ -470,12 +477,33 @@ pub trait NdpOption<'a> {
     fn length(&self) -> u8;
 
     /// Parses the buffer at offset as this NDP option.
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self>
+    ///
+    /// The implementation should verify that `option_type` matches the
+    /// expected type code. Otherwise parse should fail. When applicable,
+    /// the implementation should also verify that `length` is consistent
+    /// with the expected length for the given option type as well.
+    ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`ImmutableNdpOption::downcast`] and [`MutableNdpOption::downcast`].
+    ///
+    /// [`ImmutableNdpOption::downcast`]: ImmutableNdpOption::downcast
+    /// [`MutableNdpOption::downcast`]: MutableNdpOption::downcast
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Fallible<Self>
     where
         Self: Sized;
 
     /// Pushes a new NDP option to the buffer at offset.
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self>
+    ///
+    /// # Remarks
+    ///
+    /// This function cannot be invoked directly. It is internally used by
+    /// [`NdpOptions::prepend`] and [`NdpOptions::append`].
+    ///
+    /// [`NdpOptions::prepend`]: NdpOptions::prepend
+    /// [`NdpOptions::append`]: NdpOptions::append
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Fallible<Self>
     where
         Self: Sized;
 }
