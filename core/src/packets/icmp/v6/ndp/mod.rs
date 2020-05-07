@@ -65,7 +65,7 @@ pub trait NdpPacket: Packet {
     /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
     /// let mut iter = advert.options();
     ///
-    /// while let Ok(Some(option)) = iter.next() {
+    /// while let Some(option) = iter.next()? {
     ///     println!("{:?}", option);
     /// }
     /// ```
@@ -217,7 +217,7 @@ impl<'a> ImmutableNdpOption<'a> {
     /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
     /// let mut iter = advert.options();
     ///
-    /// while let Ok(Some(option)) = iter.next() {
+    /// while let Some(option) = iter.next()? {
     ///     let prefix = option.downcast::<PrefixInformation<'_>>()?;
     ///     println!("{:?}", prefix);
     /// }
@@ -334,7 +334,7 @@ impl<'a> MutableNdpOption<'a> {
     /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
     /// let mut iter = advert.options_mut().iter();
     ///
-    /// while let Ok(Some(option)) = iter.next() {
+    /// while let Some(option) = iter.next()? {
     ///     let mut prefix = option.downcast::<PrefixInformation<'_>>()?;
     ///     prefix.set_prefix_length(64);
     /// }
@@ -408,7 +408,7 @@ impl NdpOptions<'_> {
     /// let mut options = advert.options_mut();
     /// let mut iter = options.iter();
     ///
-    /// while let Ok(Some(option)) = iter.next() {
+    /// while let Some(option) = iter.next()? {
     ///     println!("{:?}", option);
     /// }
     /// ```
@@ -427,6 +427,29 @@ impl NdpOptions<'_> {
     /// Appends a new option `T` at the end of the options.
     pub fn append<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
         T::try_push(self.mbuf, self.mbuf.data_len())
+    }
+
+    /// Retains only the options specified by the predicate.
+    ///
+    /// In other words, remove all options `o` such that f(o) returns false.
+    /// If an error occurs, all removals done prior to the error cannot be
+    /// undone.
+    pub fn retain<F>(&mut self, mut f: F) -> Fallible<()>
+    where
+        F: FnMut(&mut ImmutableNdpOption<'_>) -> bool,
+    {
+        let mut offset = self.offset;
+        while self.mbuf.data_len() > offset {
+            let mut option = ImmutableNdpOption::new(self.mbuf, offset)?;
+            if !f(&mut option) {
+                let len = option.length() * 8;
+                self.mbuf.shrink(offset, len as usize)?;
+            } else {
+                offset = option.end_offset();
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -478,7 +501,7 @@ mod tests {
 
         let mut iter = advert.options();
 
-        while let Ok(Some(option)) = iter.next() {
+        while let Some(option) = iter.next().unwrap() {
             match option.option_type() {
                 NdpOptionTypes::PrefixInformation => prefix = true,
                 NdpOptionTypes::Mtu => mtu = true,
@@ -536,7 +559,7 @@ mod tests {
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
-        while let Ok(Some(option)) = iter.next() {
+        while let Some(option) = iter.next().unwrap() {
             match option.option_type() {
                 NdpOptionTypes::PrefixInformation => prefix = true,
                 NdpOptionTypes::Mtu => mtu = true,
@@ -620,7 +643,7 @@ mod tests {
 
         let mut index = 0;
         let mut iter = advert.options();
-        while let Ok(Some(option)) = iter.next() {
+        while let Some(option) = iter.next().unwrap() {
             if option.option_type() == NdpOptionTypes::TargetLinkLayerAddress {
                 break;
             }
@@ -630,6 +653,22 @@ mod tests {
 
         // asserts that the new option is at the end
         assert_eq!(4, index);
+    }
+
+    #[capsule::test]
+    fn retain_ndp_options() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut options = advert.options_mut();
+        let _ = options.retain(|option| option.downcast::<Mtu<'_>>().is_ok());
+
+        // removed all but one option
+        let mut iter = advert.options();
+        assert!(iter.next().unwrap().is_some());
+        assert!(iter.next().unwrap().is_none());
     }
 
     /// Demonstrates that `NdpPacket::options` behaves as an immutable
@@ -682,10 +721,10 @@ mod tests {
         prefix.set_prefix_length(64);
     }
 
-    /// Demonstrates that `iter`, `prepend` and `append` behave as mutable
-    /// borrows on `NdpOptions`. Compilation will fail because it tries to
-    /// mutate the options through `prepend` while there's already a mutable
-    /// borrow through the iterator.
+    /// Demonstrates that `iter`, `prepend`, `append` and `retain` behave as
+    /// mutable borrows on `NdpOptions`. Compilation will fail because it
+    /// tries to mutate the options through `prepend` while there's already
+    /// a mutable borrow through the iterator.
     ///
     /// ```
     /// |         let mut iter = options.iter();
