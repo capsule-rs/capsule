@@ -140,11 +140,14 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
     }
 
     #[inline]
-    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
-        unimplemented!();
-        // mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
-        // let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
-        // Ok(LinkLayerAddress { mbuf, fields, offset })
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<LinkLayerAddress<'a>> {
+        mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
+        let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
+        Ok(LinkLayerAddress {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        })
     }
 }
 
@@ -170,9 +173,33 @@ impl Default for LinkLayerAddressFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::{Ethernet, Packet};
 
     #[test]
     fn size_of_link_layer_address_fields() {
         assert_eq!(8, LinkLayerAddressFields::size_of());
+    }
+
+    #[capsule::test]
+    fn push_and_set_link_layer_address() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options_mut();
+        let mut lla = options.append::<LinkLayerAddress<'_>>().unwrap();
+
+        assert_eq!(NdpOptionTypes::SourceLinkLayerAddress, lla.option_type());
+        assert_eq!(1, lla.length());
+        assert_eq!(MacAddr::UNSPECIFIED, lla.addr());
+
+        lla.set_option_type_target();
+        assert_eq!(NdpOptionTypes::TargetLinkLayerAddress, lla.option_type());
+        lla.set_option_type_source();
+        assert_eq!(NdpOptionTypes::SourceLinkLayerAddress, lla.option_type());
+        lla.set_addr(MacAddr::new(1, 1, 1, 1, 1, 1));
+        assert_eq!(MacAddr::new(1, 1, 1, 1, 1, 1), lla.addr());
     }
 }

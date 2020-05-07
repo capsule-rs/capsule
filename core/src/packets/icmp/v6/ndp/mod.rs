@@ -418,6 +418,16 @@ impl NdpOptions<'_> {
             offset: self.offset,
         }
     }
+
+    /// Prepends a new option `T` at the beginning of the options.
+    pub fn prepend<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
+        T::try_push(self.mbuf, self.offset)
+    }
+
+    /// Appends a new option `T` at the end of the options.
+    pub fn append<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
+        T::try_push(self.mbuf, self.mbuf.data_len())
+    }
 }
 
 impl fmt::Debug for NdpOptions<'_> {
@@ -439,10 +449,10 @@ pub trait NdpOption<'a> {
     /// Parses the buffer at offset as this NDP option.
     fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self>
     where
-        Self: NdpOption<'a> + Sized;
+        Self: Sized;
 
     /// Pushes a new NDP option to the buffer at offset.
-    fn try_push(mbuf: &mut Mbuf, offset: usize) -> Fallible<Self>
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self>
     where
         Self: Sized;
 }
@@ -451,7 +461,7 @@ pub trait NdpOption<'a> {
 mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet};
+    use crate::packets::Ethernet;
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
     #[capsule::test]
@@ -580,6 +590,48 @@ mod tests {
         assert_eq!(32, prefix.prefix_length());
     }
 
+    #[capsule::test]
+    fn prepend_ndp_option() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut options = advert.options_mut();
+        let mut target = options.prepend::<LinkLayerAddress<'_>>().unwrap();
+        target.set_option_type_target();
+
+        let mut iter = advert.options();
+        let first = iter.next().unwrap().unwrap();
+
+        assert_eq!(NdpOptionTypes::TargetLinkLayerAddress, first.option_type());
+    }
+
+    #[capsule::test]
+    fn append_ndp_option() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut options = advert.options_mut();
+        let mut target = options.append::<LinkLayerAddress<'_>>().unwrap();
+        target.set_option_type_target();
+
+        let mut index = 0;
+        let mut iter = advert.options();
+        while let Ok(Some(option)) = iter.next() {
+            if option.option_type() == NdpOptionTypes::TargetLinkLayerAddress {
+                break;
+            }
+
+            index += 1;
+        }
+
+        // asserts that the new option is at the end
+        assert_eq!(4, index);
+    }
+
     /// Demonstrates that `NdpPacket::options` behaves as an immutable
     /// borrow on the `NdpPacket`. Compilation will fail because it tries
     /// to have a mutable borrow on `RouterAdvertisement` while there's
@@ -628,6 +680,33 @@ mod tests {
         let mut option = options.next().unwrap().unwrap();
         let prefix = option.downcast::<PrefixInformation<'_>>().unwrap();
         prefix.set_prefix_length(64);
+    }
+
+    /// Demonstrates that `iter`, `prepend` and `append` behave as mutable
+    /// borrows on `NdpOptions`. Compilation will fail because it tries to
+    /// mutate the options through `prepend` while there's already a mutable
+    /// borrow through the iterator.
+    ///
+    /// ```
+    /// |         let mut iter = options.iter();
+    /// |                        ------- first mutable borrow occurs here
+    /// |         let _ = options.prepend::<LinkLayerAddress<'_>>();
+    /// |                 ^^^^^^^ second mutable borrow occurs here
+    /// |         let _ = iter.next();
+    /// |                 ---- first borrow later used here
+    /// ```
+    #[test]
+    #[cfg(feature = "compile_failure")]
+    fn cannot_mutate_options_while_iterating_options() {
+        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+
+        let mut options = advert.options_mut();
+        let mut iter = options.iter();
+        let _ = options.prepend::<LinkLayerAddress<'_>>();
+        let _ = iter.next();
     }
 
     /// ICMPv6 packet with invalid MTU-option length.

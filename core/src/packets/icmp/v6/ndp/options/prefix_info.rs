@@ -247,7 +247,7 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
     }
 
     #[inline]
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'_>> {
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'a>> {
         let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
         let option = PrefixInformation {
             _mbuf: mbuf,
@@ -269,11 +269,14 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
     }
 
     #[inline]
-    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
-        unimplemented!();
-        // mbuf.extend(offset, PrefixInformationFields::size_of())?;
-        // let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
-        // Ok(PrefixInformation { fields, offset })
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<PrefixInformation<'a>> {
+        mbuf.extend(offset, PrefixInformationFields::size_of())?;
+        let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
+        Ok(PrefixInformation {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        })
     }
 }
 
@@ -309,9 +312,48 @@ impl Default for PrefixInformationFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::{Ethernet, Packet};
 
     #[test]
     fn size_of_prefix_information_fields() {
         assert_eq!(32, PrefixInformationFields::size_of());
+    }
+
+    #[capsule::test]
+    fn push_and_set_prefix_information() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options_mut();
+        let mut prefix = options.append::<PrefixInformation<'_>>().unwrap();
+
+        assert_eq!(NdpOptionTypes::PrefixInformation, prefix.option_type());
+        assert_eq!(4, prefix.length());
+        assert_eq!(0, prefix.prefix_length());
+        assert!(!prefix.on_link());
+        assert!(!prefix.autonomous());
+        assert_eq!(0, prefix.valid_lifetime());
+        assert_eq!(0, prefix.preferred_lifetime());
+        assert_eq!(Ipv6Addr::UNSPECIFIED, prefix.prefix());
+
+        prefix.set_prefix_length(64);
+        assert_eq!(64, prefix.prefix_length());
+        prefix.set_on_link();
+        assert!(prefix.on_link());
+        prefix.unset_on_link();
+        assert!(!prefix.on_link());
+        prefix.set_autonomous();
+        assert!(prefix.autonomous());
+        prefix.unset_autonomous();
+        assert!(!prefix.autonomous());
+        prefix.set_valid_lifetime(255);
+        assert_eq!(255, prefix.valid_lifetime());
+        prefix.set_preferred_lifetime(600);
+        assert_eq!(600, prefix.preferred_lifetime());
+        prefix.set_prefix(Ipv6Addr::LOCALHOST);
+        assert_eq!(Ipv6Addr::LOCALHOST, prefix.prefix());
     }
 }

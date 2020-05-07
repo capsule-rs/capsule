@@ -124,11 +124,14 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
     }
 
     #[inline]
-    fn try_push(_mbuf: &mut Mbuf, _offset: usize) -> Fallible<Self> {
-        unimplemented!();
-        // mbuf.extend(offset, MtuFields::size_of())?;
-        // let fields = mbuf.write_data(offset, &MtuFields::default())?;
-        // Ok(Mtu { fields, offset })
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Mtu<'a>> {
+        mbuf.extend(offset, MtuFields::size_of())?;
+        let fields = mbuf.write_data(offset, &MtuFields::default())?;
+        Ok(Mtu {
+            _mbuf: mbuf,
+            fields,
+            offset,
+        })
     }
 }
 
@@ -156,9 +159,29 @@ impl Default for MtuFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
+    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::{Ethernet, Packet};
 
     #[test]
     fn size_of_mtu_fields() {
         assert_eq!(8, MtuFields::size_of());
+    }
+
+    #[capsule::test]
+    fn push_and_set_mtu() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut options = advert.options_mut();
+        let mut mtu = options.append::<Mtu<'_>>().unwrap();
+
+        assert_eq!(NdpOptionTypes::Mtu, mtu.option_type());
+        assert_eq!(1, mtu.length());
+        assert_eq!(0, mtu.mtu());
+
+        mtu.set_mtu(1280);
+        assert_eq!(1280, mtu.mtu());
     }
 }
