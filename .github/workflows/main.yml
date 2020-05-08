@@ -194,10 +194,20 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions-rs/tarpaulin@v0.1.2
+      - uses: actions-rs/toolchain@v1
         with:
-          version: '0.11.1'
-          args: '-l -p capsule --exclude-files macros/* ffi/* --out Xml --all-features'
+          toolchain: nightly
+          override: true
+
+      - name: install-tarpaulin
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --force cargo-tarpaulin
+
+      - name: run-tarpaulin
+        command: tarpaulin
+        args: '-p capsule -l --count --exclude-files examples/* ffi/* macros/* --out Xml -Zpackage-features --features full'
 
       - uses: codecov/codecov-action@v1
         with:
