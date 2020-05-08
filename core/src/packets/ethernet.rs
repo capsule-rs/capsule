@@ -24,6 +24,8 @@ use failure::Fallible;
 use std::fmt;
 use std::ptr::NonNull;
 
+const ETH_HEADER_SIZE: usize = 14;
+
 // Tag protocol identifiers.
 const VLAN_802_1Q: u16 = 0x8100;
 const VLAN_802_1AD: u16 = 0x88a8;
@@ -295,8 +297,13 @@ impl Packet for Ethernet {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(offset, EthernetHeader::size_of())?;
-        let header = mbuf.write_data(offset, &EthernetHeader::default())?;
+        // can't write `EthernetHeader` directly because the union size
+        // is actually 22 (14 + double vlan tags). writing the union into
+        // the buffer will cause data corruption because it will write
+        // past the 14 bytes we extended the buffer by.
+        mbuf.extend(offset, ETH_HEADER_SIZE)?;
+        let _ = mbuf.write_data_slice(offset, &[0; ETH_HEADER_SIZE])?;
+        let header = mbuf.read_data(offset)?;
 
         Ok(Ethernet {
             envelope,
@@ -449,7 +456,7 @@ impl SizeOf for EthernetHeader {
     /// of VLAN tags.
     #[inline]
     fn size_of() -> usize {
-        14
+        ETH_HEADER_SIZE
     }
 }
 
@@ -521,5 +528,25 @@ mod tests {
         let ethernet = packet.push::<Ethernet>().unwrap();
 
         assert_eq!(EthernetHeader::size_of(), ethernet.len());
+    }
+
+    /// Bug in v0.1.3 when pushing an Ethernet packet.
+    ///
+    /// Because `EthernetHeader` is a union, writing it directly into the
+    /// buffer causes the 8 bytes following the 14-byte tagless header to be
+    /// corrupted. The following code caused the bug.
+    ///
+    /// ```
+    /// mbuf.extend(offset, 14)?;
+    /// mbuf.write_data(offset, &EthernetHeader::default())?;
+    /// ```
+    #[capsule::test]
+    fn bug_push_ethernet_corrupts_buffer() {
+        let data = [255u8; 8];
+        let packet = Mbuf::from_bytes(&data).unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+
+        let overflow = ethernet.mbuf().read_data_slice::<u8>(14, 8).unwrap();
+        assert_eq!(&data, unsafe { overflow.as_ref() });
     }
 }
