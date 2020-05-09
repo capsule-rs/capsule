@@ -54,9 +54,6 @@ fn assigned_port(addr: Ipv6Addr, port: u16) -> u16 {
 
 /// Looks up the IPv6 address and port the gateway port is assigned to.
 fn assigned_addr(port: u16) -> Option<(Ipv6Addr, u16)> {
-    // appears to be a false positive, bug filed with clippy
-    // https://github.com/rust-lang/rust-clippy/issues/4824
-    #[allow(clippy::map_clone)]
     ADDR_MAP.get(&port).map(|v| *v)
 }
 
