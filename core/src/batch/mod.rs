@@ -682,6 +682,32 @@ mod tests {
     }
 
     #[capsule::test]
+    fn group_by_fanout() {
+        let mut batch = new_batch(&[&IPV4_TCP_PACKET])
+            .map(|p| p.parse::<Ethernet>()?.parse::<Ipv4>())
+            .group_by(
+                |p| p.protocol(),
+                |groups| {
+                    compose!( groups {
+                        ProtocolNumbers::Tcp => |group| {
+                            group.replace(|_| {
+                                Mbuf::from_bytes(&IPV4_UDP_PACKET)?
+                                    .parse::<Ethernet>()?
+                                    .parse::<Ipv4>()
+                            })
+                        }
+                    })
+                },
+            );
+
+        // replace inside group_by will produce a new UDP packet
+        // and marks the original TCP packet as dropped.
+        assert!(batch.next().unwrap().is_act());
+        assert!(batch.next().unwrap().is_drop());
+        assert!(batch.next().is_none());
+    }
+
+    #[capsule::test]
     fn replace_batch() {
         let mut batch =
             new_batch(&[&IPV4_UDP_PACKET]).replace(|_| Mbuf::from_bytes(&IPV4_TCP_PACKET));

@@ -19,7 +19,7 @@
 use super::{Batch, Disposition};
 use crate::packets::Packet;
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -83,6 +83,7 @@ where
     bridge: Bridge<B::Item>,
     groups: HashMap<D, Box<dyn Batch<Item = B::Item>>>,
     catchall: Box<dyn Batch<Item = B::Item>>,
+    fanouts: VecDeque<Disposition<B::Item>>,
 }
 
 impl<B: Batch, D, S> GroupBy<B, D, S>
@@ -121,6 +122,7 @@ where
             bridge,
             groups,
             catchall,
+            fanouts: VecDeque::new(),
         }
     }
 }
@@ -139,21 +141,34 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Disposition<Self::Item>> {
-        self.batch.next().map(|disp| {
-            disp.map(|pkt| {
-                // get the discriminator key
-                let key = (self.selector)(&pkt);
+        if let Some(disp) = self.fanouts.pop_front() {
+            Some(disp)
+        } else {
+            self.batch.next().map(|disp| {
+                disp.map(|pkt| {
+                    // gets the discriminator key
+                    let key = (self.selector)(&pkt);
 
-                // feed this packet through the bridge
-                self.bridge.set(pkt);
+                    // feeds this packet through the bridge
+                    self.bridge.set(pkt);
 
-                // run the packet through
-                match self.groups.get_mut(&key) {
-                    Some(group) => group.next().unwrap(),
-                    None => self.catchall.next().unwrap(),
-                }
+                    // runs the packet through. the sub-batch could be a fanout
+                    // that produces multiple packets from one input. they are
+                    // temporarily stored in a queue and returned in the subsequent
+                    // iterations.
+                    let batch = match self.groups.get_mut(&key) {
+                        Some(group) => group,
+                        None => &mut self.catchall,
+                    };
+
+                    while let Some(next) = batch.next() {
+                        self.fanouts.push_back(next)
+                    }
+
+                    self.fanouts.pop_front().unwrap()
+                })
             })
-        })
+        }
     }
 }
 
