@@ -19,6 +19,7 @@
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -157,14 +158,14 @@ impl<E: Ipv6Packet> NdpPacket for NeighborSolicitation<E> {
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 struct NeighborSolicitationBody {
-    reserved: u32,
+    reserved: u32be,
     target: Ipv6Addr,
 }
 
 impl Default for NeighborSolicitationBody {
     fn default() -> Self {
         NeighborSolicitationBody {
-            reserved: 0,
+            reserved: u32be::default(),
             target: Ipv6Addr::UNSPECIFIED,
         }
     }

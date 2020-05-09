@@ -19,6 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -27,8 +28,8 @@ use std::net::IpAddr;
 use std::ptr::NonNull;
 
 /// Masks
-const FRAG_OS: u16 = !0b111;
-const FLAG_MORE: u16 = 0b1;
+const FRAG_OS: u16be = u16be(u16::to_be(!0b111));
+const FLAG_MORE: u16be = u16be(u16::to_be(0b1));
 
 /// IPv6 Fragment Extension packet based on [`IETF RFC 8200`].
 ///
@@ -90,41 +91,40 @@ impl<E: Ipv6Packet> Fragment<E> {
     /// start of the fragmentable part of the original packet. It is measured
     /// in units of 8 octets or 64 bits.
     pub fn fragment_offset(&self) -> u16 {
-        (u16::from_be(self.header().frag_res_m) & FRAG_OS) >> 3
+        let v: u16 = (self.header().frag_res_m & FRAG_OS).into();
+        v >> 3
     }
 
     /// Sets the fragment offset.
     pub fn set_fragment_offset(&mut self, offset: u16) {
         self.header_mut().frag_res_m =
-            u16::to_be((u16::from_be(self.header().frag_res_m) & !FRAG_OS) | (offset << 3));
+            (self.header().frag_res_m & !FRAG_OS) | u16be::from(offset << 3);
     }
 
     /// Returns a flag indicating whether there are more fragments.
     pub fn more_fragments(&self) -> bool {
-        u16::from_be(self.header().frag_res_m) & FLAG_MORE > 0
+        self.header().frag_res_m & FLAG_MORE > u16be::MIN
     }
 
     /// Sets the more fragment flag indicating there are more fragments.
     pub fn set_more_fragments(&mut self) {
-        self.header_mut().frag_res_m =
-            u16::to_be((u16::from_be(self.header().frag_res_m)) | FLAG_MORE);
+        self.header_mut().frag_res_m |= FLAG_MORE
     }
 
     /// Unsets the more fragment flag indicating this is the last fragment.
     pub fn unset_more_fragments(&mut self) {
-        self.header_mut().frag_res_m =
-            u16::to_be((u16::from_be(self.header().frag_res_m)) & !FLAG_MORE);
+        self.header_mut().frag_res_m &= !FLAG_MORE
     }
 
     /// Returns the identifying value assigned by the sender to aid in
     /// assembling the fragments of a packet.
     pub fn identification(&self) -> u32 {
-        u32::from_be(self.header().identification)
+        self.header().identification.into()
     }
 
     /// Sets the identifying value.
     pub fn set_identification(&mut self, identification: u32) {
-        self.header_mut().identification = u32::to_be(identification);
+        self.header_mut().identification = identification.into()
     }
 }
 
@@ -310,8 +310,8 @@ impl<E: Ipv6Packet> Ipv6Packet for Fragment<E> {
 struct FragmentHeader {
     next_header: u8,
     reserved: u8,
-    frag_res_m: u16,
-    identification: u32,
+    frag_res_m: u16be,
+    identification: u32be,
 }
 
 #[cfg(test)]
@@ -368,6 +368,10 @@ mod tests {
         frag.set_more_fragments();
         assert_eq!(100, frag.fragment_offset());
         assert!(frag.more_fragments());
+
+        // unset more_fragments flag (used for last fragment)
+        frag.unset_more_fragments();
+        assert!(!frag.more_fragments());
 
         frag.set_identification(0xabcd_1234);
         assert_eq!(0xabcd_1234, frag.identification());

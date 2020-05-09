@@ -26,6 +26,7 @@ pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -39,9 +40,9 @@ use std::ptr::NonNull;
 pub const IPV6_MIN_MTU: usize = 1280;
 
 // Masks
-const DSCP: u32 = 0x0fc0_0000;
-const ECN: u32 = 0x0030_0000;
-const FLOW: u32 = 0xfffff;
+const DSCP: u32be = u32be(u32::to_be(0x0fc0_0000));
+const ECN: u32be = u32be(u32::to_be(0x0030_0000));
+const FLOW: u32be = u32be(u32::to_be(0xfffff));
 
 /// Internet Protocol v6 based on [`IETF RFC 8200`].
 ///
@@ -114,63 +115,61 @@ impl Ipv6 {
     /// Returns the protocol version. Should always be `6`.
     #[inline]
     pub fn version(&self) -> u8 {
-        ((u32::from_be(self.header().version_to_flow_label) & 0xf000_0000) >> 28) as u8
+        let v: u32 = (self.header().version_to_flow_label & u32be::from(0xf000_0000)).into();
+        (v >> 28) as u8
     }
 
     /// Returns the differentiated services codepoint.
     #[inline]
     pub fn dscp(&self) -> u8 {
-        ((u32::from_be(self.header().version_to_flow_label) & DSCP) >> 22) as u8
+        let v: u32 = (self.header().version_to_flow_label & DSCP).into();
+        (v >> 22) as u8
     }
 
     /// Sets the differentiated services codepoint.
     #[inline]
     pub fn set_dscp(&mut self, dscp: u8) {
-        self.header_mut().version_to_flow_label = u32::to_be(
-            (u32::from_be(self.header().version_to_flow_label) & !DSCP)
-                | ((u32::from(dscp) << 22) & DSCP),
-        );
+        self.header_mut().version_to_flow_label = (self.header().version_to_flow_label & !DSCP)
+            | (u32be::from(u32::from(dscp) << 22) & DSCP)
     }
 
     /// Returns the explicit congestion notification codepoint.
     #[inline]
     pub fn ecn(&self) -> u8 {
-        ((u32::from_be(self.header().version_to_flow_label) & ECN) >> 20) as u8
+        let v: u32 = (self.header().version_to_flow_label & ECN).into();
+        (v >> 20) as u8
     }
 
     /// Sets the explicit congestion notification codepoint.
     #[inline]
     pub fn set_ecn(&mut self, ecn: u8) {
-        self.header_mut().version_to_flow_label = u32::to_be(
-            (u32::from_be(self.header().version_to_flow_label) & !ECN)
-                | ((u32::from(ecn) << 20) & ECN),
-        );
+        self.header_mut().version_to_flow_label =
+            (self.header().version_to_flow_label & !ECN) | (u32be::from(u32::from(ecn) << 20) & ECN)
     }
 
     /// Returns the flow label.
     #[inline]
     pub fn flow_label(&self) -> u32 {
-        u32::from_be(self.header().version_to_flow_label) & FLOW
+        (self.header().version_to_flow_label & FLOW).into()
     }
 
     /// Sets the flow label.
     #[inline]
     pub fn set_flow_label(&mut self, flow_label: u32) {
-        self.header_mut().version_to_flow_label = u32::to_be(
-            (u32::from_be(self.header().version_to_flow_label) & !FLOW) | (flow_label & FLOW),
-        );
+        self.header_mut().version_to_flow_label =
+            (self.header().version_to_flow_label & !FLOW) | (u32be::from(flow_label) & FLOW)
     }
 
     /// Returns the length of the payload measured in octets.
     #[inline]
     pub fn payload_length(&self) -> u16 {
-        u16::from_be(self.header().payload_length)
+        self.header().payload_length.into()
     }
 
     /// Sets the length of the payload.
     #[inline]
     fn set_payload_length(&mut self, payload_length: u16) {
-        self.header_mut().payload_length = u16::to_be(payload_length);
+        self.header_mut().payload_length = payload_length.into();
     }
 
     /// Returns the packet's hop limit.
@@ -419,8 +418,8 @@ pub trait Ipv6Packet: IpPacket {
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 struct Ipv6Header {
-    version_to_flow_label: u32,
-    payload_length: u16,
+    version_to_flow_label: u32be,
+    payload_length: u16be,
     next_header: u8,
     hop_limit: u8,
     src: Ipv6Addr,
@@ -430,8 +429,8 @@ struct Ipv6Header {
 impl Default for Ipv6Header {
     fn default() -> Ipv6Header {
         Ipv6Header {
-            version_to_flow_label: u32::to_be(6 << 28),
-            payload_length: 0,
+            version_to_flow_label: u32be::from(6 << 28),
+            payload_length: u16be::default(),
             next_header: 0,
             hop_limit: DEFAULT_IP_TTL,
             src: Ipv6Addr::UNSPECIFIED,

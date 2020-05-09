@@ -19,6 +19,7 @@
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
+use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
@@ -182,13 +183,13 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     /// packets.
     #[inline]
     pub fn tag(&self) -> u16 {
-        u16::from_be(self.header().tag)
+        self.header().tag.into()
     }
 
     /// Tags a packet as part of a class or group of packets.
     #[inline]
     pub fn set_tag(&mut self, tag: u16) {
-        self.header_mut().tag = u16::to_be(tag);
+        self.header_mut().tag = tag.into();
     }
 
     /// Returns the segment list.
@@ -494,7 +495,7 @@ struct SegmentRoutingHeader {
     segments_left: u8,
     last_entry: u8,
     flags: u8,
-    tag: u16,
+    tag: u16be,
 }
 
 impl Default for SegmentRoutingHeader {
@@ -506,7 +507,7 @@ impl Default for SegmentRoutingHeader {
             segments_left: 0,
             last_entry: 0,
             flags: 0,
-            tag: 0,
+            tag: u16be::default(),
         }
     }
 }

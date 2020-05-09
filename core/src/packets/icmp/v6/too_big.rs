@@ -18,6 +18,7 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
+use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -62,13 +63,13 @@ impl<E: Ipv6Packet> PacketTooBig<E> {
     /// Returns the MTU of the next-hop link.
     #[inline]
     pub fn mtu(&self) -> u32 {
-        u32::from_be(self.body().mtu)
+        self.body().mtu.into()
     }
 
     /// Sets the MTU of the next-hop link.
     #[inline]
     pub fn set_mtu(&mut self, mtu: u32) {
-        self.body_mut().mtu = u32::to_be(mtu);
+        self.body_mut().mtu = mtu.into();
     }
 
     /// Returns the invoking packet as a `u8` slice.
@@ -170,7 +171,7 @@ impl<E: Ipv6Packet> Icmpv6Message for PacketTooBig<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 struct PacketTooBigBody {
-    mtu: u32,
+    mtu: u32be,
 }
 
 #[cfg(test)]

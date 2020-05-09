@@ -17,6 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
+use crate::packets::types::u16be;
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -90,43 +91,43 @@ impl<E: IpPacket> Udp<E> {
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
-        u16::from_be(self.header().src_port)
+        self.header().src_port.into()
     }
 
     /// Sets the source port.
     #[inline]
     pub fn set_src_port(&mut self, src_port: u16) {
-        self.header_mut().src_port = u16::to_be(src_port);
+        self.header_mut().src_port = src_port.into();
     }
 
     /// Returns the destination port.
     #[inline]
     pub fn dst_port(&self) -> u16 {
-        u16::from_be(self.header().dst_port)
+        self.header().dst_port.into()
     }
 
     /// Sets the destination port.
     #[inline]
     pub fn set_dst_port(&mut self, dst_port: u16) {
-        self.header_mut().dst_port = u16::to_be(dst_port);
+        self.header_mut().dst_port = dst_port.into();
     }
 
     /// Returns the length in octets of this user datagram including this
     /// header and the data.
     #[inline]
     pub fn length(&self) -> u16 {
-        u16::from_be(self.header().length)
+        self.header().length.into()
     }
 
     #[inline]
     fn set_length(&mut self, length: u16) {
-        self.header_mut().length = u16::to_be(length);
+        self.header_mut().length = length.into()
     }
 
     /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
+        self.header().checksum.into()
     }
 
     /// Sets the checksum.
@@ -137,15 +138,15 @@ impl<E: IpPacket> Udp<E> {
         // transmitter generated no checksum. To set the checksum value to
         // `0`, use `no_checksum` instead of `set_checksum`.
         self.header_mut().checksum = match checksum {
-            0 => 0xFFFF,
-            _ => u16::to_be(checksum),
+            0 => u16be::from(0xFFFF),
+            _ => checksum.into(),
         }
     }
 
     /// Sets checksum to 0 indicating no checksum generated.
     #[inline]
     pub fn no_checksum(&mut self) {
-        self.header_mut().checksum = 0;
+        self.header_mut().checksum = u16be::default();
     }
 
     /// Returns the 5-tuple that uniquely identifies a UDP connection.
@@ -339,10 +340,10 @@ impl<E: IpPacket> Packet for Udp<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
 struct UdpHeader {
-    src_port: u16,
-    dst_port: u16,
-    length: u16,
-    checksum: u16,
+    src_port: u16be,
+    dst_port: u16be,
+    length: u16be,
+    checksum: u16be,
 }
 
 #[cfg(test)]

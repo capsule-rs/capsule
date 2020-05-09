@@ -27,6 +27,7 @@ pub use capsule_macros::Icmpv4Packet;
 
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::ProtocolNumbers;
+use crate::packets::types::u16be;
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::{Fail, Fallible};
@@ -105,18 +106,18 @@ impl Icmpv4 {
     /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
+        self.header().checksum.into()
     }
 
     /// Computes the checksum.
     #[inline]
     pub fn compute_checksum(&mut self) {
-        self.header_mut().checksum = 0;
+        self.header_mut().checksum = u16be::default();
 
         if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
             let data = unsafe { data.as_ref() };
             let checksum = checksum::compute(0, data);
-            self.header_mut().checksum = u16::to_be(checksum);
+            self.header_mut().checksum = checksum.into();
         } else {
             // we are reading till the end of buffer, should never run out
             unreachable!()
@@ -298,7 +299,7 @@ impl fmt::Display for Icmpv4Type {
 pub struct Icmpv4Header {
     msg_type: u8,
     code: u8,
-    checksum: u16,
+    checksum: u16be,
 }
 
 /// A trait all ICMPv4 messages must implement.

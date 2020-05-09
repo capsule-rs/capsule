@@ -17,6 +17,7 @@
 */
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -203,8 +204,8 @@ impl<'a> NdpOption<'a> for RedirectedHeader<'a> {
 struct RedirectedHeaderFields {
     option_type: u8,
     length: u8,
-    reserved1: u16,
-    reserved2: u32,
+    reserved1: u16be,
+    reserved2: u32be,
 }
 
 impl Default for RedirectedHeaderFields {
@@ -212,8 +213,8 @@ impl Default for RedirectedHeaderFields {
         RedirectedHeaderFields {
             option_type: NdpOptionTypes::RedirectedHeader.0,
             length: 1,
-            reserved1: 0,
-            reserved2: 0,
+            reserved1: u16be::default(),
+            reserved2: u32be::default(),
         }
     }
 }
