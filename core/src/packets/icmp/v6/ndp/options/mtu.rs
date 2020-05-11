@@ -17,6 +17,7 @@
 */
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -66,12 +67,12 @@ impl Mtu<'_> {
 
     /// Returns the recommended MTU for the link.
     pub fn mtu(&self) -> u32 {
-        u32::from_be(self.fields().mtu)
+        self.fields().mtu.into()
     }
 
     /// Sets the recommended MTU for the link.
     pub fn set_mtu(&mut self, mtu: u32) {
-        self.fields_mut().mtu = u32::to_be(mtu);
+        self.fields_mut().mtu = mtu.into();
     }
 }
 
@@ -140,8 +141,8 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
 struct MtuFields {
     option_type: u8,
     length: u8,
-    reserved: u16,
-    mtu: u32,
+    reserved: u16be,
+    mtu: u32be,
 }
 
 impl Default for MtuFields {
@@ -149,8 +150,8 @@ impl Default for MtuFields {
         MtuFields {
             option_type: NdpOptionTypes::Mtu.0,
             length: 1,
-            reserved: 0,
-            mtu: 0,
+            reserved: u16be::default(),
+            mtu: u32be::default(),
         }
     }
 }

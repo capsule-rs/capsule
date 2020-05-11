@@ -17,6 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
+use crate::packets::types::u16be;
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -24,7 +25,7 @@ use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
 
-/// User Datagram Protocol packet based on [`IETF RFC 768`].
+/// User Datagram Protocol packet based on [IETF RFC 768].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -40,7 +41,7 @@ use std::ptr::NonNull;
 ///
 /// - *Source Port*: (16 bits)
 ///      An  optional field that, when meaningful, indicates the port
-///      of the sending  process, and may be assumed to be the port to which a
+///      of the sending process, and may be assumed to be the port to which a
 ///      reply should be addressed in the absence of any other information. If
 ///      not used, a value of zero is inserted.
 ///
@@ -50,7 +51,7 @@ use std::ptr::NonNull;
 ///
 /// - *Length*: (16 bits)
 ///      The length  in octets of this user datagram including its
-///      header and the data. (This  means the minimum value of the length is
+///      header and the data. (This means the minimum value of the length is
 ///      eight.)
 ///
 /// - *Checksum*: (16 bits)
@@ -59,17 +60,12 @@ use std::ptr::NonNull;
 ///      the data, padded with zero octets at the end (if necessary) to make a
 ///      multiple of two octets.
 ///
-///      The pseudo  header conceptually prefixed to the UDP header contains the
-///      source address,  the destination address, the protocol, and the UDP
+///      The pseudo header conceptually prefixed to the UDP header contains the
+///      source address, the destination address, the protocol, and the UDP
 ///      length. This information gives protection against misrouted datagrams.
 ///      This checksum procedure is the same as is used in TCP.
 ///
-///      If the computed  checksum  is zero,  it is transmitted  as all ones (the
-///      equivalent  in one's complement  arithmetic).   An all zero  transmitted
-///      checksum  value means that the transmitter  generated  no checksum  (for
-///      debugging or for higher level protocols that don't care).
-///
-/// [`IETF RFC 768`]: https://tools.ietf.org/html/rfc768
+/// [IETF RFC 768]: https://tools.ietf.org/html/rfc768
 pub struct Udp<E: IpPacket> {
     envelope: E,
     header: NonNull<UdpHeader>,
@@ -90,43 +86,43 @@ impl<E: IpPacket> Udp<E> {
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
-        u16::from_be(self.header().src_port)
+        self.header().src_port.into()
     }
 
     /// Sets the source port.
     #[inline]
     pub fn set_src_port(&mut self, src_port: u16) {
-        self.header_mut().src_port = u16::to_be(src_port);
+        self.header_mut().src_port = src_port.into();
     }
 
     /// Returns the destination port.
     #[inline]
     pub fn dst_port(&self) -> u16 {
-        u16::from_be(self.header().dst_port)
+        self.header().dst_port.into()
     }
 
     /// Sets the destination port.
     #[inline]
     pub fn set_dst_port(&mut self, dst_port: u16) {
-        self.header_mut().dst_port = u16::to_be(dst_port);
+        self.header_mut().dst_port = dst_port.into();
     }
 
     /// Returns the length in octets of this user datagram including this
     /// header and the data.
     #[inline]
     pub fn length(&self) -> u16 {
-        u16::from_be(self.header().length)
+        self.header().length.into()
     }
 
     #[inline]
     fn set_length(&mut self, length: u16) {
-        self.header_mut().length = u16::to_be(length);
+        self.header_mut().length = length.into()
     }
 
     /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
+        self.header().checksum.into()
     }
 
     /// Sets the checksum.
@@ -137,15 +133,15 @@ impl<E: IpPacket> Udp<E> {
         // transmitter generated no checksum. To set the checksum value to
         // `0`, use `no_checksum` instead of `set_checksum`.
         self.header_mut().checksum = match checksum {
-            0 => 0xFFFF,
-            _ => u16::to_be(checksum),
+            0 => u16be::from(0xFFFF),
+            _ => checksum.into(),
         }
     }
 
     /// Sets checksum to 0 indicating no checksum generated.
     #[inline]
     pub fn no_checksum(&mut self) {
-        self.header_mut().checksum = 0;
+        self.header_mut().checksum = u16be::default();
     }
 
     /// Returns the 5-tuple that uniquely identifies a UDP connection.
@@ -339,10 +335,10 @@ impl<E: IpPacket> Packet for Udp<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C)]
 struct UdpHeader {
-    src_port: u16,
-    dst_port: u16,
-    length: u16,
-    checksum: u16,
+    src_port: u16be,
+    dst_port: u16be,
+    length: u16be,
+    checksum: u16be,
 }
 
 #[cfg(test)]

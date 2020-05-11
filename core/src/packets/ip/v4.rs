@@ -20,6 +20,7 @@
 
 use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
+use crate::packets::types::u16be;
 use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -27,22 +28,22 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
 
-/// The minimum IPv4 MTU defined in [`IETF RFC 791`].
+/// The minimum IPv4 MTU defined in [IETF RFC 791].
 ///
 /// Every internet module must be able to forward a datagram of 68 octets
 /// without further fragmentation.  This is because an internet header may
 /// be up to 60 octets, and the minimum fragment is 8 octets.
 ///
-/// [`IETF RFC 791`]: https://tools.ietf.org/html/rfc791
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791
 pub const IPV4_MIN_MTU: usize = 68;
 
 // Masks.
 const DSCP: u8 = 0b1111_1100;
 const ECN: u8 = !DSCP;
-const FLAGS_DF: u16 = 0b0100_0000_0000_0000;
-const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
+const FLAGS_DF: u16be = u16be(u16::to_be(0b0100_0000_0000_0000));
+const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 
-/// Internet Protocol v4 based on [`IETF RFC 791`].
+/// Internet Protocol v4 based on [IETF RFC 791].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -72,11 +73,11 @@ const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 ///      the minimum value for a correct header is 5.
 ///
 /// - *DSCP*: (6 bits)
-///      Differentiated services codepoint defined in [`IETF RFC 2474`]. Used to
+///      Differentiated services codepoint defined in [IETF RFC 2474]. Used to
 ///      select the per hop behavior a packet experiences at each node.
 ///
 /// - *ECN*: (2 bits)
-///      Explicit congestion notification codepoint defined in [`IETF RFC 3168`].
+///      Explicit congestion notification codepoint defined in [IETF RFC 3168].
 ///
 /// - *Total Length*: (16 bits)
 ///      Total Length is the length of the datagram, measured in octets,
@@ -138,9 +139,9 @@ const FLAGS_MF: u16 = 0b0010_0000_0000_0000;
 ///      is their transmission in any particular datagram, not their
 ///      implementation.
 ///
-/// [`IETF RFC 791`]: https://tools.ietf.org/html/rfc791#section-3.1
-/// [`IETF RFC 2474`]: https://tools.ietf.org/html/rfc2474
-/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791#section-3.1
+/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 pub struct Ipv4 {
     envelope: Ethernet,
     header: NonNull<Ipv4Header>,
@@ -205,68 +206,64 @@ impl Ipv4 {
     /// the header and data.
     #[inline]
     pub fn total_length(&self) -> u16 {
-        u16::from_be(self.header().total_length)
+        self.header().total_length.into()
     }
 
     /// Sets the length of the packet.
     #[inline]
     fn set_total_length(&mut self, total_length: u16) {
-        self.header_mut().total_length = u16::to_be(total_length);
+        self.header_mut().total_length = total_length.into();
     }
 
     /// Returns the identifying value assigned by the sender to aid in
     /// assembling the fragments of a packet.
     #[inline]
     pub fn identification(&self) -> u16 {
-        u16::from_be(self.header().identification)
+        self.header().identification.into()
     }
 
     /// Sets the identifying value.
     #[inline]
     pub fn set_identification(&mut self, identification: u16) {
-        self.header_mut().identification = u16::to_be(identification);
+        self.header_mut().identification = identification.into();
     }
 
     /// Returns a flag indicating whether the packet can be fragmented.
     #[inline]
     pub fn dont_fragment(&self) -> bool {
-        u16::from_be(self.header().flags_to_frag_offset) & FLAGS_DF != 0
+        self.header().flags_to_frag_offset & FLAGS_DF != u16be::MIN
     }
 
     /// Sets the don't fragment flag to indicate that the packet must not
     /// be fragmented.
     #[inline]
     pub fn set_dont_fragment(&mut self) {
-        self.header_mut().flags_to_frag_offset =
-            u16::to_be(u16::from_be(self.header().flags_to_frag_offset) | FLAGS_DF);
+        self.header_mut().flags_to_frag_offset |= FLAGS_DF
     }
 
     /// Unsets the don't fragment flag to indicate that the packet may be
     /// fragmented.
     #[inline]
     pub fn unset_dont_fragment(&mut self) {
-        self.header_mut().flags_to_frag_offset =
-            u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !FLAGS_DF);
+        self.header_mut().flags_to_frag_offset &= !FLAGS_DF
     }
 
     /// Returns a flag indicating whether there are more fragments.
     #[inline]
     pub fn more_fragments(&self) -> bool {
-        u16::from_be(self.header().flags_to_frag_offset) & FLAGS_MF != 0
+        self.header().flags_to_frag_offset & FLAGS_MF != u16be::MIN
     }
 
     /// Sets the more fragment flag indicating there are more fragments.
     #[inline]
     pub fn set_more_fragments(&mut self) {
-        self.header_mut().flags_to_frag_offset =
-            u16::to_be(u16::from_be(self.header().flags_to_frag_offset) | FLAGS_MF);
+        self.header_mut().flags_to_frag_offset |= FLAGS_MF
     }
 
     /// Unsets the more fragment flag indicating this is the last fragment.
     #[inline]
     pub fn unset_more_fragments(&mut self) {
-        self.header_mut().flags_to_frag_offset =
-            u16::to_be(u16::from_be(self.header().flags_to_frag_offset) & !FLAGS_MF);
+        self.header_mut().flags_to_frag_offset &= !FLAGS_MF
     }
 
     /// Returns an offset indicating where in the datagram this fragment
@@ -274,15 +271,15 @@ impl Ipv4 {
     /// fragment has offset zero.
     #[inline]
     pub fn fragment_offset(&self) -> u16 {
-        u16::from_be(self.header().flags_to_frag_offset) & 0x1fff
+        (self.header().flags_to_frag_offset & u16be::from(0x1fff)).into()
     }
 
     /// Sets the fragment offset.
     #[inline]
     pub fn set_fragment_offset(&mut self, offset: u16) {
-        self.header_mut().flags_to_frag_offset = u16::to_be(
-            (u16::from_be(self.header().flags_to_frag_offset) & 0xe000) | (offset & 0x1fff),
-        );
+        self.header_mut().flags_to_frag_offset = (self.header().flags_to_frag_offset
+            & u16be::from(0xe000))
+            | u16be::from(offset & 0x1fff)
     }
 
     /// Returns the packet's time to live.
@@ -312,13 +309,13 @@ impl Ipv4 {
     /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
+        self.header().checksum.into()
     }
 
     /// Sets the checksum.
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
-        self.header_mut().checksum = u16::to_be(checksum);
+        self.header_mut().checksum = checksum.into();
     }
 
     #[inline]
@@ -560,12 +557,12 @@ impl IpPacket for Ipv4 {
 struct Ipv4Header {
     version_ihl: u8,
     dscp_ecn: u8,
-    total_length: u16,
-    identification: u16,
-    flags_to_frag_offset: u16,
+    total_length: u16be,
+    identification: u16be,
+    flags_to_frag_offset: u16be,
     ttl: u8,
     protocol: u8,
-    checksum: u16,
+    checksum: u16be,
     src: Ipv4Addr,
     dst: Ipv4Addr,
 }
@@ -575,12 +572,12 @@ impl Default for Ipv4Header {
         Ipv4Header {
             version_ihl: 0x45,
             dscp_ecn: 0,
-            total_length: 0,
-            identification: 0,
-            flags_to_frag_offset: 0,
+            total_length: u16be::default(),
+            identification: u16be::default(),
+            flags_to_frag_offset: u16be::default(),
             ttl: DEFAULT_IP_TTL,
             protocol: 0,
-            checksum: 0,
+            checksum: u16be::default(),
             src: Ipv4Addr::UNSPECIFIED,
             dst: Ipv4Addr::UNSPECIFIED,
         }
@@ -635,13 +632,23 @@ mod tests {
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
+        // Fields
+        ipv4.set_ihl(ipv4.ihl());
+
         // Flags
         assert_eq!(true, ipv4.dont_fragment());
         assert_eq!(false, ipv4.more_fragments());
+
         ipv4.unset_dont_fragment();
         assert_eq!(false, ipv4.dont_fragment());
+        ipv4.set_dont_fragment();
+        assert_eq!(true, ipv4.dont_fragment());
+
         ipv4.set_more_fragments();
         assert_eq!(true, ipv4.more_fragments());
+        ipv4.unset_more_fragments();
+        assert_eq!(false, ipv4.more_fragments());
+
         ipv4.set_fragment_offset(5);
         assert_eq!(5, ipv4.fragment_offset());
 

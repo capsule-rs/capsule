@@ -19,6 +19,7 @@
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -240,7 +241,7 @@ impl<E: Ipv6Packet> NdpPacket for NeighborAdvertisement<E> {
 struct NeighborAdvertisementBody {
     flags: u8,
     reserved1: u8,
-    reserved2: u16,
+    reserved2: u16be,
     target: Ipv6Addr,
 }
 
@@ -249,7 +250,7 @@ impl Default for NeighborAdvertisementBody {
         NeighborAdvertisementBody {
             flags: 0,
             reserved1: 0,
-            reserved2: 0,
+            reserved2: u16be::default(),
             target: Ipv6Addr::UNSPECIFIED,
         }
     }

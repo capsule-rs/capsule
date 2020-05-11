@@ -17,6 +17,7 @@
 */
 
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{checksum, Internal, Packet, ParseError};
 use crate::{ensure, SizeOf};
 use failure::Fallible;
@@ -34,7 +35,7 @@ const RST: u8 = 0b0000_0100;
 const SYN: u8 = 0b0000_0010;
 const FIN: u8 = 0b0000_0001;
 
-/// Transmission Control Protocol packet based on [`IETF RFC 793`].
+/// Transmission Control Protocol packet based on [IETF RFC 793].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -80,9 +81,9 @@ const FIN: u8 = 0b0000_0001;
 ///      integral number of 32 bits long.
 ///
 /// - *Control Bits*: (9 bits) [from left to right]
-///      - NS:   ECN-nonce nonce sum [`IETF RFC 3540`]
-///      - CWR:  Congestion Window Reduced flag [`IETF RFC 3168`]
-///      - ECE:  ECN-Echo flag [`IETF RFC 3168`]
+///      - NS:   ECN-nonce nonce sum [IETF RFC 3540]
+///      - CWR:  Congestion Window Reduced flag [IETF RFC 3168]
+///      - ECE:  ECN-Echo flag [IETF RFC 3168]
 ///      - URG:  Urgent Pointer field significant
 ///      - ACK:  Acknowledgment field significant
 ///      - PSH:  Push Function
@@ -111,9 +112,9 @@ const FIN: u8 = 0b0000_0001;
 ///     multiple of 8 bits in length.  All options are included in the
 ///     checksum.
 ///
-/// [`IETF RFC 793`]: https://tools.ietf.org/html/rfc793#section-3.1
-/// [`IETF RFC 3540`]: https://tools.ietf.org/html/rfc3540
-/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
+/// [IETF RFC 793]: https://tools.ietf.org/html/rfc793#section-3.1
+/// [IETF RFC 3540]: https://tools.ietf.org/html/rfc3540
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 pub struct Tcp<E: IpPacket> {
     envelope: E,
     header: NonNull<TcpHeader>,
@@ -134,49 +135,49 @@ impl<E: IpPacket> Tcp<E> {
     /// Returns the source port.
     #[inline]
     pub fn src_port(&self) -> u16 {
-        u16::from_be(self.header().src_port)
+        self.header().src_port.into()
     }
 
     /// Sets the source port.
     #[inline]
     pub fn set_src_port(&mut self, src_port: u16) {
-        self.header_mut().src_port = u16::to_be(src_port);
+        self.header_mut().src_port = src_port.into();
     }
 
     /// Returns the destination port.
     #[inline]
     pub fn dst_port(&self) -> u16 {
-        u16::from_be(self.header().dst_port)
+        self.header().dst_port.into()
     }
 
     /// Sets the destination port.
     #[inline]
     pub fn set_dst_port(&mut self, dst_port: u16) {
-        self.header_mut().dst_port = u16::to_be(dst_port);
+        self.header_mut().dst_port = dst_port.into();
     }
 
     /// Returns the sequence number.
     #[inline]
     pub fn seq_no(&self) -> u32 {
-        u32::from_be(self.header().seq_no)
+        self.header().seq_no.into()
     }
 
     /// Sets the sequence number.
     #[inline]
     pub fn set_seq_no(&mut self, seq_no: u32) {
-        self.header_mut().seq_no = u32::to_be(seq_no);
+        self.header_mut().seq_no = seq_no.into();
     }
 
     /// Returns the acknowledgment number.
     #[inline]
     pub fn ack_no(&self) -> u32 {
-        u32::from_be(self.header().ack_no)
+        self.header().ack_no.into()
     }
 
     /// Sets the acknowledgment number.
     #[inline]
     pub fn set_ack_no(&mut self, ack_no: u32) {
-        self.header_mut().ack_no = u32::to_be(ack_no);
+        self.header_mut().ack_no = ack_no.into();
     }
 
     /// Returns the number of 32 bit words in the TCP Header. This indicates
@@ -368,37 +369,37 @@ impl<E: IpPacket> Tcp<E> {
     /// Returns the TCP window.
     #[inline]
     pub fn window(&self) -> u16 {
-        u16::from_be(self.header().window)
+        self.header().window.into()
     }
 
     /// Sets the TCP window.
     #[inline]
     pub fn set_window(&mut self, window: u16) {
-        self.header_mut().window = u16::to_be(window);
+        self.header_mut().window = window.into();
     }
 
     /// Returns the checksum.
     #[inline]
     pub fn checksum(&self) -> u16 {
-        u16::from_be(self.header().checksum)
+        self.header().checksum.into()
     }
 
     /// Sets the checksum.
     #[inline]
     fn set_checksum(&mut self, checksum: u16) {
-        self.header_mut().checksum = u16::to_be(checksum);
+        self.header_mut().checksum = checksum.into();
     }
 
     /// Returns the urgent pointer.
     #[inline]
     pub fn urgent_pointer(&self) -> u16 {
-        u16::from_be(self.header().urgent_pointer)
+        self.header().urgent_pointer.into()
     }
 
     /// Sets the urgent pointer.
     #[inline]
     pub fn set_urgent_pointer(&mut self, urgent_pointer: u16) {
-        self.header_mut().urgent_pointer = u16::to_be(urgent_pointer);
+        self.header_mut().urgent_pointer = urgent_pointer.into();
     }
 
     /// Returns the 5-tuple that uniquely identifies a TCP connection.
@@ -604,29 +605,29 @@ impl<E: IpPacket> Packet for Tcp<E> {
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C, packed)]
 struct TcpHeader {
-    src_port: u16,
-    dst_port: u16,
-    seq_no: u32,
-    ack_no: u32,
+    src_port: u16be,
+    dst_port: u16be,
+    seq_no: u32be,
+    ack_no: u32be,
     offset_to_ns: u8,
     flags: u8,
-    window: u16,
-    checksum: u16,
-    urgent_pointer: u16,
+    window: u16be,
+    checksum: u16be,
+    urgent_pointer: u16be,
 }
 
 impl Default for TcpHeader {
     fn default() -> TcpHeader {
         TcpHeader {
-            src_port: 0,
-            dst_port: 0,
-            seq_no: 0,
-            ack_no: 0,
+            src_port: u16be::default(),
+            dst_port: u16be::default(),
+            seq_no: u32be::default(),
+            ack_no: u32be::default(),
             offset_to_ns: 5 << 4,
             flags: 0,
-            window: 0,
-            checksum: 0,
-            urgent_pointer: 0,
+            window: u16be::default(),
+            checksum: u16be::default(),
+            urgent_pointer: u16be::default(),
         }
     }
 }

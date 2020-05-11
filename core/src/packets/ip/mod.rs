@@ -27,16 +27,16 @@ use failure::{Fail, Fallible};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
-/// [`IANA`] recommended default TTL for IP.
+/// [IANA] recommended default TTL for IP.
 ///
-/// [`IANA`]: https://www.iana.org/assignments/ip-parameters/ip-parameters.xml#ip-parameters-2
+/// [IANA]: https://www.iana.org/assignments/ip-parameters/ip-parameters.xml#ip-parameters-2
 pub const DEFAULT_IP_TTL: u8 = 64;
 
-/// [`IANA`] assigned Internet protocol number.
+/// [IANA] assigned Internet protocol number.
 ///
 /// See [`ProtocolNumbers`] for which are current supported.
 ///
-/// [`IANA`]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+/// [IANA]: https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 /// [`ProtocolNumbers`]: crate::packets::ip::ProtocolNumbers
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]

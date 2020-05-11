@@ -38,9 +38,9 @@ use tokio_net::driver;
 use tokio_net::signal::unix::{self, SignalKind};
 use tokio_timer::{timer, Interval};
 
-/// Supported [`Unix signals`].
+/// Supported [Unix signals].
 ///
-/// [`Unix signals`]: https://en.wikipedia.org/wiki/Signal_(IPC)#POSIX_signals
+/// [Unix signals]: https://en.wikipedia.org/wiki/Signal_(IPC)#POSIX_signals
 #[derive(Copy, Clone, Debug)]
 pub enum UnixSignal {
     /// This signal is sent to a process when its controlling terminal is closed.

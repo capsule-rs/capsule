@@ -18,6 +18,7 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
+use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -145,7 +146,7 @@ impl<E: Ipv6Packet> Icmpv6Message for TimeExceeded<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 struct TimeExceededBody {
-    _unused: u32,
+    _unused: u32be,
 }
 
 #[cfg(test)]

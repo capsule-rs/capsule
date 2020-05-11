@@ -18,6 +18,7 @@
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -67,25 +68,25 @@ impl<E: Ipv6Packet> EchoRequest<E> {
     /// Returns the identifier.
     #[inline]
     pub fn identifier(&self) -> u16 {
-        u16::from_be(self.body().identifier)
+        self.body().identifier.into()
     }
 
     /// Sets the identifier.
     #[inline]
     pub fn set_identifier(&mut self, identifier: u16) {
-        self.body_mut().identifier = u16::to_be(identifier);
+        self.body_mut().identifier = identifier.into();
     }
 
     /// Returns the sequence number.
     #[inline]
     pub fn seq_no(&self) -> u16 {
-        u16::from_be(self.body().seq_no)
+        self.body().seq_no.into()
     }
 
     /// Sets the sequence number.
     #[inline]
     pub fn set_seq_no(&mut self, seq_no: u16) {
-        self.body_mut().seq_no = u16::to_be(seq_no);
+        self.body_mut().seq_no = seq_no.into();
     }
 
     /// Returns the offset where the data field in the message body starts.
@@ -195,8 +196,8 @@ impl<E: Ipv6Packet> Icmpv6Message for EchoRequest<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 struct EchoRequestBody {
-    identifier: u16,
-    seq_no: u16,
+    identifier: u16be,
+    seq_no: u16be,
 }
 
 #[cfg(test)]

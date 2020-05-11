@@ -19,6 +19,7 @@
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::types::{u16be, u32be};
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -166,39 +167,39 @@ impl<E: Ipv6Packet> RouterAdvertisement<E> {
     /// of seconds.
     #[inline]
     pub fn router_lifetime(&self) -> u16 {
-        u16::from_be(self.body().router_lifetime)
+        self.body().router_lifetime.into()
     }
 
     /// Sets the router's default lifetime.
     #[inline]
     pub fn set_router_lifetime(&mut self, router_lifetime: u16) {
-        self.body_mut().router_lifetime = u16::to_be(router_lifetime);
+        self.body_mut().router_lifetime = router_lifetime.into();
     }
 
     /// Returns the time, in milliseconds, that a node assumes a neighbor
     /// is reachable.
     #[inline]
     pub fn reachable_time(&self) -> u32 {
-        u32::from_be(self.body().reachable_time)
+        self.body().reachable_time.into()
     }
 
     /// Sets the neighbor reachable time.
     #[inline]
     pub fn set_reachable_time(&mut self, reachable_time: u32) {
-        self.body_mut().reachable_time = u32::to_be(reachable_time);
+        self.body_mut().reachable_time = reachable_time.into();
     }
 
     /// Returns the time, in milliseconds, between retransmitted Neighbor
     /// Solicitation messages.
     #[inline]
     pub fn retrans_timer(&self) -> u32 {
-        u32::from_be(self.body().retrans_timer)
+        self.body().retrans_timer.into()
     }
 
     /// Sets the retransmission timer.
     #[inline]
     pub fn set_retrans_timer(&mut self, retrans_timer: u32) {
-        self.body_mut().retrans_timer = u32::to_be(retrans_timer);
+        self.body_mut().retrans_timer = retrans_timer.into();
     }
 }
 
@@ -281,9 +282,9 @@ impl<E: Ipv6Packet> NdpPacket for RouterAdvertisement<E> {
 struct RouterAdvertisementBody {
     current_hop_limit: u8,
     flags: u8,
-    router_lifetime: u16,
-    reachable_time: u32,
-    retrans_timer: u32,
+    router_lifetime: u16be,
+    reachable_time: u32be,
+    retrans_timer: u32be,
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@
 */
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
+use crate::packets::types::u32be;
 use crate::packets::{Internal, ParseError};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -157,26 +158,26 @@ impl PrefixInformation<'_> {
     /// the purpose of on-link determination.
     #[inline]
     pub fn valid_lifetime(&self) -> u32 {
-        u32::from_be(self.fields().valid_lifetime)
+        self.fields().valid_lifetime.into()
     }
 
     /// Sets the prefix valid lifetime.
     #[inline]
     pub fn set_valid_lifetime(&mut self, valid_lifetime: u32) {
-        self.fields_mut().valid_lifetime = u32::to_be(valid_lifetime);
+        self.fields_mut().valid_lifetime = valid_lifetime.into();
     }
 
     /// Returns the length of time in seconds that addresses generated from
     /// the prefix via stateless address autoconfiguration remain preferred.
     #[inline]
     pub fn preferred_lifetime(&self) -> u32 {
-        u32::from_be(self.fields().preferred_lifetime)
+        self.fields().preferred_lifetime.into()
     }
 
     /// Sets the preferred lifetime.
     #[inline]
     pub fn set_preferred_lifetime(&mut self, preferred_lifetime: u32) {
-        self.fields_mut().preferred_lifetime = u32::to_be(preferred_lifetime);
+        self.fields_mut().preferred_lifetime = preferred_lifetime.into();
     }
 
     /// Returns the IPv6 prefix.
@@ -272,9 +273,9 @@ struct PrefixInformationFields {
     length: u8,
     prefix_length: u8,
     flags: u8,
-    valid_lifetime: u32,
-    preferred_lifetime: u32,
-    reserved: u32,
+    valid_lifetime: u32be,
+    preferred_lifetime: u32be,
+    reserved: u32be,
     prefix: Ipv6Addr,
 }
 
@@ -285,9 +286,9 @@ impl Default for PrefixInformationFields {
             length: 4,
             prefix_length: 0,
             flags: 0,
-            valid_lifetime: 0,
-            preferred_lifetime: 0,
-            reserved: 0,
+            valid_lifetime: u32be::default(),
+            preferred_lifetime: u32be::default(),
+            reserved: u32be::default(),
             prefix: Ipv6Addr::UNSPECIFIED,
         }
     }

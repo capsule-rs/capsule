@@ -18,6 +18,7 @@
 
 use crate::dpdk::BufferError;
 use crate::net::MacAddr;
+use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
 use failure::Fallible;
@@ -59,7 +60,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// # 802.1Q aka Dot1q
 ///
 /// For networks support virtual LANs, the frame may include an extra VLAN
-/// tag after the source MAC as specified in [`IEEE 802.1Q`].
+/// tag after the source MAC as specified in [IEEE 802.1Q].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -100,7 +101,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///
 /// # 802.1ad aka QinQ
 ///
-/// The frame may be double tagged as per [`IEEE 802.1ad`].
+/// The frame may be double tagged as per [IEEE 802.1ad].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -115,8 +116,8 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// S-TAG, or service tag, comes first, followed by the inner C-TAG, or customer
 /// tag. In such cases, 802.1ad specifies a TPID of `0x88a8` for S-TAG.
 ///
-/// [`IEEE 802.1Q`]: https://en.wikipedia.org/wiki/IEEE_802.1Q
-/// [`IEEE 802.1ad`]: https://en.wikipedia.org/wiki/IEEE_802.1ad
+/// [IEEE 802.1Q]: https://en.wikipedia.org/wiki/IEEE_802.1Q
+/// [IEEE 802.1ad]: https://en.wikipedia.org/wiki/IEEE_802.1ad
 pub struct Ethernet {
     envelope: Mbuf,
     header: NonNull<EthernetHeader>,
@@ -161,7 +162,7 @@ impl Ethernet {
     /// Returns the marker that indicates whether the frame is VLAN.
     #[inline]
     fn vlan_marker(&self) -> u16 {
-        unsafe { u16::from_be(self.header().chunk.ether_type) }
+        unsafe { self.header().chunk.ether_type.into() }
     }
 
     /// Returns the protocol identifier of the payload.
@@ -176,13 +177,13 @@ impl Ethernet {
             }
         };
 
-        EtherType::new(u16::from_be(ether_type))
+        EtherType::new(ether_type.into())
     }
 
     /// Sets the protocol identifier of the payload.
     #[inline]
     pub fn set_ether_type(&mut self, ether_type: EtherType) {
-        let ether_type = u16::to_be(ether_type.0);
+        let ether_type = ether_type.0.into();
         match self.vlan_marker() {
             VLAN_802_1Q => self.header_mut().chunk.dot1q.ether_type = ether_type,
             VLAN_802_1AD => self.header_mut().chunk.qinq.ether_type = ether_type,
@@ -366,8 +367,8 @@ impl fmt::Display for EtherType {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 struct VlanTag {
-    tpid: u16,
-    tci: u16,
+    tpid: u16be,
+    tci: u16be,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -376,14 +377,15 @@ impl VlanTag {
     #[allow(dead_code)]
     #[inline]
     fn tag_id(&self) -> u16 {
-        self.tpid
+        self.tpid.into()
     }
 
     /// Returns the priority code point.
     #[allow(dead_code)]
     #[inline]
     fn priority(&self) -> u8 {
-        (self.tci >> 13) as u8
+        let tci: u16 = self.tci.into();
+        (tci >> 13) as u8
     }
 
     /// Returns whether the frame is eligible to be dropped in the presence
@@ -391,14 +393,14 @@ impl VlanTag {
     #[allow(dead_code)]
     #[inline]
     fn drop_eligible(&self) -> bool {
-        self.tci & 0x1000 > 0
+        self.tci & u16be::from(0x1000) > u16be::MIN
     }
 
     /// Returns the VLAN identifier.
     #[allow(dead_code)]
     #[inline]
     fn identifier(&self) -> u16 {
-        self.tci & 0x0fff
+        (self.tci & u16be::from(0x0fff)).into()
     }
 }
 
@@ -407,7 +409,7 @@ impl VlanTag {
 #[repr(C, packed)]
 struct Dot1q {
     tag: VlanTag,
-    ether_type: u16,
+    ether_type: u16be,
 }
 
 /// QinQ chunk for a VLAN header.
@@ -416,7 +418,7 @@ struct Dot1q {
 struct Qinq {
     stag: VlanTag,
     ctag: VlanTag,
-    ether_type: u16,
+    ether_type: u16be,
 }
 
 /// The Ethernet header chunk follows the source MAC.
@@ -424,14 +426,16 @@ struct Qinq {
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 union Chunk {
-    ether_type: u16,
+    ether_type: u16be,
     dot1q: Dot1q,
     qinq: Qinq,
 }
 
 impl Default for Chunk {
     fn default() -> Chunk {
-        Chunk { ether_type: 0 }
+        Chunk {
+            ether_type: u16be::default(),
+        }
     }
 }
 

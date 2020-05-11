@@ -23,6 +23,7 @@ mod ethernet;
 pub mod icmp;
 pub mod ip;
 mod tcp;
+pub mod types;
 mod udp;
 
 pub use self::ethernet::*;

@@ -19,6 +19,7 @@
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -125,7 +126,7 @@ impl<E: Ipv6Packet> NdpPacket for RouterSolicitation<E> {
 #[derive(Clone, Copy, Debug, Default, SizeOf)]
 #[repr(C, packed)]
 struct RouterSolicitationBody {
-    _reserved: u32,
+    _reserved: u32be,
 }
 
 #[cfg(test)]

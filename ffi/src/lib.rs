@@ -16,9 +16,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! FFI bindings for [`Capsule`].
+//! FFI bindings for [Capsule].
 //!
-//! [`Capsule`]: https://crates.io/crates/capsule
+//! [Capsule]: https://crates.io/crates/capsule
 
 #![allow(clippy::all)]
 #![allow(dead_code)]

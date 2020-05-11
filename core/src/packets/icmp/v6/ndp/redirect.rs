@@ -19,6 +19,7 @@
 use super::{NdpPacket, RedirectedHeader};
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
+use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
 use failure::Fallible;
@@ -44,7 +45,7 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *Reserved*:       This field is unused.  It MUST be initialized to
+/// - *Reserved*:       This field is unused. It MUST be initialized to
 ///                     zero by the sender and MUST be ignored by the
 ///                     receiver.
 ///
@@ -58,7 +59,7 @@ use std::ptr::NonNull;
 /// Possible options:
 ///
 /// - *Target link-layer address*:
-///                     The link-layer address for the target.  It SHOULD
+///                     The link-layer address for the target. It SHOULD
 ///                     be included (if known).
 ///
 /// - *Redirected Header*:
@@ -211,7 +212,7 @@ impl<E: Ipv6Packet> NdpPacket for Redirect<E> {
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
 struct RedirectBody {
-    reserved: u32,
+    reserved: u32be,
     target: Ipv6Addr,
     destination: Ipv6Addr,
 }
@@ -219,7 +220,7 @@ struct RedirectBody {
 impl Default for RedirectBody {
     fn default() -> Self {
         RedirectBody {
-            reserved: 0,
+            reserved: u32be::default(),
             target: Ipv6Addr::UNSPECIFIED,
             destination: Ipv6Addr::UNSPECIFIED,
         }

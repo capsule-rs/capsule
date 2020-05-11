@@ -27,7 +27,7 @@
 #![doc(html_root_url = "https://docs.rs/capsule/0.1.3")]
 
 //! A framework for network function development. Written in Rust, inspired by
-//! [`NetBricks`] and built on Intel's [`Data Plane Development Kit`].
+//! [NetBricks] and built on Intel's [Data Plane Development Kit].
 //!
 //! The goal of Capsule is to offer an ergonomic framework for network function
 //! development that traditionally has high barriers of entry for developers.
@@ -43,17 +43,17 @@
 //! ## Getting started
 //!
 //! The easiest way to start developing Capsule applications is to use the
-//! `Vagrant` [`virtual machine`] and the `Docker` [`sandbox`] provided by the
+//! `Vagrant` [virtual machine] and the `Docker` [sandbox] provided by the
 //! Capsule team. The sandbox is preconfigured with all the necessary tools and
 //! libraries for Capsule development, including:
 //!
-//! * [`DPDK 19.11`]
-//! * [`Clang`] and [`LLVM`]
-//! * [`Rust 1.43`]
-//! * [`rr`] 5.3
+//! * [DPDK 19.11]
+//! * [Clang] and [LLVM]
+//! * [Rust 1.43]
+//! * [rr] 5.3
 //!
 //! For more information on getting started, please check out Capsule's
-//! [`README`], as well as our [`sandbox repo`] for developer environments.
+//! [README], as well as our [sandbox repo] for developer environments.
 //!
 //! ### Adding Capsule as a Cargo dependency
 //!
@@ -80,33 +80,33 @@
 //!
 //! ### Examples
 //!
-//! - [`kni`]: Kernel NIC interface example.
-//! - [`nat64`]: IPv6 to IPv4 NAT gateway example.
-//! - [`ping4d`]: Ping4 daemon example.
-//! - [`pktdump`]: Packet dump example.
-//! - [`signals`]: Linux signal handling example.
-//! - [`skeleton`]: Base skeleton example.
-//! - [`syn-flood`]: TCP SYN flood example.
+//! - [kni]: Kernel NIC interface example.
+//! - [nat64]: IPv6 to IPv4 NAT gateway example.
+//! - [ping4d]: Ping4 daemon example.
+//! - [pktdump]: Packet dump example.
+//! - [signals]: Linux signal handling example.
+//! - [skeleton]: Base skeleton example.
+//! - [syn-flood]: TCP SYN flood example.
 //!
-//! [`NetBricks`]: https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf
-//! [`Data Plane Development Kit`]: https://www.dpdk.org/
-//! [`virtual machine`]: https://github.com/capsule-rs/sandbox/blob/master/Vagrantfile
-//! [`sandbox`]: https://hub.docker.com/repository/docker/getcapsule/sandbox
-//! [`DPDK 19.11`]: https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html
-//! [`Clang`]: https://clang.llvm.org/
-//! [`LLVM`]: https://www.llvm.org/
-//! [`Rust 1.43`]: https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html
-//! [`rr`]: https://rr-project.org/
-//! [`README`]: https://github.com/capsule-rs/capsule/blob/master/README.md
-//! [`sandbox repo`]: https://github.com/capsule-rs/sandbox
+//! [NetBricks]: https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf
+//! [Data Plane Development Kit]: https://www.dpdk.org/
+//! [virtual machine]: https://github.com/capsule-rs/sandbox/blob/master/Vagrantfile
+//! [sandbox]: https://hub.docker.com/repository/docker/getcapsule/sandbox
+//! [DPDK 19.11]: https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html
+//! [Clang]: https://clang.llvm.org/
+//! [LLVM]: https://www.llvm.org/
+//! [Rust 1.43]: https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html
+//! [rr]: https://rr-project.org/
+//! [README]: https://github.com/capsule-rs/capsule/blob/master/README.md
+//! [sandbox repo]: https://github.com/capsule-rs/sandbox
 //! [`metrics`]: crate::metrics
-//! [`kni`]: https://github.com/capsule-rs/capsule/tree/master/examples/kni
-//! [`nat64`]: https://github.com/capsule-rs/capsule/tree/master/examples/nat64
-//! [`ping4d`]: https://github.com/capsule-rs/capsule/tree/master/examples/ping4d
-//! [`pktdump`]: https://github.com/capsule-rs/capsule/tree/master/examples/pktdump
-//! [`signals`]: https://github.com/capsule-rs/capsule/tree/master/examples/signals
-//! [`skeleton`]: https://github.com/capsule-rs/capsule/tree/master/examples/skeleton
-//! [`syn-flood`]: https://github.com/capsule-rs/capsule/tree/master/examples/syn-flood
+//! [kni]: https://github.com/capsule-rs/capsule/tree/master/examples/kni
+//! [nat64]: https://github.com/capsule-rs/capsule/tree/master/examples/nat64
+//! [ping4d]: https://github.com/capsule-rs/capsule/tree/master/examples/ping4d
+//! [pktdump]: https://github.com/capsule-rs/capsule/tree/master/examples/pktdump
+//! [signals]: https://github.com/capsule-rs/capsule/tree/master/examples/signals
+//! [skeleton]: https://github.com/capsule-rs/capsule/tree/master/examples/skeleton
+//! [syn-flood]: https://github.com/capsule-rs/capsule/tree/master/examples/syn-flood
 
 // alias for the macros
 extern crate self as capsule;
