@@ -16,12 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! Defines extended [proptest] [Arbitrary] traits and [Strategies] for
+//! Defines extended [proptest] [`Arbitrary`] and [`Strategy`] traits for
 //! packet generation and manipulation for testing and benchmarking purposes.
 //!
 //! [proptest]: https://github.com/altsysrq/proptest
-//! [Arbitrary]: https://docs.rs/proptest/*/proptest/arbitrary/index.html
-//! [Strategies]: https://docs.rs/proptest/*/proptest/strategy/trait.Strategy.html
+//! [`Arbitrary`]: https://docs.rs/proptest/latest/proptest/arbitrary/trait.Arbitrary.html
+//! [`Strategy`]: https://docs.rs/proptest/latest/proptest/strategy/trait.Strategy.html
 
 mod arbitrary;
 mod strategy;

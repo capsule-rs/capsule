@@ -23,7 +23,7 @@ use std::convert::From;
 use std::fmt;
 use std::ops;
 
-/// Big-endian type for `u16`.
+/// The 16-bit unsigned integer in big-endian order.
 ///
 /// Used to convert packet fields to host byte order on get and network byte
 /// order on set.
@@ -33,7 +33,7 @@ use std::ops;
 pub struct u16be(pub u16);
 
 impl u16be {
-    /// The 16-bit unsigned integer in big-endian order.
+    /// The smallest value that can be represented by this integer type.
     pub const MIN: u16be = u16be(0);
 }
 
@@ -107,7 +107,7 @@ impl fmt::Display for u16be {
     }
 }
 
-/// Big-endian type for `u32`.
+/// The 32-bit unsigned integer in big-endian order.
 ///
 /// Used to convert packet fields to host byte order on get and network byte
 /// order on set.
@@ -117,7 +117,7 @@ impl fmt::Display for u16be {
 pub struct u32be(pub u32);
 
 impl u32be {
-    /// The 32-bit unsigned integer in big-endian order.
+    /// The smallest value that can be represented by this integer type.
     pub const MIN: u32be = u32be(0);
 }
 
