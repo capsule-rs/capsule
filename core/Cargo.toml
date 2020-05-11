@@ -1,6 +1,6 @@
 [package]
 name = "capsule"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
 edition = "2018"
@@ -8,7 +8,7 @@ readme = "../README.md"
 repository = "https://github.com/capsule-rs/capsule"
 keywords = ["nfv", "network-functions", "packet-processing", "packet-parsing", "dpdk"]
 categories = ["network-programming", "development-tools::ffi"]
-documentation = "https://docs.rs/capsule/0.1.3/capsule/"
+documentation = "https://docs.rs/capsule/0.1.4/capsule/"
 description = """
 A framework for network function development. Written in Rust, inspired by
 NetBricks and built on Intel's Data Plane Development Kit.
@@ -20,8 +20,8 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
-capsule-ffi = { version = "0.1.3", path = "../ffi" }
-capsule-macros = { version = "0.1.3", path = "../macros" }
+capsule-ffi = { version = "0.1.4", path = "../ffi" }
+capsule-macros = { version = "0.1.4", path = "../macros" }
 clap = "2.33"
 criterion = { version = "0.3", optional = true }
 failure = "0.1"
