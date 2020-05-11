@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-//! Iterator extensions to [`criterion`], leveraging proptest strategy
+//! Iterator extensions to [criterion], leveraging proptest strategy
 //! generators.
 //!
-//! [`criterion`]: https://crates.io/crates/criterion
+//! [criterion]: https://crates.io/crates/criterion
 
 use super::Rvg;
 use crate::batch::{Batch, PacketTx, Poll};
@@ -34,10 +34,10 @@ use std::time::{Duration, Instant};
 pub trait BencherExt {
     /// Times a `routine` with an input generated via a `proptest strategy`
     /// batch of input, and then times the iteration of the benchmark over the
-    /// input. See [`BatchSize`] for details on choosing the batch size. The
+    /// input. See [BatchSize] for details on choosing the batch size. The
     /// routine consumes its input.
     ///
-    /// [`BatchSize`]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
+    /// [BatchSize]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
     fn iter_proptest_batched<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where
         R: FnMut(S::Value) -> O,
@@ -46,9 +46,9 @@ pub trait BencherExt {
     /// Times a `routine` with an input generated via a `proptest strategy`
     /// batch of input that can be polled for benchmarking,
     /// [`pipeline combinators`] and then times the iteration of the benchmark
-    /// over the input. See [`BatchSize`] for details on choosing the batch size.
+    /// over the input. See [BatchSize] for details on choosing the batch size.
     ///
-    /// [`BatchSize`]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
+    /// [BatchSize]: https://docs.rs/criterion/latest/criterion/enum.BatchSize.html
     /// [`pipeline combinators`]: crate::batch::Batch
     fn iter_proptest_combinators<R, S, O>(&mut self, strategy: S, routine: R, batch_size: usize)
     where

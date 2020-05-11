@@ -35,7 +35,7 @@ const RST: u8 = 0b0000_0100;
 const SYN: u8 = 0b0000_0010;
 const FIN: u8 = 0b0000_0001;
 
-/// Transmission Control Protocol packet based on [`IETF RFC 793`].
+/// Transmission Control Protocol packet based on [IETF RFC 793].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -81,9 +81,9 @@ const FIN: u8 = 0b0000_0001;
 ///      integral number of 32 bits long.
 ///
 /// - *Control Bits*: (9 bits) [from left to right]
-///      - NS:   ECN-nonce nonce sum [`IETF RFC 3540`]
-///      - CWR:  Congestion Window Reduced flag [`IETF RFC 3168`]
-///      - ECE:  ECN-Echo flag [`IETF RFC 3168`]
+///      - NS:   ECN-nonce nonce sum [IETF RFC 3540]
+///      - CWR:  Congestion Window Reduced flag [IETF RFC 3168]
+///      - ECE:  ECN-Echo flag [IETF RFC 3168]
 ///      - URG:  Urgent Pointer field significant
 ///      - ACK:  Acknowledgment field significant
 ///      - PSH:  Push Function
@@ -112,9 +112,9 @@ const FIN: u8 = 0b0000_0001;
 ///     multiple of 8 bits in length.  All options are included in the
 ///     checksum.
 ///
-/// [`IETF RFC 793`]: https://tools.ietf.org/html/rfc793#section-3.1
-/// [`IETF RFC 3540`]: https://tools.ietf.org/html/rfc3540
-/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
+/// [IETF RFC 793]: https://tools.ietf.org/html/rfc793#section-3.1
+/// [IETF RFC 3540]: https://tools.ietf.org/html/rfc3540
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 pub struct Tcp<E: IpPacket> {
     envelope: E,
     header: NonNull<TcpHeader>,

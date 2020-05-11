@@ -60,7 +60,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// # 802.1Q aka Dot1q
 ///
 /// For networks support virtual LANs, the frame may include an extra VLAN
-/// tag after the source MAC as specified in [`IEEE 802.1Q`].
+/// tag after the source MAC as specified in [IEEE 802.1Q].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -101,7 +101,7 @@ const VLAN_802_1AD: u16 = 0x88a8;
 ///
 /// # 802.1ad aka QinQ
 ///
-/// The frame may be double tagged as per [`IEEE 802.1ad`].
+/// The frame may be double tagged as per [IEEE 802.1ad].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -116,8 +116,8 @@ const VLAN_802_1AD: u16 = 0x88a8;
 /// S-TAG, or service tag, comes first, followed by the inner C-TAG, or customer
 /// tag. In such cases, 802.1ad specifies a TPID of `0x88a8` for S-TAG.
 ///
-/// [`IEEE 802.1Q`]: https://en.wikipedia.org/wiki/IEEE_802.1Q
-/// [`IEEE 802.1ad`]: https://en.wikipedia.org/wiki/IEEE_802.1ad
+/// [IEEE 802.1Q]: https://en.wikipedia.org/wiki/IEEE_802.1Q
+/// [IEEE 802.1ad]: https://en.wikipedia.org/wiki/IEEE_802.1ad
 pub struct Ethernet {
     envelope: Mbuf,
     header: NonNull<EthernetHeader>,

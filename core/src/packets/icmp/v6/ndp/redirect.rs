@@ -45,7 +45,7 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-
 /// ```
 ///
-/// - *Reserved*:       This field is unused.  It MUST be initialized to
+/// - *Reserved*:       This field is unused. It MUST be initialized to
 ///                     zero by the sender and MUST be ignored by the
 ///                     receiver.
 ///
@@ -59,7 +59,7 @@ use std::ptr::NonNull;
 /// Possible options:
 ///
 /// - *Target link-layer address*:
-///                     The link-layer address for the target.  It SHOULD
+///                     The link-layer address for the target. It SHOULD
 ///                     be included (if known).
 ///
 /// - *Redirected Header*:

@@ -31,7 +31,7 @@ use std::ptr::NonNull;
 const FRAG_OS: u16be = u16be(u16::to_be(!0b111));
 const FLAG_MORE: u16be = u16be(u16::to_be(0b1));
 
-/// IPv6 Fragment Extension packet based on [`IETF RFC 8200`].
+/// IPv6 Fragment Extension packet based on [IETF RFC 8200].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -69,7 +69,7 @@ const FLAG_MORE: u16be = u16be(u16::to_be(0b1));
 /// `push` and `remove` should be used with care. The result is likely not
 /// a valid packet without additional fixes.
 ///
-/// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-4.5
+/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-4.5
 pub struct Fragment<E: Ipv6Packet> {
     envelope: E,
     header: NonNull<FragmentHeader>,

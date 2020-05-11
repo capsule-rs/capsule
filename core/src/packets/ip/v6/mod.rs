@@ -34,9 +34,9 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
 
-/// The minimum IPv6 MTU defined in [`IETF RFC 2460`].
+/// The minimum IPv6 MTU defined in [IETF RFC 2460].
 ///
-/// [`IETF RFC 2460`]: https://tools.ietf.org/html/rfc2460#section-5
+/// [IETF RFC 2460]: https://tools.ietf.org/html/rfc2460#section-5
 pub const IPV6_MIN_MTU: usize = 1280;
 
 // Masks
@@ -44,7 +44,7 @@ const DSCP: u32be = u32be(u32::to_be(0x0fc0_0000));
 const ECN: u32be = u32be(u32::to_be(0x0030_0000));
 const FLOW: u32be = u32be(u32::to_be(0xfffff));
 
-/// Internet Protocol v6 based on [`IETF RFC 8200`].
+/// Internet Protocol v6 based on [IETF RFC 8200].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -63,11 +63,11 @@ const FLOW: u32be = u32be(u32::to_be(0xfffff));
 /// - *Version*:              4-bit Internet Protocol version number = 6.
 ///
 /// - *DSCP*:                 6-bit Differentiated services codepoint defined
-///                           in [`IETF RFC 2474`]. Used to select the per hop
+///                           in [IETF RFC 2474]. Used to select the per hop
 ///                           behavior a packet experiences at each node.
 ///
 /// - *ECN*:                  2-bit Explicit congestion notification codepoint
-///                           defined in [`IETF RFC 3168`].
+///                           defined in [IETF RFC 3168].
 ///
 /// - *Flow Label*:           20-bit flow label.
 ///
@@ -92,9 +92,9 @@ const FLOW: u32be = u32be(u32::to_be(0xfffff));
 ///                           packet (possibly not the ultimate recipient, if
 ///                           a Routing header is present).
 ///
-/// [`IETF RFC 8200`]: https://tools.ietf.org/html/rfc8200#section-3
-/// [`IETF RFC 2474`]: https://tools.ietf.org/html/rfc2474
-/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
+/// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
+/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 pub struct Ipv6 {
     envelope: Ethernet,
     header: NonNull<Ipv6Header>,

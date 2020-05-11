@@ -23,9 +23,9 @@ use std::str::FromStr;
 
 const IPV6ADDR_BITS: usize = 128;
 
-/// [`CIDR`] range for IPv6 addresses.
+/// [CIDR] range for IPv6 addresses.
 ///
-/// [`CIDR`]: https://tools.ietf.org/html/rfc4291#section-2.3
+/// [CIDR]: https://tools.ietf.org/html/rfc4291#section-2.3
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ipv6Cidr {
     address: Ipv6Addr,

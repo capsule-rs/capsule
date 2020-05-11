@@ -28,13 +28,13 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
 
-/// The minimum IPv4 MTU defined in [`IETF RFC 791`].
+/// The minimum IPv4 MTU defined in [IETF RFC 791].
 ///
 /// Every internet module must be able to forward a datagram of 68 octets
 /// without further fragmentation.  This is because an internet header may
 /// be up to 60 octets, and the minimum fragment is 8 octets.
 ///
-/// [`IETF RFC 791`]: https://tools.ietf.org/html/rfc791
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791
 pub const IPV4_MIN_MTU: usize = 68;
 
 // Masks.
@@ -43,7 +43,7 @@ const ECN: u8 = !DSCP;
 const FLAGS_DF: u16be = u16be(u16::to_be(0b0100_0000_0000_0000));
 const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 
-/// Internet Protocol v4 based on [`IETF RFC 791`].
+/// Internet Protocol v4 based on [IETF RFC 791].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -73,11 +73,11 @@ const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 ///      the minimum value for a correct header is 5.
 ///
 /// - *DSCP*: (6 bits)
-///      Differentiated services codepoint defined in [`IETF RFC 2474`]. Used to
+///      Differentiated services codepoint defined in [IETF RFC 2474]. Used to
 ///      select the per hop behavior a packet experiences at each node.
 ///
 /// - *ECN*: (2 bits)
-///      Explicit congestion notification codepoint defined in [`IETF RFC 3168`].
+///      Explicit congestion notification codepoint defined in [IETF RFC 3168].
 ///
 /// - *Total Length*: (16 bits)
 ///      Total Length is the length of the datagram, measured in octets,
@@ -139,9 +139,9 @@ const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 ///      is their transmission in any particular datagram, not their
 ///      implementation.
 ///
-/// [`IETF RFC 791`]: https://tools.ietf.org/html/rfc791#section-3.1
-/// [`IETF RFC 2474`]: https://tools.ietf.org/html/rfc2474
-/// [`IETF RFC 3168`]: https://tools.ietf.org/html/rfc3168
+/// [IETF RFC 791]: https://tools.ietf.org/html/rfc791#section-3.1
+/// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
+/// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
 pub struct Ipv4 {
     envelope: Ethernet,
     header: NonNull<Ipv4Header>,

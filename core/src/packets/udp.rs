@@ -25,7 +25,7 @@ use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
 
-/// User Datagram Protocol packet based on [`IETF RFC 768`].
+/// User Datagram Protocol packet based on [IETF RFC 768].
 ///
 /// ```
 ///  0                   1                   2                   3
@@ -41,7 +41,7 @@ use std::ptr::NonNull;
 ///
 /// - *Source Port*: (16 bits)
 ///      An  optional field that, when meaningful, indicates the port
-///      of the sending  process, and may be assumed to be the port to which a
+///      of the sending process, and may be assumed to be the port to which a
 ///      reply should be addressed in the absence of any other information. If
 ///      not used, a value of zero is inserted.
 ///
@@ -51,7 +51,7 @@ use std::ptr::NonNull;
 ///
 /// - *Length*: (16 bits)
 ///      The length  in octets of this user datagram including its
-///      header and the data. (This  means the minimum value of the length is
+///      header and the data. (This means the minimum value of the length is
 ///      eight.)
 ///
 /// - *Checksum*: (16 bits)
@@ -60,17 +60,12 @@ use std::ptr::NonNull;
 ///      the data, padded with zero octets at the end (if necessary) to make a
 ///      multiple of two octets.
 ///
-///      The pseudo  header conceptually prefixed to the UDP header contains the
-///      source address,  the destination address, the protocol, and the UDP
+///      The pseudo header conceptually prefixed to the UDP header contains the
+///      source address, the destination address, the protocol, and the UDP
 ///      length. This information gives protection against misrouted datagrams.
 ///      This checksum procedure is the same as is used in TCP.
 ///
-///      If the computed  checksum  is zero,  it is transmitted  as all ones (the
-///      equivalent  in one's complement  arithmetic).   An all zero  transmitted
-///      checksum  value means that the transmitter  generated  no checksum  (for
-///      debugging or for higher level protocols that don't care).
-///
-/// [`IETF RFC 768`]: https://tools.ietf.org/html/rfc768
+/// [IETF RFC 768]: https://tools.ietf.org/html/rfc768
 pub struct Udp<E: IpPacket> {
     envelope: E,
     header: NonNull<UdpHeader>,
