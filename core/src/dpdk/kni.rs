@@ -17,7 +17,9 @@
 */
 
 use super::{Mbuf, PortId};
+use crate::dpdk::DpdkError;
 use crate::ffi::{self, AsStr, ToResult};
+
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
@@ -97,7 +99,9 @@ impl KniRx {
 
         unsafe {
             // checks if there are any link change requests, and handle them.
-            if let Err(err) = ffi::rte_kni_handle_request(self.raw.as_mut()).to_result() {
+            if let Err(err) =
+                ffi::rte_kni_handle_request(self.raw.as_mut()).to_result(|_| DpdkError::new())
+            {
                 warn!(message = "failed to handle change link requests.", ?err);
             }
         }
@@ -298,7 +302,9 @@ impl Drop for Kni {
     fn drop(&mut self) {
         debug!("freeing kernel interface.");
 
-        if let Err(err) = unsafe { ffi::rte_kni_release(self.raw_mut()).to_result() } {
+        if let Err(err) =
+            unsafe { ffi::rte_kni_release(self.raw_mut()).to_result(|_| DpdkError::new()) }
+        {
             error!(message = "failed to release KNI device.", ?err);
         }
     }
@@ -381,7 +387,7 @@ impl<'a> KniBuilder<'a> {
 
         unsafe {
             ffi::rte_kni_alloc(self.mempool, &self.conf, &mut self.ops)
-                .to_result()
+                .to_result(|_| DpdkError::new())
                 .map(Kni::new)
         }
     }
@@ -391,7 +397,7 @@ impl<'a> KniBuilder<'a> {
 pub(crate) fn kni_init(max: usize) -> Fallible<()> {
     unsafe {
         ffi::rte_kni_init(max as raw::c_uint)
-            .to_result()
+            .to_result(DpdkError::from_errno)
             .map(|_| ())
     }
 }

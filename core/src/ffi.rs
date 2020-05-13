@@ -18,9 +18,8 @@
 
 pub(crate) use capsule_ffi::*;
 
-use crate::dpdk::DpdkError;
 use crate::warn;
-use failure::Fallible;
+use failure::{Fail, Fallible};
 use std::ffi::{CStr, CString};
 use std::os::raw;
 use std::ptr::NonNull;
@@ -73,31 +72,65 @@ impl ToCString for &str {
     }
 }
 
-/// Simplify FFI binding's return to `Result` conversion.
+/// Simplify dpdk FFI binding's return to a `Result` type.
+///
+/// # Example
+///
+/// ```
+/// ffi::rte_eth_add_tx_callback(..., ..., ..., ...)
+///     .to_result(|_| {
+///         DpdkError::new()
+/// })?;
+/// ```
 pub(crate) trait ToResult {
     type Ok;
 
-    fn to_result(self) -> Fallible<Self::Ok>;
-}
-
-impl ToResult for raw::c_int {
-    type Ok = u32;
-
-    #[inline]
-    fn to_result(self) -> Fallible<Self::Ok> {
-        match self {
-            -1 => Err(DpdkError::new().into()),
-            err if err < 0 => Err(DpdkError::new_with_errno(-err).into()),
-            _ => Ok(self as u32),
-        }
-    }
+    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    where
+        F: FnOnce(Self) -> E,
+        Self: Sized;
 }
 
 impl<T> ToResult for *mut T {
     type Ok = NonNull<T>;
 
     #[inline]
-    fn to_result(self) -> Fallible<Self::Ok> {
-        NonNull::new(self).ok_or_else(|| DpdkError::new().into())
+    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    where
+        F: FnOnce(Self) -> E,
+    {
+        NonNull::new(self).ok_or_else(|| f(self).into())
+    }
+}
+
+impl<T> ToResult for *const T {
+    type Ok = *const T;
+
+    #[inline]
+    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    where
+        F: FnOnce(Self) -> E,
+    {
+        if self.is_null() {
+            Err(f(self).into())
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+impl ToResult for raw::c_int {
+    type Ok = u32;
+
+    #[inline]
+    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    where
+        F: FnOnce(Self) -> E,
+    {
+        if self >= 0 {
+            Ok(self as u32)
+        } else {
+            Err(f(self).into())
+        }
     }
 }

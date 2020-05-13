@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::{CoreId, PortId};
-use crate::ffi::{self, ToCString, ToResult};
+use crate::dpdk::{CoreId, DpdkError, PortId, RxTxQueue};
+use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, error};
-use failure::Fallible;
+use failure::{Fail, Fallible};
 use std::fmt;
 use std::os::raw;
 use std::ptr::NonNull;
@@ -28,8 +28,31 @@ use std::ptr::NonNull;
 const DLT_EN10MB: raw::c_int = 1;
 const PCAP_SNAPSHOT_LEN: raw::c_int = ffi::RTE_MBUF_DEFAULT_BUF_SIZE as raw::c_int;
 
-/// Packet Capture (pcap) writer/dumper for packets
-pub(crate) struct Pcap {
+/// An error generated in `libpcap`.
+///
+/// When an FFI call fails, either a specified error message or an `errno` is
+/// translated into a `PcapError`.
+#[derive(Debug, Fail)]
+#[fail(display = "{}", _0)]
+struct PcapError(String);
+
+impl PcapError {
+    /// Returns the `PcapError` with the given error message.
+    #[inline]
+    fn new(msg: &str) -> Self {
+        PcapError(msg.into())
+    }
+
+    /// Returns the `PcapError` pertaining to the last `libpcap` error.
+    #[inline]
+    fn get_error(handle: NonNull<ffi::pcap_t>) -> Self {
+        let msg = unsafe { ffi::pcap_geterr(handle.as_ptr()) };
+        PcapError::new((msg as *const raw::c_char).as_str())
+    }
+}
+
+/// Packet Capture (`pcap`) writer/dumper for packets
+struct Pcap {
     path: String,
     handle: NonNull<ffi::pcap_t>,
     dumper: NonNull<ffi::pcap_dumper_t>,
@@ -37,14 +60,15 @@ pub(crate) struct Pcap {
 
 impl Pcap {
     /// Creates a file for dumping packets into from a given file path.
-    pub(crate) fn create(path: &str) -> Fallible<Pcap> {
+    fn create(path: &str) -> Fallible<Pcap> {
         unsafe {
-            let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
+            let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
+                .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
             let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.to_cstring().as_ptr())
-                .to_result()
-                .map_err(|err| {
+                .to_result(|_| PcapError::get_error(handle))
+                .or_else(|err| {
                     ffi::pcap_close(handle.as_ptr());
-                    err
+                    Err(err)
                 })?;
 
             debug!("PCAP file {} created", path);
@@ -59,14 +83,15 @@ impl Pcap {
 
     /// Append to already-existing file for dumping packets into from a given
     /// file path.
-    pub(crate) fn append(path: &str) -> Fallible<Pcap> {
+    fn append(path: &str) -> Fallible<Pcap> {
         unsafe {
-            let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN).to_result()?;
+            let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
+                .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
             let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.to_cstring().as_ptr())
-                .to_result()
-                .map_err(|err| {
+                .to_result(|_| PcapError::get_error(handle))
+                .or_else(|err| {
                     ffi::pcap_close(handle.as_ptr());
-                    err
+                    Err(err)
                 })?;
 
             Ok(Pcap {
@@ -77,10 +102,10 @@ impl Pcap {
         }
     }
 
-    /// Write packets to PCAP file handler.
-    pub(crate) fn write(&self, ptrs: &[*mut ffi::rte_mbuf]) -> Fallible<()> {
-        ptrs.iter()
-            .try_for_each(|&p| unsafe { self.dump_packet(p) })?;
+    /// Write packets to `pcap` file handler.
+    unsafe fn write(&self, ptrs: &[*mut ffi::rte_mbuf]) -> Fallible<()> {
+        ptrs.iter().try_for_each(|&p| self.dump_packet(p))?;
+
         self.flush()
     }
 
@@ -89,11 +114,11 @@ impl Pcap {
         pcap_hdr.len = (*ptr).data_len as u32;
         pcap_hdr.caplen = pcap_hdr.len;
 
-        libc::gettimeofday(
+        // If this errors, we'll still want to write packet(s) to the pcap,
+        let _ = libc::gettimeofday(
             &mut pcap_hdr.ts as *mut ffi::timeval as *mut libc::timeval,
             std::ptr::null_mut(),
-        )
-        .to_result()?;
+        );
 
         ffi::pcap_dump(
             self.dumper.as_ptr() as *mut raw::c_uchar,
@@ -107,7 +132,7 @@ impl Pcap {
     fn flush(&self) -> Fallible<()> {
         unsafe {
             ffi::pcap_dump_flush(self.dumper.as_ptr())
-                .to_result()
+                .to_result(|_| PcapError::new("Cannot flush packets to packet capture"))
                 .map(|_| ())
         }
     }
@@ -128,45 +153,95 @@ impl Drop for Pcap {
     }
 }
 
+/// Default formatting for pcap files.
+fn format_pcap_file(port_name: &str, core_id: usize, tx_or_rx: &str) -> String {
+    format!("port-{}-core{}-{}.pcap", port_name, core_id, tx_or_rx)
+}
+
 /// Generate PCAP files for rx/tx queues per port and per core.
-pub(crate) fn create_for_queues(port: PortId, core: CoreId) -> Fallible<()> {
-    Pcap::create(format!("{:?}-{:?}-rx.pcap", port, core).as_str())?;
-    Pcap::create(format!("{:?}-{:?}-tx.pcap", port, core).as_str())?;
+pub(crate) fn capture_queue(
+    port_id: PortId,
+    port_name: &str,
+    core: CoreId,
+    q: RxTxQueue,
+) -> Fallible<()> {
+    match q {
+        RxTxQueue::Rx(rxq) => {
+            Pcap::create(&format_pcap_file(port_name, core.raw(), "rx"))?;
+            unsafe {
+                ffi::rte_eth_add_rx_callback(
+                    port_id.raw(),
+                    rxq.raw(),
+                    Some(append_and_write_rx),
+                    port_name.to_cstring().into_raw() as *mut raw::c_void,
+                )
+                .to_result(|_| DpdkError::new())?;
+            }
+        }
+        RxTxQueue::Tx(txq) => {
+            Pcap::create(&format_pcap_file(port_name, core.raw(), "tx"))?;
+            unsafe {
+                ffi::rte_eth_add_tx_callback(
+                    port_id.raw(),
+                    txq.raw(),
+                    Some(append_and_write_tx),
+                    port_name.to_cstring().into_raw() as *mut raw::c_void,
+                )
+                .to_result(|_| DpdkError::new())?;
+            }
+        }
+    }
+
     Ok(())
 }
 
-/// Append and write slice of packets to an already-created file, logging errors
-/// that may occur.
-///
-/// # Example
-///
-/// ```
-/// pcap::append_and_write(self.port_id, CoreId::current(), "rx", &ptrs);
-/// ```
-pub(crate) fn append_and_write(
-    port: PortId,
-    core: CoreId,
-    tx_or_rx: &str,
-    ptrs: &[*mut ffi::rte_mbuf],
-) {
-    let path = String::from(format!("{:?}-{:?}-{}.pcap", port, core, tx_or_rx).as_str());
-    let _ = Pcap::append(path.as_str())
-        .map_err(|err| {
-            error!(
-                message = "can't append to pcap file",
-                pcap = path.as_str(),
-                ?err
-            )
-        })
-        .map(|pcap| {
-            pcap.write(&ptrs).map_err(|err| {
-                error!(
-                    message = "can't write packets to pcap file",
-                    pcap = path.as_str(),
-                    ?err
-                )
-            })
-        });
+/// Callback fn passed to `rte_eth_add_rx_callback`, which is called on RX
+/// with a burst of packets that have been received on a given port and queue.
+unsafe extern "C" fn append_and_write_rx(
+    _port_id: u16,
+    _queue_id: u16,
+    pkts: *mut *mut ffi::rte_mbuf,
+    num_pkts: u16,
+    _max_pkts: u16,
+    user_param: *mut raw::c_void,
+) -> u16 {
+    append_and_write(
+        (user_param as *const raw::c_char).as_str(),
+        "rx",
+        std::slice::from_raw_parts_mut(pkts, num_pkts as usize),
+    );
+    num_pkts
+}
+
+/// Callback fn passed to `rte_eth_add_tx_callback`, which is called on TX
+/// with a burst of packets immediately before the packets are put onto
+/// the hardware queue for transmission.
+unsafe extern "C" fn append_and_write_tx(
+    _port_id: u16,
+    _queue_id: u16,
+    pkts: *mut *mut ffi::rte_mbuf,
+    num_pkts: u16,
+    user_param: *mut raw::c_void,
+) -> u16 {
+    append_and_write(
+        (user_param as *const raw::c_char).as_str(),
+        "tx",
+        std::slice::from_raw_parts_mut(pkts, num_pkts as usize),
+    );
+    num_pkts
+}
+
+/// Executed within the rx/tx callback functions for writing out to pcap
+/// file(s).
+fn append_and_write(port: &str, tx_or_rx: &str, ptrs: &[*mut ffi::rte_mbuf]) {
+    let path = format_pcap_file(port, CoreId::current().raw(), tx_or_rx);
+    if let Err(err) = Pcap::append(path.as_str()).and_then(|pcap| unsafe { pcap.write(&ptrs) }) {
+        error!(
+            message = "Cannot write/append to pcap file.",
+            pcap = path.as_str(),
+            ?err
+        )
+    }
 }
 
 #[cfg(test)]
@@ -208,7 +283,7 @@ mod tests {
         let udp = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let data_len = udp.data_len();
 
-        let res = writer.write(&[udp.into_ptr()]);
+        let res = unsafe { writer.write(&[udp.into_ptr()]) };
 
         assert!(res.is_ok());
         let len = read_pcap_plen("foo.pcap");
@@ -225,7 +300,7 @@ mod tests {
         let data_len2 = udp2.data_len();
 
         let packets = vec![udp.into_ptr(), udp2.into_ptr()];
-        let res = writer.write(&packets);
+        let res = unsafe { writer.write(&packets) };
         assert!(res.is_ok());
         let len = read_pcap_plen("foo1.pcap");
         assert_eq!((data_len1 + data_len2) as u32, len);
@@ -241,11 +316,23 @@ mod tests {
         let data_len = udp.data_len();
 
         let writer = Pcap::append("foo2.pcap").unwrap();
-        let res = writer.write(&[udp.into_ptr()]);
+        let res = unsafe { writer.write(&[udp.into_ptr()]) };
 
         assert!(res.is_ok());
         let len = read_pcap_plen("foo2.pcap");
         assert_eq!(data_len as u32, len);
         cleanup("foo2.pcap");
+    }
+
+    #[capsule::test]
+    fn append_to_wrong_pcap() {
+        let open = Pcap::create("foo3.pcap");
+        assert!(open.is_ok());
+
+        // fails on append to uninitiated pcap
+        let res = Pcap::append("foo4.pcap");
+        assert!(res.is_err());
+
+        cleanup("foo3.pcap");
     }
 }

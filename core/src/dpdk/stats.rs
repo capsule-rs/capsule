@@ -17,6 +17,7 @@
 */
 
 use super::{Mempool, Port, PortId};
+use crate::dpdk::DpdkError;
 use crate::ffi::{self, AsStr, ToResult};
 use crate::metrics::{labels, Key, Measurement};
 use failure::Fallible;
@@ -60,7 +61,7 @@ impl PortStats {
     pub(crate) fn collect(&self) -> Fallible<Vec<(Key, Measurement)>> {
         let mut stats = ffi::rte_eth_stats::default();
         unsafe {
-            ffi::rte_eth_stats_get(self.id.raw(), &mut stats).to_result()?;
+            ffi::rte_eth_stats_get(self.id.raw(), &mut stats).to_result(DpdkError::from_errno)?;
         }
 
         let mut values = Vec::new();
