@@ -62,6 +62,8 @@
 //! capsule = "0.1"
 //! ```
 //!
+//! ### Using features
+//!
 //! To enable test/bench features for example, you can include Capsule in your
 //! Cargo dependencies with the `testils` feature flag:
 //!
@@ -70,11 +72,19 @@
 //! capsule = { version = "0.1", features = ["testils"] }
 //! ```
 //!
+//! Or, to enable the capturing of port traffic to `pcap` files
+//! automatically per-port, per-core, you can run a Capsule application with the
+//! `pcap-dump` feature flag turned on:
+//!
+//! ```shell
+//! cargo run --features capsule/pcap-dump -- -f capsule-app.toml
+//! ```
+//!
 //! ## Feature flags
 //!
 //! - `default`: Enables metrics by default.
 //! - `metrics`: Enables automatic [`metrics`] collection.
-//! - `pcap-dump`: Enables capturing port traffic to (.pcap) files.
+//! - `pcap-dump`: Enables capturing port traffic to `pcap` files.
 //! - `testils`: Enables utilities for unit testing and benchmarking.
 //! - `full`: Enables all features.
 //!

@@ -17,6 +17,7 @@
 */
 
 use super::{CoreId, Kni, KniBuilder, KniTxQueue, Mbuf, Mempool, MempoolMap, SocketId};
+use crate::dpdk::DpdkError;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::{labels, Counter, SINK};
@@ -69,11 +70,36 @@ impl fmt::Debug for PortId {
 
 /// The index of a receive queue.
 #[derive(Copy, Clone)]
-struct RxQueueIndex(u16);
+pub(crate) struct RxQueueIndex(u16);
+
+impl RxQueueIndex {
+    /// Returns the raw value needed for FFI calls.
+    #[allow(clippy::trivially_copy_pass_by_ref, dead_code)]
+    #[inline]
+    pub(crate) fn raw(&self) -> u16 {
+        self.0
+    }
+}
 
 /// The index of a transmit queue.
 #[derive(Copy, Clone)]
-struct TxQueueIndex(u16);
+pub(crate) struct TxQueueIndex(u16);
+
+impl TxQueueIndex {
+    /// Returns the raw value needed for FFI calls.
+    #[allow(clippy::trivially_copy_pass_by_ref, dead_code)]
+    #[inline]
+    pub(crate) fn raw(&self) -> u16 {
+        self.0
+    }
+}
+
+/// Either queue type (receive or transmit) with associated index.
+#[allow(dead_code)]
+pub(crate) enum RxTxQueue {
+    Rx(RxQueueIndex),
+    Tx(TxQueueIndex),
+}
 
 /// The receive and transmit queue abstraction. Instead of modeling them
 /// as two standalone queues, in the run-to-completion mode, they are modeled
@@ -135,9 +161,6 @@ impl PortQueue {
         #[cfg(feature = "metrics")]
         self.received.as_ref().unwrap().record(len as u64);
 
-        #[cfg(feature = "pcap-dump")]
-        pcap::append_and_write(self.port_id, CoreId::current(), "rx", &ptrs);
-
         unsafe {
             ptrs.set_len(len as usize);
             ptrs.into_iter()
@@ -165,13 +188,7 @@ impl PortQueue {
                     // progress. we will keep trying until all packets are sent. drains
                     // the ones already sent first and try again on the rest.
                     let _drained = ptrs.drain(..sent as usize).collect::<Vec<_>>();
-
-                    #[cfg(feature = "pcap-dump")]
-                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &_drained);
                 } else {
-                    #[cfg(feature = "pcap-dump")]
-                    pcap::append_and_write(self.port_id, CoreId::current(), "tx", &ptrs);
-
                     break;
                 }
             } else {
@@ -308,7 +325,7 @@ impl Port {
     /// If the port fails to start, `DpdkError` is returned.
     pub(crate) fn start(&mut self) -> Fallible<()> {
         unsafe {
-            ffi::rte_eth_dev_start(self.id.0).to_result()?;
+            ffi::rte_eth_dev_start(self.id.0).to_result(DpdkError::from_errno)?;
         }
 
         info!("started port {}.", self.name());
@@ -383,7 +400,7 @@ impl<'a> PortBuilder<'a> {
         let mut port_id = 0u16;
         unsafe {
             ffi::rte_eth_dev_get_port_by_name(device.clone().to_cstring().as_ptr(), &mut port_id)
-                .to_result()?;
+                .to_result(DpdkError::from_errno)?;
         }
 
         let port_id = PortId(port_id);
@@ -451,7 +468,7 @@ impl<'a> PortBuilder<'a> {
 
         unsafe {
             ffi::rte_eth_dev_adjust_nb_rx_tx_desc(self.port_id.0, &mut rxd2, &mut txd2)
-                .to_result()?;
+                .to_result(DpdkError::from_errno)?;
         }
 
         info!(
@@ -504,7 +521,8 @@ impl<'a> PortBuilder<'a> {
 
         // must configure the device first before everything else.
         unsafe {
-            ffi::rte_eth_dev_configure(self.port_id.0, len, len, &conf).to_result()?;
+            ffi::rte_eth_dev_configure(self.port_id.0, len, len, &conf)
+                .to_result(DpdkError::from_errno)?;
         }
 
         // if the port is virtual, we will allocate it to the socket of
@@ -556,7 +574,7 @@ impl<'a> PortBuilder<'a> {
                     ptr::null(),
                     mempool,
                 )
-                .to_result()?;
+                .to_result(DpdkError::from_errno)?;
             }
 
             // configures the TX queue with defaults
@@ -569,11 +587,25 @@ impl<'a> PortBuilder<'a> {
                     socket_id.0 as raw::c_uint,
                     ptr::null(),
                 )
-                .to_result()?;
+                .to_result(DpdkError::from_errno)?;
             }
 
             #[cfg(feature = "pcap-dump")]
-            pcap::create_for_queues(self.port_id, core_id)?;
+            {
+                pcap::capture_queue(
+                    self.port_id,
+                    self.name.as_str(),
+                    core_id,
+                    RxTxQueue::Rx(rxq),
+                )?;
+
+                pcap::capture_queue(
+                    self.port_id,
+                    self.name.as_str(),
+                    core_id,
+                    RxTxQueue::Tx(txq),
+                )?;
+            }
 
             let mut q = PortQueue::new(self.port_id, rxq, txq);
 

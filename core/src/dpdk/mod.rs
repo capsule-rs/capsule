@@ -44,7 +44,7 @@ use std::os::raw;
 
 /// An error generated in `libdpdk`.
 ///
-/// When a FFI call fails, the `errno` is translated into `DpdkError`.
+/// When an FFI call fails, the `errno` is translated into `DpdkError`.
 #[derive(Debug, Fail)]
 #[fail(display = "{}", _0)]
 pub(crate) struct DpdkError(String);
@@ -54,15 +54,18 @@ impl DpdkError {
     /// thread.
     #[inline]
     pub(crate) fn new() -> Self {
-        let errno = unsafe { ffi::_rte_errno() };
-        DpdkError::new_with_errno(errno)
+        DpdkError::from_errno(-1)
     }
 
     /// Returns the `DpdkError` for a specific `errno`.
     #[inline]
-    pub(crate) fn new_with_errno(errno: raw::c_int) -> Self {
-        let msg = unsafe { ffi::rte_strerror(errno) };
-        DpdkError(msg.as_str().into())
+    fn from_errno(errno: raw::c_int) -> Self {
+        let errno = if errno == -1 {
+            unsafe { ffi::_rte_errno() }
+        } else {
+            -errno
+        };
+        DpdkError(unsafe { ffi::rte_strerror(errno).as_str().into() })
     }
 }
 
@@ -155,7 +158,7 @@ impl CoreId {
             let mut set: libc::cpu_set_t = mem::zeroed();
             libc::CPU_SET(self.0, &mut set);
             let mut set: ffi::rte_cpuset_t = mem::transmute(set);
-            ffi::rte_thread_set_affinity(&mut set).to_result()?;
+            ffi::rte_thread_set_affinity(&mut set).to_result(DpdkError::from_errno)?;
         }
 
         CURRENT_CORE_ID.with(|tls| tls.set(*self));
@@ -187,12 +190,16 @@ pub(crate) fn eal_init(args: Vec<String>) -> Fallible<()> {
     let res = unsafe { ffi::rte_eal_init(len, ptrs.as_mut_ptr()) };
     debug!("EAL parsed {} arguments.", res);
 
-    res.to_result().map(|_| ())
+    res.to_result(DpdkError::from_errno).map(|_| ())
 }
 
 /// Cleans up the Environment Abstraction Layer (EAL).
 pub(crate) fn eal_cleanup() -> Fallible<()> {
-    unsafe { ffi::rte_eal_cleanup().to_result().map(|_| ()) }
+    unsafe {
+        ffi::rte_eal_cleanup()
+            .to_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
 }
 
 /// Returns the `MacAddr` of a port.

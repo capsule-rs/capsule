@@ -17,6 +17,7 @@
 */
 
 use super::SocketId;
+use crate::dpdk::DpdkError;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, info};
 use failure::{Fail, Fallible};
@@ -64,7 +65,7 @@ impl Mempool {
                 ffi::RTE_MBUF_DEFAULT_BUF_SIZE as u16,
                 socket_id.raw(),
             )
-            .to_result()?
+            .to_result(|_| DpdkError::new())?
         };
 
         info!("created {}.", name);
@@ -127,8 +128,13 @@ thread_local! {
 
 /// Error indicating the `Mempool` is not found.
 #[derive(Debug, Fail)]
-#[fail(display = "Mempool for {:?} not found.", _0)]
-pub(crate) struct MempoolNotFound(SocketId);
+pub(crate) enum MempoolError {
+    #[fail(display = "Cannot allocate a new mbuf from mempool")]
+    Exhausted,
+
+    #[fail(display = "Mempool for {:?} not found.", _0)]
+    NotFound(SocketId),
+}
 
 /// A specialized hash map of `SocketId` to `&mut Mempool`.
 #[derive(Debug)]
@@ -155,11 +161,11 @@ impl<'a> MempoolMap<'a> {
     ///
     /// # Errors
     ///
-    /// If the value is not found, `MempoolNotFound` is returned.
+    /// If the value is not found, `MempoolError::NotFound` is returned.
     pub(crate) fn get_raw(&mut self, socket_id: SocketId) -> Fallible<&mut ffi::rte_mempool> {
         self.inner
             .get_mut(&socket_id)
-            .ok_or_else(|| MempoolNotFound(socket_id).into())
+            .ok_or_else(|| MempoolError::NotFound(socket_id).into())
             .map(|pool| pool.raw_mut())
     }
 }

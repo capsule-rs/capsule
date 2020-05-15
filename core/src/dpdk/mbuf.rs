@@ -17,6 +17,7 @@
 */
 
 use super::MEMPOOL;
+use crate::dpdk::{DpdkError, MempoolError};
 use crate::ffi::{self, ToResult};
 use crate::packets::{Internal, Packet};
 use crate::{ensure, trace};
@@ -122,7 +123,8 @@ impl Mbuf {
     #[inline]
     pub fn new() -> Fallible<Self> {
         let mempool = MEMPOOL.with(|tls| tls.get());
-        let raw = unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result()? };
+        let raw =
+            unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result(|_| MempoolError::Exhausted)? };
         Ok(Mbuf {
             raw,
             should_free: true,
@@ -363,7 +365,7 @@ impl Mbuf {
 
         let mbufs = unsafe {
             ffi::_rte_pktmbuf_alloc_bulk(mempool, ptrs.as_mut_ptr(), len as raw::c_uint)
-                .to_result()?;
+                .to_result(DpdkError::from_errno)?;
 
             ptrs.set_len(len);
             ptrs.into_iter()
