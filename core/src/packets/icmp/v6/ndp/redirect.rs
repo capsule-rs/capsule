@@ -184,7 +184,7 @@ impl<E: Ipv6Packet> Icmpv6Message for Redirect<E> {
     /// is set to account for the original IP header and data.
     ///
     /// [minimum IPv6 MTU]: IPV6_MIN_MTU
-    /// [`checksum`]: Icmpv6::checksum
+    /// [`checksum`]: Icmpv6Packet::checksum
     /// [`RedirectedHeader`]: RedirectedHeader
     #[inline]
     fn reconcile(&mut self) {

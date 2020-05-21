@@ -160,7 +160,7 @@ impl<E: Ipv6Packet> Icmpv6Message for PacketTooBig<E> {
     /// `PacketTooBig` message.
     ///
     /// [minimum IPv6 MTU]: IPV6_MIN_MTU
-    /// [`checksum`]: Icmpv6::checksum
+    /// [`checksum`]: Icmpv6Packet::checksum
     #[inline]
     fn reconcile(&mut self) {
         let _ = self.envelope_mut().truncate(IPV6_MIN_MTU);

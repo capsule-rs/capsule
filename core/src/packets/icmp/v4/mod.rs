@@ -20,9 +20,11 @@
 
 mod echo_reply;
 mod echo_request;
+mod time_exceeded;
 
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
+pub use self::time_exceeded::*;
 pub use capsule_macros::Icmpv4Packet;
 
 use crate::packets::ip::v4::Ipv4;
@@ -276,6 +278,11 @@ pub mod Icmpv4Types {
     ///
     /// [Echo Reply]: crate::packets::icmp::v4::EchoReply
     pub const EchoReply: Icmpv4Type = Icmpv4Type(0);
+
+    /// Message type for [Time Exceeded].
+    ///
+    /// [Time Exceeded]: crate::packets::icmp::v4::TimeExceeded
+    pub const TimeExceeded: Icmpv4Type = Icmpv4Type(11);
 }
 
 impl fmt::Display for Icmpv4Type {
@@ -286,6 +293,7 @@ impl fmt::Display for Icmpv4Type {
             match *self {
                 Icmpv4Types::EchoRequest => "Echo Request".to_string(),
                 Icmpv4Types::EchoReply => "Echo Reply".to_string(),
+                Icmpv4Types::TimeExceeded => "Time Exceeded".to_string(),
                 _ => format!("{}", self.0),
             }
         )

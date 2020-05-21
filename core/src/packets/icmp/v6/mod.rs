@@ -252,7 +252,7 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
     /// * [`checksum`] is computed based on the [`pseudo-header`] and the
     /// full packet.
     ///
-    /// [`checksum`]: Icmpv6::checksum
+    /// [`checksum`]: Icmpv6Packet::checksum
     /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
     #[inline]
     fn reconcile(&mut self) {
@@ -412,7 +412,7 @@ pub trait Icmpv6Message {
     /// the packet matches the assigned number before invoking this function.
     ///
     /// [`Icmpv6::downcast`]: Icmpv6::downcast
-    /// [`msg_type`]: Icmpv6::msg_type
+    /// [`msg_type`]: Icmpv6Packet::msg_type
     fn try_parse(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Fallible<Self>
     where
         Self: Sized;
@@ -429,7 +429,7 @@ pub trait Icmpv6Message {
     /// This function cannot be invoked directly. It is internally used by
     /// [`Packet::push`].
     ///
-    /// [`msg_type`]: Icmpv6::msg_type
+    /// [`msg_type`]: Icmpv6Packet::msg_type
     /// [`Packet::push`]: Packet::push
     fn try_push(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Fallible<Self>
     where
@@ -439,7 +439,7 @@ pub trait Icmpv6Message {
     /// the packet. The default implementation computes the [`checksum`]
     /// based on the pseudo-header and the ICMPv6 message.
     ///
-    /// [`checksum`]: Icmpv6::checksum
+    /// [`checksum`]: Icmpv6Packet::checksum
     #[inline]
     fn reconcile(&mut self) {
         self.icmp_mut().compute_checksum()
