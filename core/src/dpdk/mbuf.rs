@@ -23,6 +23,7 @@ use crate::packets::{Internal, Packet};
 use crate::{ensure, trace};
 use failure::{Fail, Fallible};
 use std::fmt;
+use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
@@ -106,12 +107,34 @@ pub(crate) enum BufferError {
 /// to ensure that the ethernet device's MTU is less than the default size
 /// of a single Mbuf segment (`RTE_MBUF_DEFAULT_DATAROOM` = 2048).
 pub struct Mbuf {
-    raw: NonNull<ffi::rte_mbuf>,
-    // indicating whether to return the buffer back to the mempool when
-    // it goes out of scope. for example, cloned copies should not free
-    // the buffer; or when the ownership of the pointer is given back to
-    // DPDK on transmit.
-    should_free: bool,
+    inner: MbufInner,
+}
+
+/// Original or Clone tagged variant of DPDK message buffer.
+enum MbufInner {
+    /// Original version of the message buffer that should be freed when it goes
+    /// out of scope, unless the ownership of the pointer is given back to
+    /// DPDK on transmit.
+    Original(NonNull<ffi::rte_mbuf>),
+    /// A clone version of the message buffer that should not be freed when
+    /// it goes out of scope.
+    Clone(NonNull<ffi::rte_mbuf>),
+}
+
+impl MbufInner {
+    fn ptr(&self) -> &NonNull<ffi::rte_mbuf> {
+        match self {
+            MbufInner::Original(raw) => raw,
+            MbufInner::Clone(raw) => raw,
+        }
+    }
+
+    fn ptr_mut(&mut self) -> &mut NonNull<ffi::rte_mbuf> {
+        match self {
+            MbufInner::Original(ref mut raw) => raw,
+            MbufInner::Clone(ref mut raw) => raw,
+        }
+    }
 }
 
 impl Mbuf {
@@ -125,9 +148,9 @@ impl Mbuf {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw =
             unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result(|_| MempoolError::Exhausted)? };
+
         Ok(Mbuf {
-            raw,
-            should_free: true,
+            inner: MbufInner::Original(raw),
         })
     }
 
@@ -144,21 +167,20 @@ impl Mbuf {
     #[inline]
     pub(crate) unsafe fn from_ptr(ptr: *mut ffi::rte_mbuf) -> Self {
         Mbuf {
-            raw: NonNull::new_unchecked(ptr),
-            should_free: true,
+            inner: MbufInner::Original(NonNull::new_unchecked(ptr)),
         }
     }
 
     /// Returns the raw struct needed for FFI calls.
     #[inline]
     fn raw(&self) -> &ffi::rte_mbuf {
-        unsafe { self.raw.as_ref() }
+        unsafe { self.inner.ptr().as_ref() }
     }
 
     /// Returns the raw struct needed for FFI calls.
     #[inline]
     fn raw_mut(&mut self) -> &mut ffi::rte_mbuf {
-        unsafe { self.raw.as_mut() }
+        unsafe { self.inner.ptr_mut().as_mut() }
     }
 
     /// Returns amount of data stored in the buffer.
@@ -351,10 +373,9 @@ impl Mbuf {
     /// The `Mbuf` is consumed. It is the caller's the responsibility to
     /// free the raw pointer after use. Otherwise the buffer is leaked.
     #[inline]
-    pub(crate) fn into_ptr(mut self) -> *mut ffi::rte_mbuf {
-        let ptr = self.raw.as_ptr();
-        // no longer has ownership, don't return the buffer back to the pool.
-        self.should_free = false;
+    pub(crate) fn into_ptr(self) -> *mut ffi::rte_mbuf {
+        let ptr = self.inner.ptr().as_ptr();
+        mem::forget(self);
         ptr
     }
 
@@ -397,12 +418,14 @@ impl fmt::Debug for Mbuf {
 
 impl Drop for Mbuf {
     fn drop(&mut self) {
-        if self.should_free {
-            trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
-
-            unsafe {
-                ffi::_rte_pktmbuf_free(self.raw_mut());
+        match self.inner {
+            MbufInner::Original(_) => {
+                trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
+                unsafe {
+                    ffi::_rte_pktmbuf_free(self.raw_mut());
+                }
             }
+            MbufInner::Clone(_) => (),
         }
     }
 }
@@ -449,11 +472,9 @@ impl Packet for Mbuf {
 
     #[inline]
     unsafe fn clone(&self, _internal: Internal) -> Self {
+        let raw = self.inner.ptr();
         Mbuf {
-            raw: self.raw,
-            // clones shouldn't return the buffer back to the pool when
-            // they are dropped.
-            should_free: false,
+            inner: MbufInner::Clone(*raw),
         }
     }
 
