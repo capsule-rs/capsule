@@ -94,31 +94,31 @@ impl<E: Ipv6Packet> Icmpv6<E> {
 
     /// Returns the message type.
     #[inline]
-    fn msg_type(&self) -> Icmpv6Type {
+    pub fn msg_type(&self) -> Icmpv6Type {
         Icmpv6Type::new(self.header().msg_type)
     }
 
     /// Returns the code.
     #[inline]
-    fn code(&self) -> u8 {
+    pub fn code(&self) -> u8 {
         self.header().code
     }
 
     /// Sets the code.
     #[inline]
-    fn set_code(&mut self, code: u8) {
+    pub fn set_code(&mut self, code: u8) {
         self.header_mut().code = code
     }
 
     /// Returns the checksum.
     #[inline]
-    fn checksum(&self) -> u16 {
+    pub fn checksum(&self) -> u16 {
         self.header().checksum.into()
     }
 
     /// Computes the checksum.
     #[inline]
-    fn compute_checksum(&mut self) {
+    pub fn compute_checksum(&mut self) {
         self.header_mut().checksum = u16be::default();
 
         if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
