@@ -126,7 +126,7 @@ thread_local! {
     pub static MEMPOOL: Cell<*mut ffi::rte_mempool> = Cell::new(ptr::null_mut());
 }
 
-/// Error indicating the `Mempool` is not found.
+/// Error indicating the `Mempool` is not found or is exhaused.
 #[derive(Debug, Fail)]
 pub(crate) enum MempoolError {
     #[fail(display = "Cannot allocate a new mbuf from mempool")]
