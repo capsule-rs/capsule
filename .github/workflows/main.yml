@@ -28,11 +28,12 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* Build @ audit'
+          job_name: "*${{ github.workflow }}* Build @ audit"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # issue on critcmp: https://github.com/BurntSushi/critcmp/issues/5
   bench-pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-18.04
@@ -67,6 +68,7 @@ jobs:
         run: |
           mkdir -p bench-runs
           critcmp --export changes > bench-runs/changes.json
+        continue-on-error: true
 
       - name: cache-cargo-build
         uses: actions/cache@v1
@@ -87,16 +89,19 @@ jobs:
       - name: export-bench-pr-master
         working-directory: ./bench
         run: critcmp --export master > bench-runs/master.json
+        continue-on-error: true
 
       - name: compare-benches
         working-directory: ./bench/bench-runs
         run: critcmp master.json changes.json -t 5
+        continue-on-error: true
 
       - name: upload-bench-exports
         uses: actions/upload-artifact@v1
         with:
           name: criterion-cmp
           path: ./bench/bench-runs
+        continue-on-error: true
 
       - name: upload-bench-target
         uses: actions/upload-artifact@v1
@@ -109,7 +114,7 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ bench-pr'
+          job_name: "*${{ github.workflow }}* @ bench-pr"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -139,7 +144,7 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ bench'
+          job_name: "*${{ github.workflow }}* @ bench"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -179,55 +184,55 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ check'
+          job_name: "*${{ github.workflow }}* @ check"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  coverage:
-    runs-on: ubuntu-18.04
+  # issue on tarpaulin: https://github.com/xd009642/tarpaulin/issues/461
+  # coverage:
+  #   runs-on: ubuntu-18.04
 
-    container:
-      image: getcapsule/sandbox
-      options: --privileged
+  #   container:
+  #     image: getcapsule/sandbox
+  #     options: --privileged
 
-    steps:
-      - name: install curl
-        run: apt-get update && apt-get install -y curl
+  #   steps:
+  #     - name: install curl
+  #       run: apt-get update && apt-get install -y curl
 
-      - uses: actions/checkout@v2
+  #     - uses: actions/checkout@v2
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         override: true
 
-      - name: install-tarpaulin
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --force cargo-tarpaulin
+  #     - name: install-tarpaulin
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: install
+  #         args: --force cargo-tarpaulin
 
-      - name: run-tarpaulin
-        uses: actions-rs/cargo@v1
-        with:
-          command: tarpaulin
-          args: '-p capsule -l --count --exclude-files examples/* ffi/* macros/* --out Xml -Zpackage-features --features full'
+  #     - name: run-tarpaulin
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: tarpaulin
+  #         args: '-p capsule -l --count --exclude-files examples/* ffi/* macros/* --out Xml -Zpackage-features --features full'
 
-      - uses: codecov/codecov-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./cobertura.xml
+  #     - uses: codecov/codecov-action@v1
+  #       with:
+  #         file: ./cobertura.xml
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ coverage'
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: slack-it
+  #       uses: homoluctus/slatify@v2.1.2
+  #       if: failure() || cancelled()
+  #       with:
+  #         type: ${{ job.status }}
+  #         job_name: '*${{ github.workflow }}* @ coverage'
+  #         url: ${{ secrets.SLACK_WEBHOOK }}
+  #         commit: true
+  #         token: ${{ secrets.GITHUB_TOKEN }}
 
   format:
     runs-on: ubuntu-18.04
@@ -250,7 +255,7 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ format'
+          job_name: "*${{ github.workflow }}* @ format"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -273,7 +278,7 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ lint'
+          job_name: "*${{ github.workflow }}* @ lint"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -307,7 +312,7 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ sanitize'
+          job_name: "*${{ github.workflow }}* @ sanitize"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -330,14 +335,15 @@ jobs:
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}* @ test'
+          job_name: "*${{ github.workflow }}* @ test"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack-pr:
     if: github.event_name == 'pull_request'
-    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
+    # TODO: re-add coverage
+    needs: [audit, bench-pr, check, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -345,14 +351,15 @@ jobs:
         if: always()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}*'
+          job_name: "*${{ github.workflow }}*"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
     if: github.event_name == 'push'
-    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
+    # TODO: re-add coverage
+    needs: [audit, bench, check, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -360,31 +367,33 @@ jobs:
         if: always()
         with:
           type: ${{ job.status }}
-          job_name: '*${{ github.workflow }}*'
+          job_name: "*${{ github.workflow }}*"
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   discord-pr:
     if: github.event_name == 'pull_request'
-    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
+    # TODO: re-add coverage
+    needs: [audit, bench-pr, check, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it
         uses: rjstone/discord-webhook-notify@v1
         with:
           severity: info
-          description: '*${{ github.workflow }} PR Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions'
+          description: "*${{ github.workflow }} PR Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions"
           webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
 
   discord:
     if: github.event_name == 'push'
-    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
+    # TODO: re-add coverage
+    needs: [audit, bench, check, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it
         uses: rjstone/discord-webhook-notify@v1
         with:
           severity: info
-          description: '*${{ github.workflow }} Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions'
+          description: "*${{ github.workflow }} Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions"
           webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
