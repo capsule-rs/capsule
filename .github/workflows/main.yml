@@ -32,6 +32,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   # issue on critcmp: https://github.com/BurntSushi/critcmp/issues/5
   bench-pr:
@@ -118,6 +119,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   bench:
     if: github.event_name == 'push'
@@ -148,6 +150,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   check:
     runs-on: ubuntu-18.04
@@ -188,6 +191,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   # issue on tarpaulin: https://github.com/xd009642/tarpaulin/issues/461
   # coverage:
@@ -233,6 +237,7 @@ jobs:
   #         url: ${{ secrets.SLACK_WEBHOOK }}
   #         commit: true
   #         token: ${{ secrets.GITHUB_TOKEN }}
+  #       continue-on-error: true
 
   format:
     runs-on: ubuntu-18.04
@@ -259,6 +264,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   lint:
     runs-on: ubuntu-18.04
@@ -282,6 +288,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   sanitize:
     runs-on: ubuntu-18.04
@@ -316,6 +323,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   test:
     runs-on: ubuntu-18.04
@@ -339,6 +347,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   slack-pr:
     if: github.event_name == 'pull_request'
@@ -355,6 +364,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   slack:
     if: github.event_name == 'push'
@@ -371,6 +381,7 @@ jobs:
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   discord-pr:
     if: github.event_name == 'pull_request'
@@ -384,6 +395,7 @@ jobs:
           severity: info
           description: "*${{ github.workflow }} PR Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions"
           webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
+        continue-on-error: true
 
   discord:
     if: github.event_name == 'push'
@@ -397,3 +409,4 @@ jobs:
           severity: info
           description: "*${{ github.workflow }} Succeeded!* ~ ${{ github.HEAD_REF }} by ${{ github.ACTOR }} ~ https://github.com/capsule-rs/capsule/actions"
           webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
+        continue-on-error: true
