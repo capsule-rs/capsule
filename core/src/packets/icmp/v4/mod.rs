@@ -20,10 +20,12 @@
 
 mod echo_reply;
 mod echo_request;
+mod redirect;
 mod time_exceeded;
 
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
+pub use self::redirect::*;
 pub use self::time_exceeded::*;
 pub use capsule_macros::Icmpv4Packet;
 
@@ -283,6 +285,11 @@ pub mod Icmpv4Types {
     ///
     /// [Time Exceeded]: crate::packets::icmp::v4::TimeExceeded
     pub const TimeExceeded: Icmpv4Type = Icmpv4Type(11);
+
+    /// Message type for [Redirect].
+    ///
+    /// [Redirect]: crate::packets::icmp::v4::Redirect
+    pub const Redirect: Icmpv4Type = Icmpv4Type(5);
 }
 
 impl fmt::Display for Icmpv4Type {
@@ -294,6 +301,7 @@ impl fmt::Display for Icmpv4Type {
                 Icmpv4Types::EchoRequest => "Echo Request".to_string(),
                 Icmpv4Types::EchoReply => "Echo Reply".to_string(),
                 Icmpv4Types::TimeExceeded => "Time Exceeded".to_string(),
+                Icmpv4Types::Redirect => "Redirect".to_string(),
                 _ => format!("{}", self.0),
             }
         )
