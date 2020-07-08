@@ -29,14 +29,12 @@ const IPV6ADDR_BITS: usize = 128;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ipv6Cidr {
     address: Ipv6Addr,
-    length: usize,
-    prefix: u128,
     mask: u128,
 }
 
 impl Ipv6Cidr {
     /// Iterate through CIDR range addresses.
-    pub fn iter(&self) -> Ipv6CidrIterator {
+    pub fn iter(self) -> Ipv6CidrIterator {
         Ipv6CidrIterator::new(self.network(), self.size())
     }
 
@@ -57,8 +55,6 @@ impl Default for Ipv6Cidr {
     fn default() -> Ipv6Cidr {
         Ipv6Cidr {
             address: Ipv6Addr::UNSPECIFIED,
-            length: Default::default(),
-            prefix: Default::default(),
             mask: Default::default(),
         }
     }
@@ -94,19 +90,6 @@ impl Iterator for Ipv6CidrIterator {
     }
 }
 
-impl IntoIterator for Ipv6Cidr {
-    type IntoIter = Ipv6CidrIterator;
-    type Item = Ipv6Addr;
-    fn into_iter(self) -> Ipv6CidrIterator {
-        let start = u128::from(self.network());
-        let end = start + (self.size() as u128 - 1);
-        Ipv6CidrIterator {
-            next: Some(start),
-            end,
-        }
-    }
-}
-
 impl Cidr for Ipv6Cidr {
     type Addr = Ipv6Addr;
 
@@ -116,8 +99,13 @@ impl Cidr for Ipv6Cidr {
     }
 
     #[inline]
+    fn broadcast(&self) -> Self::Addr {
+        Ipv6Addr::from(self.mask & u128::from(self.address) | !self.mask)
+    }
+
+    #[inline]
     fn contains(&self, address: Self::Addr) -> bool {
-        self.prefix == (self.mask & u128::from(address))
+        (self.mask & u128::from(self.address)) == (self.mask & u128::from(address))
     }
 
     #[inline]
@@ -126,22 +114,13 @@ impl Cidr for Ipv6Cidr {
     }
 
     #[inline]
-    fn broadcast(&self) -> Self::Addr {
-        Ipv6Addr::from(self.mask & u128::from(self.address) | !self.mask)
-    }
-
-    #[inline]
     fn length(&self) -> usize {
-        self.length
+        (!self.mask).leading_zeros() as usize
     }
 
     #[inline]
     fn hostmask(&self) -> Self::Addr {
-        if let Some(mask) = u128::max_value().checked_shr(self.length as u32) {
-            Ipv6Addr::from(mask)
-        } else {
-            Ipv6Addr::from(0)
-        }
+        Ipv6Addr::from(!self.mask)
     }
 
     #[inline]
@@ -157,19 +136,12 @@ impl Cidr for Ipv6Cidr {
             _ => return Err(CidrError::Malformed("Not a valid length".to_owned())),
         };
 
-        let prefix = u128::from(address) & mask;
-
-        Ok(Ipv6Cidr {
-            address,
-            length,
-            prefix,
-            mask,
-        })
+        Ok(Ipv6Cidr { address, mask })
     }
 
     #[inline]
     fn size(&self) -> usize {
-        2usize.pow((IPV6ADDR_BITS - self.length) as u32)
+        2usize.pow((IPV6ADDR_BITS - self.length()) as u32)
     }
 
     #[inline]
@@ -267,13 +239,13 @@ mod tests {
     }
 
     #[test]
-    fn first_in_cidr() {
+    fn cidr_network_address() {
         let cidr = Ipv6Cidr::new(Ipv6Addr::from_str("fd00::").unwrap(), 24).unwrap();
         assert_eq!(cidr.network(), Ipv6Addr::from_str("fd00::").unwrap());
     }
 
     #[test]
-    fn last_in_cidr() {
+    fn cidr_broadcast_address() {
         let cidr = Ipv6Cidr::new(Ipv6Addr::from_str("fd00::").unwrap(), 24).unwrap();
         assert_eq!(
             cidr.broadcast(),

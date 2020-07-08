@@ -46,14 +46,11 @@ pub trait Cidr: Sized {
     /// Returns the IP address prefix.
     fn address(&self) -> Self::Addr;
 
-    /// Checks whether an address is contained within the CIDR range.
-    fn contains(&self, address: Self::Addr) -> bool;
-
-    /// Returns the network address in a CIDR range.
-    fn network(&self) -> Self::Addr;
-
     /// Returns the broadcast address in a CIDR range.
     fn broadcast(&self) -> Self::Addr;
+
+    /// Checks whether an address is contained within the CIDR range.
+    fn contains(&self, address: Self::Addr) -> bool;
 
     /// Returns the CIDR hostmask address.
     fn hostmask(&self) -> Self::Addr;
@@ -63,6 +60,9 @@ pub trait Cidr: Sized {
 
     /// Returns the CIDR netmask.
     fn netmask(&self) -> Self::Addr;
+
+    /// Returns the network address in a CIDR range.
+    fn network(&self) -> Self::Addr;
 
     /// Returns a new CIDR range from a prefix length.
     fn new(address: Self::Addr, length: usize) -> Result<Self, CidrError>;

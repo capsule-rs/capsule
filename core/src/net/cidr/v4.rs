@@ -29,15 +29,13 @@ const IPV4ADDR_BITS: usize = 32;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ipv4Cidr {
     address: Ipv4Addr,
-    length: usize,
-    prefix: u32,
     mask: u32,
 }
 
 impl Ipv4Cidr {
     #[inline]
     /// Iterate through CIDR range addresses.
-    pub fn iter(&self) -> Ipv4CidrIterator {
+    pub fn iter(self) -> Ipv4CidrIterator {
         Ipv4CidrIterator::new(self.network(), self.size())
     }
 
@@ -57,8 +55,6 @@ impl Default for Ipv4Cidr {
     fn default() -> Ipv4Cidr {
         Ipv4Cidr {
             address: Ipv4Addr::UNSPECIFIED,
-            length: Default::default(),
-            prefix: Default::default(),
             mask: Default::default(),
         }
     }
@@ -94,19 +90,6 @@ impl Iterator for Ipv4CidrIterator {
     }
 }
 
-impl IntoIterator for Ipv4Cidr {
-    type IntoIter = Ipv4CidrIterator;
-    type Item = Ipv4Addr;
-    fn into_iter(self) -> Ipv4CidrIterator {
-        let start = u32::from(self.network());
-        let end = start + (self.size() as u32 - 1);
-        Ipv4CidrIterator {
-            next: Some(start),
-            end,
-        }
-    }
-}
-
 impl Cidr for Ipv4Cidr {
     type Addr = Ipv4Addr;
 
@@ -116,37 +99,33 @@ impl Cidr for Ipv4Cidr {
     }
 
     #[inline]
-    fn contains(&self, address: Self::Addr) -> bool {
-        self.prefix == (self.mask & u32::from(address))
-    }
-
-    #[inline]
-    fn network(&self) -> Self::Addr {
-        Ipv4Addr::from(self.mask & u32::from(self.address))
-    }
-
-    #[inline]
     fn broadcast(&self) -> Self::Addr {
         Ipv4Addr::from((self.mask & u32::from(self.address)) | !self.mask)
     }
 
     #[inline]
+    fn contains(&self, address: Self::Addr) -> bool {
+        (self.mask & u32::from(self.address)) == (self.mask & u32::from(address))
+    }
+
+    #[inline]
     fn length(&self) -> usize {
-        self.length
+        (!self.mask).leading_zeros() as usize
     }
 
     #[inline]
     fn hostmask(&self) -> Self::Addr {
-        if let Some(mask) = u32::max_value().checked_shr(self.length as u32) {
-            Ipv4Addr::from(mask)
-        } else {
-            Ipv4Addr::from(0)
-        }
+        Ipv4Addr::from(!self.mask)
     }
 
     #[inline]
     fn netmask(&self) -> Self::Addr {
         Ipv4Addr::from(self.mask)
+    }
+
+    #[inline]
+    fn network(&self) -> Self::Addr {
+        Ipv4Addr::from(self.mask & u32::from(self.address))
     }
 
     #[inline]
@@ -157,19 +136,12 @@ impl Cidr for Ipv4Cidr {
             _ => return Err(CidrError::Malformed("Not a valid length".to_owned())),
         };
 
-        let prefix = u32::from(address) & mask;
-
-        Ok(Ipv4Cidr {
-            address,
-            length,
-            prefix,
-            mask,
-        })
+        Ok(Ipv4Cidr { address, mask })
     }
 
     #[inline]
     fn size(&self) -> usize {
-        2usize.pow((IPV4ADDR_BITS - self.length) as u32)
+        2usize.pow((IPV4ADDR_BITS - self.length()) as u32)
     }
 
     #[inline]
@@ -255,22 +227,13 @@ mod tests {
     }
 
     #[test]
-    fn netmask_length() {
-        let ip1 = Ipv4Addr::from_str("255.255.255.0").unwrap();
-        assert_eq!(Ipv4Cidr::netmask_length(ip1).unwrap(), 24);
-
-        let cidr = Ipv4Cidr::from_str("241.130.201.63/10").unwrap();
-        assert_eq!(Ipv4Cidr::netmask_length(cidr.netmask()).unwrap(), 10);
-    }
-
-    #[test]
-    fn first_in_cidr() {
+    fn cidr_network_address() {
         let cidr = Ipv4Cidr::new(Ipv4Addr::from_str("10.1.0.10").unwrap(), 20).unwrap();
         assert_eq!(cidr.network(), Ipv4Addr::from_str("10.1.0.0").unwrap());
     }
 
     #[test]
-    fn last_in_cidr() {
+    fn cidr_broadcast_address() {
         let cidr = Ipv4Cidr::new(Ipv4Addr::from_str("10.1.0.10").unwrap(), 20).unwrap();
         assert_eq!(cidr.broadcast(), Ipv4Addr::from_str("10.1.15.255").unwrap());
     }
