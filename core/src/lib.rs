@@ -125,6 +125,7 @@ pub mod batch;
 pub mod config;
 mod dpdk;
 mod ffi;
+//mod lpm;
 mod macros;
 #[cfg(feature = "metrics")]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "default", feature = "metrics"))))]
