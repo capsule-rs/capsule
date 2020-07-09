@@ -4,13 +4,15 @@ CLIPPY_ARGS = -- -D clippy::wildcard_dependencies -D rust-2018-idioms -D warning
 CRITERION_PLOTS_DIR = bench/target/criterion
 NIGHTLY := $(shell rustup show|grep nightly 2> /dev/null)
 
+TO_DEVNULL = &>/dev/null
+
 .PHONY: bench check clean clean-plots docs fmt lint find-plots test watch watch-lint
 
 bench:
 	@cargo bench
 
 check:
-	@pushd core && cargo check --all-targets --features full && popd
+	@pushd core $(TO_DEVNULL) && cargo check --all-targets --features full && popd $(TO_DEVNULL)
 	@cargo check --all-targets --workspace --exclude capsule
 
 clean:
@@ -35,15 +37,15 @@ fmt:
 	@cargo fmt --all
 
 lint:
-	@pushd core && cargo clippy --all-targets --features full $(CLIPPY_ARGS) && popd
+	@pushd core $(TO_DEVNULL) && cargo clippy --all-targets --features full $(CLIPPY_ARGS) && popd $(TO_DEVNULL)
 	@cargo clippy --all-targets --workspace --exclude capsule $(CLIPPY_ARGS)
 
 test:
-	@pushd core && cargo test --all-targets --features full && popd
+	@pushd core $(TO_DEVNULL) && cargo test --all-targets --features full && popd $(TO_DEVNULL)
 	@cargo test --all-targets --workspace --exclude capsule
 
 compile-failure:
-	@pushd core && cargo test --features compile_failure && popd
+	@pushd core $(TO_DEVNULL) && cargo test --features compile_failure && popd $(TO_DEVNULL)
 
 watch:
 ifdef WATCH

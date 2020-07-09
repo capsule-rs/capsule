@@ -25,26 +25,51 @@ pub use self::v4::Ipv4Cidr;
 pub use self::v6::Ipv6Cidr;
 
 use failure::Fail;
-use std::net::IpAddr;
 
-/// Error returned when parsing a malformed CIDR range.
+/// Error indicating that a CIDR range cannot be parsed or is handled with an invalid prefix length.
 #[derive(Debug, Fail)]
-#[fail(display = "Failed to parse CIDR: {}", _0)]
-pub struct CidrParseError(String);
+pub enum CidrError {
+    /// Error returned when parsing a malformed CIDR range.
+    #[fail(display = "Failed to parse CIDR: {}", _0)]
+    Malformed(String),
+
+    /// Error returned when converting from v4/v6 address mask to a prefix length.
+    #[fail(display = "Invalid prefix length")]
+    InvalidPrefixLength,
+}
 
 /// Common behaviors for interacting with CIDR ranges.
 pub trait Cidr: Sized {
     /// Type of address, i.e. IPv4 or IPv6, associated with the CIDR.
     type Addr;
 
-    /// IP address prefix.
+    /// Returns the IP address prefix.
     fn address(&self) -> Self::Addr;
-    /// CIDR Prefix length.
-    fn length(&self) -> usize;
-    /// Creates a new CIDR range.
-    fn new(address: Self::Addr, length: usize) -> Result<Self, CidrParseError>;
+
+    /// Returns the broadcast address in a CIDR range.
+    fn broadcast(&self) -> Self::Addr;
+
     /// Checks whether an address is contained within the CIDR range.
     fn contains(&self, address: Self::Addr) -> bool;
-    /// Checks whether a generic IP address is contained within the CIDR range.
-    fn contains_ip(&self, ip: IpAddr) -> bool;
+
+    /// Returns the CIDR hostmask address.
+    fn hostmask(&self) -> Self::Addr;
+
+    /// Returns the CIDR prefix length.
+    fn length(&self) -> usize;
+
+    /// Returns the CIDR netmask.
+    fn netmask(&self) -> Self::Addr;
+
+    /// Returns the network address in a CIDR range.
+    fn network(&self) -> Self::Addr;
+
+    /// Returns a new CIDR range from a prefix length.
+    fn new(address: Self::Addr, length: usize) -> Result<Self, CidrError>;
+
+    /// Returns the number of possible addresses within the CIDR range.
+    fn size(&self) -> usize;
+
+    /// Returns a new CIDR range from a netmask.
+    fn with_netmask(address: Self::Addr, netmask: Self::Addr) -> Result<Self, CidrError>;
 }
