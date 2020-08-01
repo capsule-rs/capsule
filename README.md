@@ -103,7 +103,7 @@ This project and everyone participating in it are governed by the [Capsule Code 
 
 ## Contact
 
-You can contact us either through [`Discord`](https://discord.gg/sVN47RU) or [email](capsule-dev@googlegroups.com).
+You can contact us either through [`Discord`](https://discord.gg/sVN47RU) or [email](mailto:capsule-dev@googlegroups.com).
 
 ## Maintainers
 
