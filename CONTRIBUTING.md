@@ -2,7 +2,7 @@
 
 Thank you for your help improving the project! No contribution is too small and all contributions are valued.
 
-When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](capsule-dev@googlegroups.com) with the `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](mailto:capsule-dev@googlegroups.com) with the `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) before making a change.
 
 This guide will help you get started. Please note that we have a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
