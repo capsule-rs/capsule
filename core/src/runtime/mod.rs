@@ -438,7 +438,7 @@ impl Runtime {
         dur: Duration,
     ) -> Fallible<&mut Self>
     where
-        F: Fn() -> () + Send + Sync + 'static,
+        F: Fn() + Send + Sync + 'static,
     {
         let core_id = CoreId::new(core);
         let thread = &self.get_core(core_id)?.thread;

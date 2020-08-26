@@ -49,7 +49,7 @@
 //!
 //! * [DPDK 19.11]
 //! * [Clang] and [LLVM]
-//! * [Rust 1.43]
+//! * [Rust 1.45]
 //! * [rr] 5.3
 //!
 //! For more information on getting started, please check out Capsule's
@@ -105,7 +105,7 @@
 //! [DPDK 19.11]: https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html
 //! [Clang]: https://clang.llvm.org/
 //! [LLVM]: https://www.llvm.org/
-//! [Rust 1.43]: https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html
+//! [Rust 1.45]: https://blog.rust-lang.org/2020/07/16/Rust-1.45.0.html
 //! [rr]: https://rr-project.org/
 //! [README]: https://github.com/capsule-rs/capsule/blob/master/README.md
 //! [sandbox repo]: https://github.com/capsule-rs/sandbox

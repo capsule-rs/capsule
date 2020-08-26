@@ -17,7 +17,7 @@ doctest = false
 
 [dependencies]
 capsule = { version = "0.1", path = "../../core" }
-colored = "1.8"
+colored = "2.0"
 failure = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.2"
