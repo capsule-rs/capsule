@@ -328,7 +328,7 @@ pub trait Batch {
     where
         D: Eq + Clone + Hash,
         S: Fn(&Self::Item) -> D,
-        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<Self::Item>>>) -> (),
+        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<Self::Item>>>),
         Self: Sized,
     {
         GroupBy::new(self, selector, composer)

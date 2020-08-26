@@ -66,9 +66,9 @@ impl Pcap {
                 .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
             let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.to_cstring().as_ptr())
                 .to_result(|_| PcapError::get_error(handle))
-                .or_else(|err| {
+                .map_err(|err| {
                     ffi::pcap_close(handle.as_ptr());
-                    Err(err)
+                    err
                 })?;
 
             debug!("PCAP file {} created", path);
@@ -89,9 +89,9 @@ impl Pcap {
                 .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
             let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.to_cstring().as_ptr())
                 .to_result(|_| PcapError::get_error(handle))
-                .or_else(|err| {
+                .map_err(|err| {
                     ffi::pcap_close(handle.as_ptr());
-                    Err(err)
+                    err
                 })?;
 
             Ok(Pcap {

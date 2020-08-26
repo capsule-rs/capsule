@@ -95,7 +95,7 @@ where
     #[inline]
     pub fn new<C>(batch: B, selector: S, composer: C) -> Self
     where
-        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<B::Item>>>) -> (),
+        C: FnOnce(&mut HashMap<Option<D>, Box<GroupByBatchBuilder<B::Item>>>),
     {
         // get the builders for the sub batches
         let mut builders = HashMap::new();
