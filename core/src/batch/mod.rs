@@ -87,34 +87,22 @@ impl<T: Packet> Disposition<T> {
 
     /// Returns whether the disposition is `Act`.
     pub fn is_act(&self) -> bool {
-        match self {
-            Disposition::Act(_) => true,
-            _ => false,
-        }
+        matches!(self, Disposition::Act(_))
     }
 
     /// Returns whether the disposition is `Emit`.
     pub fn is_emit(&self) -> bool {
-        match self {
-            Disposition::Emit => true,
-            _ => false,
-        }
+        matches!(self, Disposition::Emit)
     }
 
     /// Returns whether the disposition is `Drop`.
     pub fn is_drop(&self) -> bool {
-        match self {
-            Disposition::Drop(_) => true,
-            _ => false,
-        }
+        matches!(self, Disposition::Drop(_))
     }
 
     /// Returns whether the disposition is `Abort`.
     pub fn is_abort(&self) -> bool {
-        match self {
-            Disposition::Abort(_) => true,
-            _ => false,
-        }
+        matches!(self, Disposition::Abort(_))
     }
 }
 

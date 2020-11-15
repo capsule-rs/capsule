@@ -16,7 +16,7 @@ name = "capsule_ffi"
 doctest = false
 
 [build-dependencies]
-bindgen = "0.53"
+bindgen = "0.55"
 cc = "1.0"
 libc = "0.2"
 

@@ -21,7 +21,7 @@
 //! [`Capsule`]: https://crates.io/crates/capsule
 
 #![recursion_limit = "128"]
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 
 mod derive_packet;
 
@@ -109,6 +109,7 @@ impl Default for AttrArgs {
 ///         ...
 ///         assert!(drop);
 ///     }
+/// }
 /// ```
 #[proc_macro_attribute]
 pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
