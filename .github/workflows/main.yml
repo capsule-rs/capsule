@@ -22,6 +22,7 @@ jobs:
       - uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: slack-it
         uses: homoluctus/slatify@v2.1.2
