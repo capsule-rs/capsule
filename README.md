@@ -23,7 +23,7 @@
 
 # Capsule
 
-A framework for network function development. Written in Rust, inspired by [NetBricks](https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/).
+A framework for network function development. Written in Rust, inspired by [NetBricks](https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/). 
 
 ## Table of Contents
 
@@ -109,10 +109,14 @@ You can contact us either through [`Discord`](https://discord.gg/sVN47RU) or [em
 
 The current maintainers with roles to merge PRs are:
 
-* [Peter Cline](https://github.com/clinedome)
 * [Daniel Jin](https://github.com/drunkirishcoder)
 * [Zeeshan Lakhani](https://github.com/zeeshanlakhani)
 * [Andrew Wang](https://github.com/awangc)
+* [Peter Cline](https://github.com/clinedome)
+
+## Read More About Capsule
+
+* [Modernize network function development with this Rust-based framework](https://opensource.com/article/20/8/capsule-networking)
 
 ## License
 
