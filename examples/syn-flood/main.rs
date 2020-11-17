@@ -24,7 +24,7 @@ use capsule::packets::{Ethernet, Packet, Tcp};
 use capsule::{batch, Mbuf, PortQueue, Runtime};
 use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
-use metrics_runtime::observers::YamlBuilder;
+use metrics_observer_yaml::YamlBuilder;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::time::Duration;

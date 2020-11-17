@@ -21,7 +21,7 @@ use capsule::metrics;
 use capsule::{batch, Runtime};
 use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
-use metrics_runtime::observers::YamlBuilder;
+use metrics_observer_yaml::YamlBuilder;
 use std::time::Duration;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;

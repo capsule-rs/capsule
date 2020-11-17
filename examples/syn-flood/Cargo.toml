@@ -19,6 +19,6 @@ doctest = false
 capsule = { version = "0.1", path = "../../core" }
 failure = "0.1"
 metrics-core = "0.5"
-metrics-runtime = "0.12"
+metrics-observer-yaml = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.2"
