@@ -19,7 +19,7 @@
 [code-of-conduct-badge]: https://img.shields.io/badge/%E2%9D%A4-code%20of%20conduct-ff69b4
 [code-of-conduct-url]: CODE_OF_CONDUCT.md
 [discord-badge]: https://img.shields.io/discord/690406128567320597.svg?logo=discord
-[discord-url]: https://discord.gg/sVN47RU
+[discord-url]: https://discord.gg/sAgzNV27sA
 
 # Capsule
 
