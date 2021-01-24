@@ -171,6 +171,7 @@ const RTE_DEPS_LIBS: &[&str] = &["numa", "pcap"];
 fn bind(path: &Path) {
     cc::Build::new()
         .file("src/shim.c")
+        .flag("-mavx")
         .flag("-march=corei7")
         .compile("rte_shim");
 
@@ -190,6 +191,7 @@ fn bind(path: &Path) {
         .derive_partialeq(true)
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         .clang_arg("-finline-functions")
+        .clang_arg("-mavx")
         .clang_arg("-march=corei7")
         .rustfmt_bindings(true)
         .generate()
