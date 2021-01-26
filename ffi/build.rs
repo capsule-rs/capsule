@@ -171,8 +171,7 @@ const RTE_DEPS_LIBS: &[&str] = &["numa", "pcap"];
 fn bind(path: &Path) {
     cc::Build::new()
         .file("src/shim.c")
-        .flag("-mavx")
-        .flag("-march=corei7")
+        .flag("-march=corei7-avx")
         .compile("rte_shim");
 
     bindgen::Builder::default()
@@ -191,8 +190,7 @@ fn bind(path: &Path) {
         .derive_partialeq(true)
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         .clang_arg("-finline-functions")
-        .clang_arg("-mavx")
-        .clang_arg("-march=corei7")
+        .clang_arg("-march=corei7-avx")
         .rustfmt_bindings(true)
         .generate()
         .expect("Unable to generate bindings")
