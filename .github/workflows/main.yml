@@ -111,6 +111,7 @@ jobs:
         with:
           name: criterion-report
           path: ./bench/target/criterion
+        continue-on-error: true
 
       - name: slack-it
         uses: homoluctus/slatify@v2.1.2
