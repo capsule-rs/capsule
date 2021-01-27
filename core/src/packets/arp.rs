@@ -27,25 +27,73 @@ use std::fmt;
 use std::net::Ipv4Addr;
 use std::ptr::NonNull;
 
-/// Address resolution protocol.
+/// Address Resolution Protocol packet based on [IETF RFC 826].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |         Hardware Type         |         Protocol Type         |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |    H Length   |    P Length   |         Operation Code        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                   Source Hardware Address                     
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                   Source Protocol Address                     
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                   Target Hardware Address                     
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                   Target Protocol Address                     
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// - *Hardware Type*: (16 bits)
+///      The network link protocol type.
+///
+/// - *Protocol Type*: (16 bits)
+///      The internetwork protocol for which the ARP request is intended.
+///
+/// - *H Length*: (8 bits)
+///      Length (in octets) of a hardware address.
+///
+/// - *P Length*: (8 bits)
+///      Length (in octets) of a protocol address.
+///
+/// - *Operation Code*: (16 bits)
+///      The operation that the sender is performing.
+///
+/// - *Source Hardware Address*: (H length octets)
+///      Hardware address of the sender. In an ARP request this field is used
+///      to indicate the address of the host sending the request. In an ARP
+///      reply this field is used to indicate the address of the host that the
+///      request was looking for.
+///
+/// - *Source Protocol Address*: (P length octets)
+///      Protocol address of the sender.
+///
+/// - *Target Hardware Address*: (H length octets)
+///      Hardware address of the intended receiver. In an ARP request this
+///      field is ignored. In an ARP reply this field is used to indicate the
+///      address of the host that originated the ARP request.
+///
+/// - *Target Protocol Address*: (P length octets)
+///      Protocol address of the intended receiver.
+///
+/// [IETF RFC 826]: https://tools.ietf.org/html/rfc826
 pub struct Arp<H: HardwareAddr, P: ProtocolAddr> {
     envelope: Ethernet,
-    header: NonNull<ArpHeader>,
+    header: NonNull<ArpHeader<H, P>>,
     offset: usize,
-    src_hardware_addr: NonNull<H>,
-    src_protocol_addr: NonNull<P>,
-    tgt_hardware_addr: NonNull<H>,
-    tgt_protocol_addr: NonNull<P>,
 }
 
 impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
     #[inline]
-    fn header(&self) -> &ArpHeader {
+    fn header(&self) -> &ArpHeader<H, P> {
         unsafe { self.header.as_ref() }
     }
 
     #[inline]
-    fn header_mut(&mut self) -> &mut ArpHeader {
+    fn header_mut(&mut self) -> &mut ArpHeader<H, P> {
         unsafe { self.header.as_mut() }
     }
 
@@ -67,7 +115,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
         ProtocolType::new(self.header().protocol_type.into())
     }
 
-    /// Sets the hardware type.
+    /// Sets the protocol type.
     #[inline]
     fn set_protocol_type(&mut self, protocol_type: ProtocolType) {
         self.header_mut().protocol_type = protocol_type.0.into()
@@ -91,7 +139,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
         self.header().protocol_addr_len
     }
 
-    /// Sets the hardware address length.
+    /// Sets the protocol address length.
     #[inline]
     fn set_protocol_addr_len(&mut self, len: u8) {
         self.header_mut().protocol_addr_len = len
@@ -111,66 +159,50 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
 
     /// Returns the source hardware address.
     #[inline]
-    pub fn src_hardware_addr(&self) -> &H {
-        unsafe { self.src_hardware_addr.as_ref() }
+    pub fn src_hardware_addr(&self) -> H {
+        self.header().src_hardware_addr
     }
 
     /// Sets the source hardware address.
     #[inline]
     pub fn set_src_hardware_addr(&mut self, addr: H) {
-        let offset = self.offset + ArpHeader::size_of();
-        if let Ok(ptr) = self.mbuf_mut().write_data(offset, &addr) {
-            // should always reach this path and never fail.
-            self.src_hardware_addr = ptr;
-        }
+        self.header_mut().src_hardware_addr = addr
     }
 
     /// Returns the source protocol address.
     #[inline]
-    pub fn src_protocol_addr(&self) -> &P {
-        unsafe { self.src_protocol_addr.as_ref() }
+    pub fn src_protocol_addr(&self) -> P {
+        self.header().src_protocol_addr
     }
 
     /// Sets the source protocol address.
     #[inline]
     pub fn set_src_protocol_addr(&mut self, addr: P) {
-        let offset = self.offset + ArpHeader::size_of() + H::size_of();
-        if let Ok(ptr) = self.mbuf_mut().write_data(offset, &addr) {
-            // should always reach this path and never fail.
-            self.src_protocol_addr = ptr;
-        }
+        self.header_mut().src_protocol_addr = addr
     }
 
     /// Returns the target hardware address.
     #[inline]
-    pub fn tgt_hardware_addr(&self) -> &H {
-        unsafe { self.tgt_hardware_addr.as_ref() }
+    pub fn tgt_hardware_addr(&self) -> H {
+        self.header().tgt_hardware_addr
     }
 
     /// Sets the target hardware address.
     #[inline]
     pub fn set_tgt_hardware_addr(&mut self, addr: H) {
-        let offset = self.offset + ArpHeader::size_of() + H::size_of() + P::size_of();
-        if let Ok(ptr) = self.mbuf_mut().write_data(offset, &addr) {
-            // should always reach this path and never fail.
-            self.tgt_hardware_addr = ptr;
-        }
+        self.header_mut().tgt_hardware_addr = addr
     }
 
     /// Returns the target protocol address.
     #[inline]
-    pub fn tgt_protocol_addr(&self) -> &P {
-        unsafe { self.tgt_protocol_addr.as_ref() }
+    pub fn tgt_protocol_addr(&self) -> P {
+        self.header().tgt_protocol_addr
     }
 
     /// Sets the target protocol address.
     #[inline]
     pub fn set_tgt_protocol_addr(&mut self, addr: P) {
-        let offset = self.offset + ArpHeader::size_of() + H::size_of() * 2 + P::size_of();
-        if let Ok(ptr) = self.mbuf_mut().write_data(offset, &addr) {
-            // should always reach this path and never fail.
-            self.tgt_protocol_addr = ptr;
-        }
+        self.header_mut().tgt_protocol_addr = addr
     }
 }
 
@@ -224,13 +256,9 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         self.offset
     }
 
-    /// Returns the length of the packet header.
-    ///
-    /// The length of the ARP header contains the fix-sized header plus two
-    /// hardware addresses and two protocol addresses.
     #[inline]
     fn header_len(&self) -> usize {
-        ArpHeader::size_of() + H::size_of() * 2 + P::size_of() * 2
+        ArpHeader::<H, P>::size_of()
     }
 
     #[inline]
@@ -239,10 +267,6 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
             envelope: self.envelope.clone(internal),
             header: self.header,
             offset: self.offset,
-            src_hardware_addr: self.src_hardware_addr,
-            src_protocol_addr: self.src_protocol_addr,
-            tgt_hardware_addr: self.tgt_hardware_addr,
-            tgt_protocol_addr: self.tgt_protocol_addr,
         }
     }
 
@@ -256,23 +280,11 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
-        let mut next_offset = offset + ArpHeader::size_of();
-        let src_hardware_addr = mbuf.read_data(next_offset)?;
-        next_offset += H::size_of();
-        let src_protocol_addr = mbuf.read_data(next_offset)?;
-        next_offset += P::size_of();
-        let tgt_hardware_addr = mbuf.read_data(next_offset)?;
-        next_offset += H::size_of();
-        let tgt_protocol_addr = mbuf.read_data(next_offset)?;
 
         let packet = Arp {
             envelope,
             header,
             offset,
-            src_hardware_addr,
-            src_protocol_addr,
-            tgt_hardware_addr,
-            tgt_protocol_addr,
         };
 
         ensure!(
@@ -316,19 +328,8 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
-        mbuf.extend(
-            offset,
-            ArpHeader::size_of() + H::size_of() * 2 + P::size_of() * 2,
-        )?;
-        let header = mbuf.write_data(offset, &ArpHeader::default())?;
-        let mut next_offset = offset + ArpHeader::size_of();
-        let src_hardware_addr = mbuf.read_data(next_offset)?;
-        next_offset += H::size_of();
-        let src_protocol_addr = mbuf.read_data(next_offset)?;
-        next_offset += P::size_of();
-        let tgt_hardware_addr = mbuf.read_data(next_offset)?;
-        next_offset += H::size_of();
-        let tgt_protocol_addr = mbuf.read_data(next_offset)?;
+        mbuf.extend(offset, ArpHeader::<H, P>::size_of())?;
+        let header = mbuf.write_data(offset, &ArpHeader::<H, P>::default())?;
 
         envelope.set_ether_type(EtherTypes::Arp);
 
@@ -336,10 +337,6 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
             envelope,
             header,
             offset,
-            src_hardware_addr,
-            src_protocol_addr,
-            tgt_hardware_addr,
-            tgt_protocol_addr,
         };
 
         packet.set_hardware_type(H::addr_type());
@@ -495,9 +492,15 @@ impl fmt::Display for OperationCode {
 }
 
 /// A trait implemented by ARP hardware address types.
-pub trait HardwareAddr: SizeOf + fmt::Display {
+pub trait HardwareAddr: SizeOf + Copy + fmt::Display {
     /// Returns the associated hardware type of the given address.
     fn addr_type() -> HardwareType;
+
+    /// Returns the default value.
+    ///
+    /// This is synonymous with `Default::default`, but is necessary when
+    /// an external crate type doesn't implement the `Default` trait.
+    fn default() -> Self;
 }
 
 impl SizeOf for MacAddr {
@@ -510,12 +513,22 @@ impl HardwareAddr for MacAddr {
     fn addr_type() -> HardwareType {
         HardwareTypes::Ethernet
     }
+
+    fn default() -> Self {
+        Default::default()
+    }
 }
 
 /// A trait implemented by ARP protocol address types.
-pub trait ProtocolAddr: SizeOf + fmt::Display {
+pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
     /// Returns the associated protocol type of the given address.
     fn addr_type() -> ProtocolType;
+
+    /// Returns the default value.
+    ///
+    /// This is synonymous with `Default::default`, but is necessary when
+    /// an external crate type doesn't implement the `Default` trait.
+    fn default() -> Self;
 }
 
 impl SizeOf for Ipv4Addr {
@@ -528,22 +541,118 @@ impl ProtocolAddr for Ipv4Addr {
     fn addr_type() -> ProtocolType {
         ProtocolTypes::Ipv4
     }
+
+    fn default() -> Self {
+        Ipv4Addr::UNSPECIFIED
+    }
 }
 
 /// A type alias for an IPv4 ARP packet.
 pub type Arp4 = Arp<MacAddr, Ipv4Addr>;
 
 /// ARP header.
-///
-/// The ARP header does not contain the hardware and protocol addresses
-/// because they are dynamically sized based on the types.
 #[allow(missing_debug_implementations)]
-#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[derive(Copy, SizeOf)]
 #[repr(C, packed)]
-struct ArpHeader {
+struct ArpHeader<H: HardwareAddr, P: ProtocolAddr> {
     hardware_type: u16be,
     protocol_type: u16be,
     hardware_addr_len: u8,
     protocol_addr_len: u8,
     operation_code: u16be,
+    src_hardware_addr: H,
+    src_protocol_addr: P,
+    tgt_hardware_addr: H,
+    tgt_protocol_addr: P,
+}
+
+impl<H: HardwareAddr, P: ProtocolAddr> Clone for ArpHeader<H, P> {
+    fn clone(&self) -> Self {
+        ArpHeader {
+            hardware_type: self.hardware_type,
+            protocol_type: self.protocol_type,
+            hardware_addr_len: self.hardware_addr_len,
+            protocol_addr_len: self.protocol_addr_len,
+            operation_code: self.operation_code,
+            src_hardware_addr: self.src_hardware_addr,
+            src_protocol_addr: self.src_protocol_addr,
+            tgt_hardware_addr: self.tgt_hardware_addr,
+            tgt_protocol_addr: self.tgt_protocol_addr,
+        }
+    }
+}
+
+impl<H: HardwareAddr, P: ProtocolAddr> Default for ArpHeader<H, P> {
+    fn default() -> Self {
+        ArpHeader {
+            hardware_type: u16be::default(),
+            protocol_type: u16be::default(),
+            hardware_addr_len: 0,
+            protocol_addr_len: 0,
+            operation_code: u16be::default(),
+            src_hardware_addr: H::default(),
+            src_protocol_addr: P::default(),
+            tgt_hardware_addr: H::default(),
+            tgt_protocol_addr: P::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testils::byte_arrays::ARP4_PACKET;
+    use crate::Mbuf;
+
+    #[test]
+    fn size_of_arp_header() {
+        assert_eq!(28, ArpHeader::<MacAddr, Ipv4Addr>::size_of());
+    }
+
+    #[capsule::test]
+    fn parse_arp_packet() {
+        let packet = Mbuf::from_bytes(&ARP4_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let arp4 = ethernet.parse::<Arp4>().unwrap();
+
+        assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
+        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
+        assert_eq!(6, arp4.hardware_addr_len());
+        assert_eq!(4, arp4.protocol_addr_len());
+        assert_eq!(OperationCodes::Request, arp4.operation_code());
+        assert_eq!("00:00:00:00:00:01", arp4.src_hardware_addr().to_string());
+        assert_eq!("139.133.217.110", arp4.src_protocol_addr().to_string());
+        assert_eq!("00:00:00:00:00:00", arp4.tgt_hardware_addr().to_string());
+        assert_eq!("139.133.233.2", arp4.tgt_protocol_addr().to_string());
+    }
+
+    #[capsule::test]
+    fn push_arp_packet() {
+        let packet = Mbuf::new().unwrap();
+        let ethernet = packet.push::<Ethernet>().unwrap();
+        let mut arp4 = ethernet.push::<Arp4>().unwrap();
+
+        assert_eq!(ArpHeader::<MacAddr, Ipv4Addr>::size_of(), arp4.len());
+
+        // make sure types are set properly
+        assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
+        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
+        assert_eq!(6, arp4.hardware_addr_len());
+        assert_eq!(4, arp4.protocol_addr_len());
+
+        // check the setters
+        arp4.set_operation_code(OperationCodes::Reply);
+        assert_eq!(OperationCodes::Reply, arp4.operation_code());
+        arp4.set_src_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 1));
+        assert_eq!("00:00:00:00:00:01", arp4.src_hardware_addr().to_string());
+        arp4.set_src_protocol_addr(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!("10.0.0.1", arp4.src_protocol_addr().to_string());
+        arp4.set_tgt_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 2));
+        assert_eq!("00:00:00:00:00:02", arp4.tgt_hardware_addr().to_string());
+        arp4.set_tgt_protocol_addr(Ipv4Addr::new(10, 0, 0, 2));
+        assert_eq!("10.0.0.2", arp4.tgt_protocol_addr().to_string());
+
+        // make sure the ether type is fixed
+        assert_eq!(EtherTypes::Arp, arp4.envelope().ether_type());
+    }
 }
