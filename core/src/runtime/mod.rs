@@ -296,7 +296,7 @@ impl Runtime {
         let kni_rx = self
             .get_port_mut(port)?
             .kni()
-            .ok_or_else(|| KniError::Disabled)?
+            .ok_or(KniError::Disabled)?
             .take_rx()?;
 
         // selects a core to run a rx pipeline for this port. the selection is

@@ -84,6 +84,10 @@ impl Pcap {
     /// Append to already-existing file for dumping packets into from a given
     /// file path.
     fn append(path: &str) -> Fallible<Pcap> {
+        if !std::path::Path::new(path).exists() {
+            return Err(PcapError::new("Pcap filename path does not exist.").into());
+        }
+
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
                 .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
@@ -93,7 +97,6 @@ impl Pcap {
                     ffi::pcap_close(handle.as_ptr());
                     err
                 })?;
-
             Ok(Pcap {
                 path: path.to_string(),
                 handle,

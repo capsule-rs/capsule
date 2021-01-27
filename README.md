@@ -23,35 +23,35 @@
 
 # Capsule
 
-A framework for network function development. Written in Rust, inspired by [NetBricks](https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/). 
+A framework for network function development. Written in Rust, inspired by [NetBricks](https://www.usenix.org/system/files/conference/osdi16/osdi16-panda.pdf) and built on Intel's [Data Plane Development Kit](https://www.dpdk.org/).
 
 ## Table of Contents
 
-* [Overview](#overview)
-* [Quick Start](#quick-start)
-* [Contributing](#contributing)
-* [Code of Conduct](#code-of-conduct)
-* [Contact](#contact)
-* [Maintainers](#maintainers)
-* [License](#license)
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Contributing](#contributing)
+- [Code of Conduct](#code-of-conduct)
+- [Contact](#contact)
+- [Maintainers](#maintainers)
+- [License](#license)
 
 ## Overview
 
 The goal of `Capsule` is to offer an ergonomic framework for network function development that traditionally has high barriers of entry for developers. We've created a tool to efficiently manipulate network packets while being type-safe, memory-safe, and thread-safe. Building on `DPDK` and `Rust`, `Capsule` offers
 
-* a fast packet processor that uses minimum number of CPU cycles.
-* a rich packet type system that guarantees memory-safety and thread-safety.
-* a declarative programming model that emphasizes simplicity.
-* an extensible and testable framework that is easy to develop and maintain.
+- a fast packet processor that uses minimum number of CPU cycles.
+- a rich packet type system that guarantees memory-safety and thread-safety.
+- a declarative programming model that emphasizes simplicity.
+- an extensible and testable framework that is easy to develop and maintain.
 
 ## Quick Start
 
 The easiest way to start developing `Capsule` applications is to use the `Vagrant` [virtual machine](https://github.com/capsule-rs/sandbox/blob/master/Vagrantfile) and the `Docker` [sandbox](https://hub.docker.com/repository/docker/getcapsule/sandbox) provided by our team. The sandbox is preconfigured with all the necessary tools and libraries for `Capsule` development, including:
 
-* [`DPDK` 19.11](https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html)
-* [`Clang`](https://clang.llvm.org/) and [`LLVM`](https://www.llvm.org/)
-* [`Rust 1.45`](https://blog.rust-lang.org/2020/07/16/Rust-1.45.0.html)
-* [`rr`](https://rr-project.org/) 5.3
+- [`DPDK` 19.11](https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html)
+- [`Clang`](https://clang.llvm.org/) and [`LLVM`](https://www.llvm.org/)
+- [`Rust 1.49`](https://blog.rust-lang.org/2020/12/31/Rust-1.49.0.html)
+- [`rr`](https://rr-project.org/) 5.3
 
 First install [`Vagrant`](https://www.vagrantup.com/) and [`VirtualBox`](https://www.virtualbox.org/) on your system. Also install the following `Vagrant` plugins,
 
@@ -79,7 +79,7 @@ vagrant$ docker run -it --rm \
     --security-opt seccomp=unconfined \
     -v /lib/modules:/lib/modules \
     -v /dev/hugepages:/dev/hugepages \
-    getcapsule/sandbox:19.11.1-1.45 /bin/bash
+    getcapsule/sandbox:19.11.6-1.49 /bin/bash
 ```
 
 Remember to also mount the working directory of your project as a volume for the sandbox. Then you can use `Cargo` commands inside the container as normal.
@@ -109,14 +109,14 @@ You can contact us either through [`Discord`](https://discord.gg/sVN47RU) or [em
 
 The current maintainers with roles to merge PRs are:
 
-* [Daniel Jin](https://github.com/drunkirishcoder)
-* [Zeeshan Lakhani](https://github.com/zeeshanlakhani)
-* [Andrew Wang](https://github.com/awangc)
-* [Peter Cline](https://github.com/clinedome)
+- [Daniel Jin](https://github.com/drunkirishcoder)
+- [Zeeshan Lakhani](https://github.com/zeeshanlakhani)
+- [Andrew Wang](https://github.com/awangc)
+- [Peter Cline](https://github.com/clinedome)
 
 ## Read More About Capsule
 
-* [Modernize network function development with this Rust-based framework](https://opensource.com/article/20/8/capsule-networking)
+- [Modernize network function development with this Rust-based framework](https://opensource.com/article/20/8/capsule-networking)
 
 ## License
 
