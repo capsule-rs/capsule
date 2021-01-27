@@ -61,7 +61,7 @@ pub struct Internal(());
 /// let ethernet = packet.push::<Ethernet>()?;
 /// let ipv4 = ethernet.push::<Ipv4>()?;
 ///
-/// let mut tcp = ipv4.push::<Tcp<Ipv4>>()?;
+/// let mut tcp = ipv4.push::<Tcp4>()?;
 /// tcp.set_dst_ip(remote_ip);
 /// tcp.set_dst_port(22);
 /// tcp.reconcile_all();
@@ -338,7 +338,6 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Udp;
     use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
     #[capsule::test]
@@ -348,7 +347,7 @@ mod tests {
 
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = ipv4.parse::<Udp<Ipv4>>().unwrap();
+        let udp = ipv4.parse::<Udp4>().unwrap();
         let reset = udp.reset();
 
         assert_eq!(len, reset.data_len());
@@ -362,7 +361,7 @@ mod tests {
         assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
         let v4 = ethernet.peek::<Ipv4>().unwrap();
         assert_eq!(255, v4.ttl());
-        let udp = v4.peek::<Udp<Ipv4>>().unwrap();
+        let udp = v4.peek::<Udp4>().unwrap();
         assert_eq!(39376, udp.src_port());
     }
 
@@ -371,10 +370,10 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let v4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = v4.parse::<Udp<Ipv4>>().unwrap();
+        let udp = v4.parse::<Udp4>().unwrap();
         let mut v4_2 = udp.deparse();
         v4_2.set_ttl(25);
-        let udp_2 = v4_2.parse::<Udp<Ipv4>>().unwrap();
+        let udp_2 = v4_2.parse::<Udp4>().unwrap();
         let v4_4 = udp_2.envelope();
         assert_eq!(v4_4.ttl(), 25);
     }
@@ -385,7 +384,7 @@ mod tests {
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let v4 = ethernet.parse::<Ipv4>().unwrap();
 
-        let mut udp = v4.parse::<Udp<Ipv4>>().unwrap();
+        let mut udp = v4.parse::<Udp4>().unwrap();
         assert!(udp.payload_len() > 0);
 
         let _ = udp.remove_payload();

@@ -21,7 +21,7 @@ use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
-use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp};
+use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp, Tcp4, Tcp6};
 use capsule::{compose, Mbuf, PortQueue, Runtime};
 use colored::*;
 use failure::Fallible;
@@ -44,7 +44,7 @@ fn dump_v4(ethernet: &Ethernet) -> Fallible<()> {
     let info_fmt = format!("{:?}", v4).yellow();
     println!("{}", info_fmt);
 
-    let tcp = v4.peek::<Tcp<Ipv4>>()?;
+    let tcp = v4.peek::<Tcp4>()?;
     dump_tcp(&tcp);
 
     Ok(())
@@ -56,7 +56,7 @@ fn dump_v6(ethernet: &Ethernet) -> Fallible<()> {
     let info_fmt = format!("{:?}", v6).cyan();
     println!("{}", info_fmt);
 
-    let tcp = v6.peek::<Tcp<Ipv6>>()?;
+    let tcp = v6.peek::<Tcp6>()?;
     dump_tcp(&tcp);
 
     Ok(())

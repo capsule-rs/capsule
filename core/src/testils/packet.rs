@@ -18,7 +18,7 @@
 
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, SegmentRouting};
-use crate::packets::{Ethernet, Packet, Tcp, Udp};
+use crate::packets::{Ethernet, Packet, Tcp, Tcp4, Tcp6, Udp4, Udp6};
 
 /// [`Packet`] extension trait.
 ///
@@ -39,13 +39,13 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into a TCP packet inside IPv4.
-    fn into_v4_tcp(self) -> Tcp<Ipv4> {
-        self.into_v4().parse::<Tcp<Ipv4>>().unwrap()
+    fn into_v4_tcp(self) -> Tcp4 {
+        self.into_v4().parse::<Tcp4>().unwrap()
     }
 
     /// Converts the packet into a UDP packet inside IPv4.
-    fn into_v4_udp(self) -> Udp<Ipv4> {
-        self.into_v4().parse::<Udp<Ipv4>>().unwrap()
+    fn into_v4_udp(self) -> Udp4 {
+        self.into_v4().parse::<Udp4>().unwrap()
     }
 
     /// Converts the packet into an IPv6 packet.
@@ -54,13 +54,13 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into a TCP packet inside IPv6.
-    fn into_v6_tcp(self) -> Tcp<Ipv6> {
-        self.into_v6().parse::<Tcp<Ipv6>>().unwrap()
+    fn into_v6_tcp(self) -> Tcp6 {
+        self.into_v6().parse::<Tcp6>().unwrap()
     }
 
     /// Converts the packet into a UDP packet inside IPv6.
-    fn into_v6_udp(self) -> Udp<Ipv6> {
-        self.into_v6().parse::<Udp<Ipv6>>().unwrap()
+    fn into_v6_udp(self) -> Udp6 {
+        self.into_v6().parse::<Udp6>().unwrap()
     }
 
     /// Converts the packet into an IPv6 packet with a SRH extension.

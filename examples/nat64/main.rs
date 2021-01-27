@@ -21,7 +21,7 @@ use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
-use capsule::packets::{Ethernet, Packet, Tcp};
+use capsule::packets::{Ethernet, Packet, Tcp4, Tcp6};
 use capsule::{Mbuf, PortQueue, Runtime};
 use chashmap::CHashMap;
 use failure::Fallible;
@@ -87,7 +87,7 @@ fn nat_4to6(packet: Mbuf) -> Fallible<Either<Mbuf>> {
     let ethernet = packet.parse::<Ethernet>()?;
     let v4 = ethernet.parse::<Ipv4>()?;
     if v4.protocol() == ProtocolNumbers::Tcp && v4.fragment_offset() == 0 && !v4.more_fragments() {
-        let tcp = v4.peek::<Tcp<Ipv4>>()?;
+        let tcp = v4.peek::<Tcp4>()?;
         if let Some((dst, port)) = assigned_addr(tcp.dst_port()) {
             let dscp = v4.dscp();
             let ecn = v4.ecn();
@@ -104,7 +104,7 @@ fn nat_4to6(packet: Mbuf) -> Fallible<Either<Mbuf>> {
             v6.set_src(src);
             v6.set_dst(dst);
 
-            let mut tcp = v6.parse::<Tcp<Ipv6>>()?;
+            let mut tcp = v6.parse::<Tcp6>()?;
             tcp.set_dst_port(port);
             tcp.reconcile_all();
 
@@ -138,7 +138,7 @@ fn nat_6to4(packet: Mbuf) -> Fallible<Either<Mbuf>> {
         v4.set_src(V4_ADDR);
         v4.set_dst(dst);
 
-        let mut tcp = v4.parse::<Tcp<Ipv4>>()?;
+        let mut tcp = v4.parse::<Tcp4>()?;
         let port = tcp.src_port();
         tcp.set_src_port(assigned_port(src, port));
         tcp.reconcile_all();

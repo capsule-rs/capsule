@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v6::Ipv6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
 use crate::packets::{checksum, Internal, Packet, ParseError};
@@ -598,6 +600,12 @@ impl<E: IpPacket> Packet for Tcp<E> {
     }
 }
 
+/// A type alias for an IPv4 TCP packet.
+pub type Tcp4 = Tcp<Ipv4>;
+
+/// A type alias for an IPv6 TCP packet.
+pub type Tcp6 = Tcp<Ipv6>;
+
 /// TCP header.
 ///
 /// The header only include the fixed portion of the TCP header. Variable
@@ -635,8 +643,7 @@ impl Default for TcpHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v4::Ipv4;
-    use crate::packets::ip::v6::{Ipv6, SegmentRouting};
+    use crate::packets::ip::v6::SegmentRouting;
     use crate::packets::Ethernet;
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
@@ -652,7 +659,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
+        let tcp = ipv4.parse::<Tcp4>().unwrap();
 
         assert_eq!(36869, tcp.src_port());
         assert_eq!(23, tcp.dst_port());
@@ -679,7 +686,7 @@ mod tests {
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
 
-        assert!(ipv4.parse::<Tcp<Ipv4>>().is_err());
+        assert!(ipv4.parse::<Tcp4>().is_err());
     }
 
     #[capsule::test]
@@ -687,7 +694,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
+        let tcp = ipv4.parse::<Tcp4>().unwrap();
         let flow = tcp.flow();
 
         assert_eq!("139.133.217.110", flow.src_ip().to_string());
@@ -718,7 +725,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
+        let mut tcp = ipv4.parse::<Tcp4>().unwrap();
 
         let old_checksum = tcp.checksum();
         let new_ip = Ipv4Addr::new(10, 0, 0, 0);
@@ -741,7 +748,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut tcp = ipv4.parse::<Tcp<Ipv4>>().unwrap();
+        let mut tcp = ipv4.parse::<Tcp4>().unwrap();
 
         let expected = tcp.checksum();
         // no payload change but force a checksum recompute anyway
@@ -754,7 +761,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ipv4 = ethernet.push::<Ipv4>().unwrap();
-        let tcp = ipv4.push::<Tcp<Ipv4>>().unwrap();
+        let tcp = ipv4.push::<Tcp4>().unwrap();
 
         assert_eq!(TcpHeader::size_of(), tcp.len());
         assert_eq!(5, tcp.data_offset());

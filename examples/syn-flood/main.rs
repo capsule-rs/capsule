@@ -20,7 +20,7 @@ use capsule::batch::{Batch, Pipeline};
 use capsule::config::load_config;
 use capsule::metrics;
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Packet, Tcp};
+use capsule::packets::{Ethernet, Packet, Tcp4};
 use capsule::{batch, Mbuf, PortQueue, Runtime};
 use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
@@ -55,7 +55,7 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
         v4.set_src(next_ip.into());
         v4.set_dst(localhost);
 
-        let mut tcp = v4.push::<Tcp<Ipv4>>()?;
+        let mut tcp = v4.push::<Tcp4>()?;
         tcp.set_syn();
         tcp.set_seq_no(1);
         tcp.set_window(10);
