@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: criterion-report
-          path: ./bench/target/criterion
+          path: ./target/criterion
         continue-on-error: true
 
       - name: slack-it
@@ -142,7 +142,7 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: criterion-report
-          path: ./bench/target/criterion
+          path: ./target/criterion
 
       - name: slack-it
         uses: homoluctus/slatify@v2.1.2
