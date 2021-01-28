@@ -37,13 +37,13 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |    H Length   |    P Length   |         Operation Code        |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Source Hardware Address                     
+/// |                   Source Hardware Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Source Protocol Address                     
+/// |                   Source Protocol Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Target Hardware Address                     
+/// |                   Target Hardware Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Target Protocol Address                     
+/// |                   Target Protocol Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 ///
@@ -62,22 +62,25 @@ use std::ptr::NonNull;
 /// - *Operation Code*: (16 bits)
 ///      The operation that the sender is performing.
 ///
-/// - *Source Hardware Address*: (H length octets)
+/// - *Source Hardware Address*: (variable)
 ///      Hardware address of the sender. In an ARP request this field is used
 ///      to indicate the address of the host sending the request. In an ARP
 ///      reply this field is used to indicate the address of the host that the
-///      request was looking for.
+///      request was looking for. The address size is defined by *H Length*.
 ///
-/// - *Source Protocol Address*: (P length octets)
-///      Protocol address of the sender.
+/// - *Source Protocol Address*: (variable)
+///      Protocol address of the sender. The address size is defined by
+///      *P Length*.
 ///
-/// - *Target Hardware Address*: (H length octets)
+/// - *Target Hardware Address*: (variable)
 ///      Hardware address of the intended receiver. In an ARP request this
 ///      field is ignored. In an ARP reply this field is used to indicate the
-///      address of the host that originated the ARP request.
+///      address of the host that originated the ARP request. The address
+///      size is defined by *H Length*.
 ///
-/// - *Target Protocol Address*: (P length octets)
-///      Protocol address of the intended receiver.
+/// - *Target Protocol Address*: (variable)
+///      Protocol address of the intended receiver. The address size is
+///      defined by *P Length*.
 ///
 /// [IETF RFC 826]: https://tools.ietf.org/html/rfc826
 pub struct Arp<H: HardwareAddr, P: ProtocolAddr> {
