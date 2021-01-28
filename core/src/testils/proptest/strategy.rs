@@ -427,7 +427,7 @@ pub fn v4_tcp() -> impl Strategy<Value = Mbuf> {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
 ///         let v4 = packet.parse::<Ipv4>().unwrap();
 ///         assert_eq!("127.0.0.1".parse(), v4.src());
-///         let tcp = v4.parse::<Tcp<Ipv4>>().unwrap();
+///         let tcp = v4.parse::<Tcp4>().unwrap();
 ///         assert_eq!(80, tcp.dst_port());
 ///     });
 /// }
@@ -465,7 +465,7 @@ pub fn v4_udp() -> impl Strategy<Value = Mbuf> {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
 ///         let v4 = packet.parse::<Ipv4>().unwrap();
 ///         prop_assert_eq!("127.0.0.1".parse(), v4.src());
-///         let udp = v4.parse::<Udp<Ipv4>>().unwrap();
+///         let udp = v4.parse::<Udp4>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
 ///     });
 /// }
@@ -503,7 +503,7 @@ pub fn v6_tcp() -> impl Strategy<Value = Mbuf> {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
 ///         let v6 = packet.parse::<Ipv6>().unwrap();
 ///         prop_assert_eq!("::1".parse(), v6.src());
-///         let tcp = v6.parse::<Tcp<Ipv6>>().unwrap();
+///         let tcp = v6.parse::<Tcp6>().unwrap();
 ///         prop_assert_eq!(80, tcp.dst_port());
 ///     });
 /// }
@@ -541,7 +541,7 @@ pub fn v6_udp() -> impl Strategy<Value = Mbuf> {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
 ///         let v6 = packet.parse::<Ipv6>().unwrap();
 ///         prop_assert_eq!("::1".parse(), v6.src());
-///         let udp = v6.parse::<Udp<Ipv6>>().unwrap();
+///         let udp = v6.parse::<Udp6>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
 ///     });
 /// }

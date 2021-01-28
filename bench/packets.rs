@@ -18,7 +18,7 @@
 
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, SegmentRouting};
-use capsule::packets::{Ethernet, Packet, Udp};
+use capsule::packets::{Ethernet, Packet, Udp4};
 use capsule::testils::criterion::BencherExt;
 use capsule::testils::proptest::*;
 use capsule::testils::{PacketExt, Rvg};
@@ -30,12 +30,12 @@ use std::net::Ipv6Addr;
 
 const BATCH_SIZE: usize = 500;
 
-fn single_parse_udp(ipv4: Ipv4) -> Udp<Ipv4> {
-    ipv4.parse::<Udp<Ipv4>>().unwrap()
+fn single_parse_udp(ipv4: Ipv4) -> Udp4 {
+    ipv4.parse::<Udp4>().unwrap()
 }
 
 fn single_peek_udp(ipv4: Ipv4) -> Ipv4 {
-    ipv4.peek::<Udp<Ipv4>>().unwrap();
+    ipv4.peek::<Udp4>().unwrap();
     ipv4
 }
 
@@ -62,16 +62,16 @@ fn single_peek_vs_parse(c: &mut Criterion) {
     group.finish()
 }
 
-fn multi_parse_udp(mbuf: Mbuf) -> Udp<Ipv4> {
+fn multi_parse_udp(mbuf: Mbuf) -> Udp4 {
     let ethernet = mbuf.parse::<Ethernet>().unwrap();
     let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-    ipv4.parse::<Udp<Ipv4>>().unwrap()
+    ipv4.parse::<Udp4>().unwrap()
 }
 
 fn multi_peek_udp(mbuf: Mbuf) -> Mbuf {
     let ethernet = mbuf.peek::<Ethernet>().unwrap();
     let ipv4 = ethernet.peek::<Ipv4>().unwrap();
-    ipv4.peek::<Udp<Ipv4>>().unwrap();
+    ipv4.peek::<Udp4>().unwrap();
     mbuf
 }
 
@@ -147,7 +147,7 @@ fn multi_parse_upto_variable_srh(c: &mut Criterion) {
     });
 }
 
-fn deparse_udp(udp: Udp<Ipv4>) -> Mbuf {
+fn deparse_udp(udp: Udp4) -> Mbuf {
     let d_ipv4 = udp.deparse();
     let d_eth = d_ipv4.deparse();
     d_eth.deparse()
@@ -161,7 +161,7 @@ fn deparse(c: &mut Criterion) {
     });
 }
 
-fn reset_udp(udp: Udp<Ipv4>) -> Mbuf {
+fn reset_udp(udp: Udp4) -> Mbuf {
     udp.reset()
 }
 
@@ -173,10 +173,10 @@ fn reset(c: &mut Criterion) {
     });
 }
 
-fn multi_push_udp(mbuf: Mbuf) -> Udp<Ipv4> {
+fn multi_push_udp(mbuf: Mbuf) -> Udp4 {
     let ethernet = mbuf.push::<Ethernet>().unwrap();
     let ipv4 = ethernet.push::<Ipv4>().unwrap();
-    ipv4.push::<Udp<Ipv4>>().unwrap()
+    ipv4.push::<Udp4>().unwrap()
 }
 
 #[capsule::bench(mempool_capacity = 511)]
@@ -187,8 +187,8 @@ fn multi_push(c: &mut Criterion) {
     });
 }
 
-fn single_push_udp(ipv4: Ipv4) -> Udp<Ipv4> {
-    ipv4.push::<Udp<Ipv4>>().unwrap()
+fn single_push_udp(ipv4: Ipv4) -> Udp4 {
+    ipv4.push::<Udp4>().unwrap()
 }
 
 #[capsule::bench(mempool_capacity = 511)]
@@ -202,7 +202,7 @@ fn single_push(c: &mut Criterion) {
     });
 }
 
-fn single_remove_udp(udp: Udp<Ipv4>) -> Ipv4 {
+fn single_remove_udp(udp: Udp4) -> Ipv4 {
     udp.remove().unwrap()
 }
 
@@ -214,7 +214,7 @@ fn single_remove(c: &mut Criterion) {
     });
 }
 
-fn multi_remove_udp(udp: Udp<Ipv4>) -> Mbuf {
+fn multi_remove_udp(udp: Udp4) -> Mbuf {
     let ipv4 = udp.remove().unwrap();
     let ethernet = ipv4.remove().unwrap();
     ethernet.remove().unwrap()

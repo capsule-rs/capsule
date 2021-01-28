@@ -513,7 +513,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Ethernet, Tcp};
+    use crate::packets::{Ethernet, Tcp, Tcp6};
     use crate::testils::byte_arrays::{IPV6_TCP_PACKET, SR_TCP_PACKET};
     use crate::Mbuf;
 
@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(ProtocolNumbers::Tcp, ipv6.next_header());
 
         // make sure rest of the packet still valid
-        let tcp = ipv6.parse::<Tcp<Ipv6>>().unwrap();
+        let tcp = ipv6.parse::<Tcp6>().unwrap();
         assert_eq!(3464, tcp.src_port());
     }
 }
