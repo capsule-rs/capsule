@@ -125,7 +125,7 @@ jobs:
         continue-on-error: true
 
   bench:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'push'
     runs-on: ubuntu-18.04
 
     container:
