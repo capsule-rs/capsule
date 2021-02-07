@@ -196,51 +196,50 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-  # issue on tarpaulin: https://github.com/xd009642/tarpaulin/issues/461
-  # coverage:
-  #   runs-on: ubuntu-18.04
+  coverage:
+    runs-on: ubuntu-18.04
 
-  #   container:
-  #     image: getcapsule/sandbox
-  #     options: --privileged
+    container:
+      image: getcapsule/sandbox
+      options: --privileged
 
-  #   steps:
-  #     - name: install curl
-  #       run: apt-get update && apt-get install -y curl
+    steps:
+      - name: install curl
+        run: apt-get update && apt-get install -y curl
 
-  #     - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly
-  #         override: true
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
 
-  #     - name: install-tarpaulin
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: install
-  #         args: --force cargo-tarpaulin
+      - name: install-tarpaulin
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --force cargo-tarpaulin
 
-  #     - name: run-tarpaulin
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: tarpaulin
-  #         args: '-p capsule -l --count --exclude-files examples/* ffi/* macros/* --out Xml -Zpackage-features --features full'
+      - name: run-tarpaulin
+        uses: actions-rs/cargo@v1
+        with:
+          command: tarpaulin
+          args: "-p capsule -l --count --exclude-files examples/* ffi/* macros/* --out Xml -Zpackage-features --features full"
 
-  #     - uses: codecov/codecov-action@v1
-  #       with:
-  #         file: ./cobertura.xml
+      - uses: codecov/codecov-action@v1
+        with:
+          file: ./cobertura.xml
 
-  #     - name: slack-it
-  #       uses: homoluctus/slatify@v2.1.2
-  #       if: failure() || cancelled()
-  #       with:
-  #         type: ${{ job.status }}
-  #         job_name: '*${{ github.workflow }}* @ coverage'
-  #         url: ${{ secrets.SLACK_WEBHOOK }}
-  #         commit: true
-  #         token: ${{ secrets.GITHUB_TOKEN }}
-  #       continue-on-error: true
+      - name: slack-it
+        uses: homoluctus/slatify@v2.1.2
+        if: failure() || cancelled()
+        with:
+          type: ${{ job.status }}
+          job_name: "*${{ github.workflow }}* @ coverage"
+          url: ${{ secrets.SLACK_WEBHOOK }}
+          commit: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   format:
     runs-on: ubuntu-18.04
@@ -293,10 +292,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-  ## TODO 01/23/21: Return to this, as it's getting an Exit 1,
-  ##      but I can't get leak errors locally on our VM (exit 0) or my local
-  ##      system 76 (bare). So, only shows up on GH (no problem in past runs).
-  ##      I've tested on recent rust nightly and 19.11.6 (and 19.11.1)
   sanitize:
     runs-on: ubuntu-18.04
 
@@ -321,7 +316,6 @@ jobs:
             /bin/bash -c "rustup install nightly && rustup default nightly \
             && rustup component add rust-src \
             && cargo run --target x86_64-unknown-linux-gnu -Zbuild-std -- -f ping4d.toml"
-        continue-on-error: true
 
       - name: slack-it
         uses: homoluctus/slatify@v2.1.2
@@ -360,8 +354,7 @@ jobs:
 
   slack-pr:
     if: github.event_name == 'pull_request'
-    # TODO: re-add coverage
-    needs: [audit, bench-pr, check, format, lint, sanitize, test]
+    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -377,8 +370,7 @@ jobs:
 
   slack:
     if: github.event_name == 'push'
-    # TODO: re-add coverage
-    needs: [audit, bench, check, format, lint, sanitize, test]
+    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: slack-it
@@ -394,8 +386,7 @@ jobs:
 
   discord-pr:
     if: github.event_name == 'pull_request'
-    # TODO: re-add coverage
-    needs: [audit, bench-pr, check, format, lint, sanitize, test]
+    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it
@@ -408,8 +399,7 @@ jobs:
 
   discord:
     if: github.event_name == 'push'
-    # TODO: re-add coverage
-    needs: [audit, bench, check, format, lint, sanitize, test]
+    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
     runs-on: ubuntu-18.04
     steps:
       - name: discord-it
