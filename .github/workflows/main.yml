@@ -162,11 +162,11 @@ jobs:
         rust-toolchain: [stable, beta, nightly]
         # Allow failures on nightly, it's just informative
         include:
-          - rust: stable
+          - rust-toolchain: stable
             can-fail: false
-          - rust: beta
+          - rust-toolchain: beta
             can-fail: false
-          - rust: nightly
+          - rust-toolchain: nightly
             can-fail: true
 
     container:
