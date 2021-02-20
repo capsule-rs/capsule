@@ -21,7 +21,7 @@
 pub mod arp;
 pub mod checksum;
 mod ethernet;
-pub mod icmp;
+//pub mod icmp;
 pub mod ip;
 mod tcp;
 pub mod types;
@@ -32,7 +32,7 @@ pub use self::tcp::*;
 pub use self::udp::*;
 
 use crate::Mbuf;
-use failure::{Fail, Fallible};
+use anyhow::{Context, Result};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -164,7 +164,7 @@ pub trait Packet {
     /// [IPv4]: ip::v4::Ipv4
     /// [`ether_type`]: Ethernet::ether_type
     /// [`parse`]: Packet::parse
-    fn try_parse(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
+    fn try_parse(envelope: Self::Envelope, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 
@@ -175,7 +175,7 @@ pub trait Packet {
     ///
     /// [`peek`]: Packet::peek
     #[inline]
-    fn parse<T: Packet<Envelope = Self>>(self) -> Fallible<T>
+    fn parse<T: Packet<Envelope = Self>>(self) -> Result<T>
     where
         Self: Sized,
     {
@@ -187,7 +187,7 @@ pub trait Packet {
     /// `peek` returns an immutable reference to the payload. The caller
     /// retains full ownership of the packet.
     #[inline]
-    fn peek<T: Packet<Envelope = Self>>(&self) -> Fallible<Immutable<'_, T>>
+    fn peek<T: Packet<Envelope = Self>>(&self) -> Result<Immutable<'_, T>>
     where
         Self: Sized,
     {
@@ -208,14 +208,14 @@ pub trait Packet {
     /// [`push`].
     ///
     /// [`push`]: Packet::push
-    fn try_push(envelope: Self::Envelope, internal: Internal) -> Fallible<Self>
+    fn try_push(envelope: Self::Envelope, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 
     /// Prepends a new packet of type `T` to the beginning of the envelope's
     /// payload.
     #[inline]
-    fn push<T: Packet<Envelope = Self>>(self) -> Fallible<T>
+    fn push<T: Packet<Envelope = Self>>(self) -> Result<T>
     where
         Self: Sized,
     {
@@ -233,23 +233,37 @@ pub trait Packet {
     /// envelope. The result of the removal is not guaranteed to be a valid
     /// packet. The protocol should provide a custom implementation if
     /// additional fixes are necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have sufficient data to
+    /// remove.
     #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope>
+    fn remove(mut self) -> Result<Self::Envelope>
     where
         Self: Sized,
     {
         let offset = self.offset();
         let len = self.header_len();
-        self.mbuf_mut().shrink(offset, len)?;
+        self.mbuf_mut()
+            .shrink(offset, len)
+            .context("failed to remove packet header.")?;
         Ok(self.deparse())
     }
 
     /// Removes the packet's payload from the message buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the size of the payload to remove exceeds data
+    /// stored in the buffer. The packet in the mbuf is invalid.
     #[inline]
-    fn remove_payload(&mut self) -> Fallible<()> {
+    fn remove_payload(&mut self) -> Result<()> {
         let offset = self.payload_offset();
         let len = self.payload_len();
-        self.mbuf_mut().shrink(offset, len)?;
+        self.mbuf_mut()
+            .shrink(offset, len)
+            .context("failed to remove packet payload.")?;
         Ok(())
     }
 
@@ -319,18 +333,6 @@ impl<T> Deref for Immutable<'_, T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
-    }
-}
-
-/// Error when packet failed to parse.
-#[derive(Debug, Fail)]
-#[fail(display = "{}", _0)]
-pub struct ParseError(String);
-
-impl ParseError {
-    /// Creates a new `ParseError` with a message.
-    pub fn new(msg: &str) -> ParseError {
-        ParseError(msg.into())
     }
 }
 

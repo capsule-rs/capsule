@@ -20,9 +20,9 @@ use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::Ipv6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{checksum, Internal, Packet, ParseError};
+use crate::packets::{checksum, Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -421,8 +421,15 @@ impl<E: IpPacket> Tcp<E> {
     /// It recomputes the checksum using the incremental method. This is more
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpPacketError::IpAddrMismatch` if `src_ip` address type
+    /// does not match the address type of the envelope. For example, if
+    /// the TCP packet is inside a IPv6 packet, the `src_ip` must be an
+    /// Ipv6Addr.
     #[inline]
-    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Fallible<()> {
+    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().src();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
         self.envelope_mut().set_src(src_ip)?;
@@ -435,8 +442,15 @@ impl<E: IpPacket> Tcp<E> {
     /// It recomputes the checksum using the incremental method. This is more
     /// efficient if the only change made is the address. Otherwise should use
     /// `cascade` to recompute the checksum over all the fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpPacketError::IpAddrMismatch` if `dst_ip` address type
+    /// does not match the address type of the envelope. For example, if
+    /// the TCP packet is inside a IPv6 packet, the `dst_ip` must be an
+    /// Ipv6Addr.
     #[inline]
-    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Fallible<()> {
+    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
         let old_ip = self.envelope().dst();
         let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
         self.envelope_mut().set_dst(dst_ip)?;
@@ -529,19 +543,22 @@ impl<E: IpPacket> Packet for Tcp<E> {
 
     /// Parses the envelope's payload as a TCP packet.
     ///
-    /// If the envelope is IPv4, then [`Ipv4::protocol`] must be set to
-    /// [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an extension
-    /// header, then [`next_header`] must be set to `ProtocolNumbers::Tcp`.
-    /// Otherwise, a parsing error is returned.
+    /// # Errors
+    ///
+    /// If the envelope is IPv4, returns an error if [`Ipv4::protocol`] is
+    /// not set to [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an
+    /// extension header, returns an error if [`next_header`] is not set to
+    /// `ProtocolNumbers::Tcp`. Returns an error if the payload does not
+    /// have sufficient data for the TCP header.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Tcp`]: crate::packets::ip::ProtocolNumbers::Tcp
     /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.next_protocol() == ProtocolNumbers::Tcp,
-            ParseError::new("not a TCP packet.")
+            anyhow!("not a TCP packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -561,11 +578,15 @@ impl<E: IpPacket> Packet for Tcp<E> {
     /// [`ProtocolNumbers::Tcp`]. If the envelope is IPv6 or an extension
     /// header, then [`next_header`] is set to `ProtocolNumbers::Tcp`.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Tcp`]: crate::packets::ip::ProtocolNumbers::Tcp
     /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 

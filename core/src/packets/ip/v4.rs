@@ -21,9 +21,9 @@
 use crate::packets::checksum::{self, PseudoHeader};
 use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
@@ -415,16 +415,19 @@ impl Packet for Ipv4 {
 
     /// Parses the Ethernet's payload as an IPv4 packet.
     ///
-    /// [`ether_type`] must be set to [`EtherTypes::Ipv4`]. Otherwise a parsing
-    /// error is returned.
+    /// # Errors
+    ///
+    /// Returns an error if [`ether_type`] is not set to [`EtherTypes::Ipv4`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// IPv4 header.
     ///
     /// [`ether_type`]: Ethernet::ether_type
     /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Ipv4,
-            ParseError::new("not an IPv4 packet.")
+            anyhow!("not an IPv4 packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -442,10 +445,14 @@ impl Packet for Ipv4 {
     ///
     /// [`ether_type`] is set to [`EtherTypes::Ipv4`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    ///
     /// [`ether_type`]: Ethernet::ether_type
     /// [`EtherTypes::Ipv4`]: EtherTypes::Ipv4
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -498,8 +505,13 @@ impl IpPacket for Ipv4 {
         IpAddr::V4(self.src())
     }
 
+    /// Sets the source IP address.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpPacketError::IpAddrMismatch` if `src` is not an Ipv4Addr.
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
+    fn set_src(&mut self, src: IpAddr) -> Result<()> {
         match src {
             IpAddr::V4(addr) => {
                 self.set_src(addr);
@@ -514,8 +526,13 @@ impl IpPacket for Ipv4 {
         IpAddr::V4(self.dst())
     }
 
+    /// Sets the destination IP address.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpPacketError::IpAddrMismatch` if `dst` is not an Ipv4Addr.
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
         match dst {
             IpAddr::V4(addr) => {
                 self.set_dst(addr);
@@ -535,8 +552,16 @@ impl IpPacket for Ipv4 {
         }
     }
 
+    /// Truncates the IP packet to a maximum transmission unit size.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IpPacketError::MtuTooSmall` if the desired MTU is less
+    /// than [`IPV4_MIN_MTU`].
+    ///
+    /// [`IPV4_MIN_MTU`]: IPV4_MIN_MTU
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
         ensure!(
             mtu >= IPV4_MIN_MTU,
             IpPacketError::MtuTooSmall(mtu, IPV4_MIN_MTU)
