@@ -26,7 +26,7 @@ use crate::dpdk::{
     self, CoreId, KniError, KniRx, Mempool, Port, PortBuilder, PortError, PortQueue,
 };
 use crate::{debug, ensure, info};
-use failure::Fallible;
+use anyhow::Result;
 use futures::{future, stream, StreamExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -78,7 +78,7 @@ pub struct Runtime {
 impl Runtime {
     /// Builds a runtime from config settings.
     #[allow(clippy::cognitive_complexity)]
-    pub fn build(config: RuntimeConfig) -> Fallible<Self> {
+    pub fn build(config: RuntimeConfig) -> Result<Self> {
         info!("initializing EAL...");
         dpdk::eal_init(config.to_eal_args())?;
 
@@ -144,7 +144,7 @@ impl Runtime {
     }
 
     #[inline]
-    fn get_port(&self, name: &str) -> Fallible<&Port> {
+    fn get_port(&self, name: &str) -> Result<&Port> {
         self.ports
             .iter()
             .find(|p| p.name() == name)
@@ -152,7 +152,7 @@ impl Runtime {
     }
 
     #[inline]
-    fn get_port_mut(&mut self, name: &str) -> Fallible<&mut Port> {
+    fn get_port_mut(&mut self, name: &str) -> Result<&mut Port> {
         self.ports
             .iter_mut()
             .find(|p| p.name() == name)
@@ -160,7 +160,7 @@ impl Runtime {
     }
 
     #[inline]
-    fn get_core(&self, core_id: CoreId) -> Fallible<&CoreExecutor> {
+    fn get_core(&self, core_id: CoreId) -> Result<&CoreExecutor> {
         self.core_map
             .cores
             .get(&core_id)
@@ -168,7 +168,7 @@ impl Runtime {
     }
 
     #[inline]
-    fn get_port_qs(&self, core_id: CoreId) -> Fallible<HashMap<String, PortQueue>> {
+    fn get_port_qs(&self, core_id: CoreId) -> Result<HashMap<String, PortQueue>> {
         let map = self
             .ports
             .iter()
@@ -234,7 +234,7 @@ impl Runtime {
         &mut self,
         port: &str,
         installer: F,
-    ) -> Fallible<&mut Self>
+    ) -> Result<&mut Self>
     where
         F: Fn(PortQueue) -> T + Send + Sync + 'static,
     {
@@ -288,7 +288,7 @@ impl Runtime {
         &mut self,
         port: &str,
         installer: F,
-    ) -> Fallible<&mut Self>
+    ) -> Result<&mut Self>
     where
         F: FnOnce(KniRx, PortQueue) -> T + Send + Sync + 'static,
     {
@@ -342,7 +342,7 @@ impl Runtime {
         &mut self,
         core: usize,
         installer: F,
-    ) -> Fallible<&mut Self>
+    ) -> Result<&mut Self>
     where
         F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
     {
@@ -393,7 +393,7 @@ impl Runtime {
         core: usize,
         installer: F,
         dur: Duration,
-    ) -> Fallible<&mut Self>
+    ) -> Result<&mut Self>
     where
         F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
     {
@@ -436,7 +436,7 @@ impl Runtime {
         core: usize,
         task: F,
         dur: Duration,
-    ) -> Fallible<&mut Self>
+    ) -> Result<&mut Self>
     where
         F: Fn() + Send + Sync + 'static,
     {
@@ -464,7 +464,7 @@ impl Runtime {
     ///
     /// This mode is useful for running integration tests. The timeout
     /// duration can be set in `RuntimeSettings`.
-    fn wait_for_timeout(&mut self, timeout: Duration) -> Fallible<()> {
+    fn wait_for_timeout(&mut self, timeout: Duration) -> Result<()> {
         let MasterExecutor {
             ref timer,
             ref mut thread,
@@ -483,7 +483,7 @@ impl Runtime {
     }
 
     /// Blocks the main thread until receives a signal to terminate.
-    fn wait_for_signal(&mut self) -> Fallible<()> {
+    fn wait_for_signal(&mut self) -> Result<()> {
         let sighup = unix::signal(SignalKind::hangup())?.map(|_| UnixSignal::SIGHUP);
         let sigint = unix::signal(SignalKind::interrupt())?.map(|_| UnixSignal::SIGINT);
         let sigterm = unix::signal(SignalKind::terminate())?.map(|_| UnixSignal::SIGTERM);
@@ -516,7 +516,7 @@ impl Runtime {
     }
 
     /// Installs the KNI TX pipelines.
-    fn add_kni_tx_pipelines(&mut self) -> Fallible<()> {
+    fn add_kni_tx_pipelines(&mut self) -> Result<()> {
         let mut map = HashMap::new();
         for port in self.ports.iter_mut() {
             // selects a core if we need to run a tx pipeline for this port. the
@@ -544,7 +544,7 @@ impl Runtime {
     }
 
     /// Starts all the ports to receive packets.
-    fn start_ports(&mut self) -> Fallible<()> {
+    fn start_ports(&mut self) -> Result<()> {
         for port in self.ports.iter_mut() {
             port.start()?;
         }
@@ -584,7 +584,7 @@ impl Runtime {
     }
 
     /// Executes the pipeline(s) until a stop signal is received.
-    pub fn execute(&mut self) -> Fallible<()> {
+    pub fn execute(&mut self) -> Result<()> {
         self.add_kni_tx_pipelines()?;
         self.start_ports()?;
         self.unpark_cores();

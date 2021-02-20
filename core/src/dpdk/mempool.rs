@@ -20,13 +20,14 @@ use super::SocketId;
 use crate::dpdk::DpdkError;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, info};
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use thiserror::Error;
 
 /// A memory pool is an allocator of message buffers, or `Mbuf`. For best
 /// performance, each socket should have a dedicated `Mempool`.
@@ -51,7 +52,7 @@ impl Mempool {
     /// # Errors
     ///
     /// If allocation fails, then `DpdkError` is returned.
-    pub(crate) fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Fallible<Self> {
+    pub(crate) fn new(capacity: usize, cache_size: usize, socket_id: SocketId) -> Result<Self> {
         static MEMPOOL_COUNT: AtomicUsize = AtomicUsize::new(0);
         let n = MEMPOOL_COUNT.fetch_add(1, Ordering::Relaxed);
         let name = format!("mempool{}", n);
@@ -127,12 +128,12 @@ thread_local! {
 }
 
 /// Error indicating the `Mempool` is not found or is exhaused.
-#[derive(Debug, Fail)]
+#[derive(Error, Debug)]
 pub(crate) enum MempoolError {
-    #[fail(display = "Cannot allocate a new mbuf from mempool")]
+    #[error("Cannot allocate a new mbuf from mempool")]
     Exhausted,
 
-    #[fail(display = "Mempool for {:?} not found.", _0)]
+    #[error("Mempool for {0:?} not found.")]
     NotFound(SocketId),
 }
 
@@ -162,7 +163,7 @@ impl<'a> MempoolMap<'a> {
     /// # Errors
     ///
     /// If the value is not found, `MempoolError::NotFound` is returned.
-    pub(crate) fn get_raw(&mut self, socket_id: SocketId) -> Fallible<&mut ffi::rte_mempool> {
+    pub(crate) fn get_raw(&mut self, socket_id: SocketId) -> Result<&mut ffi::rte_mempool> {
         self.inner
             .get_mut(&socket_id)
             .ok_or_else(|| MempoolError::NotFound(socket_id).into())

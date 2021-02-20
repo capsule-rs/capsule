@@ -19,7 +19,8 @@
 pub(crate) use capsule_ffi::*;
 
 use crate::warn;
-use failure::{Fail, Fallible};
+use anyhow::Result;
+use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::os::raw;
 use std::ptr::NonNull;
@@ -85,8 +86,9 @@ impl ToCString for &str {
 pub(crate) trait ToResult {
     type Ok;
 
-    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
+        E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
         Self: Sized;
 }
@@ -95,8 +97,9 @@ impl<T> ToResult for *mut T {
     type Ok = NonNull<T>;
 
     #[inline]
-    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
+        E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
     {
         NonNull::new(self).ok_or_else(|| f(self).into())
@@ -107,8 +110,9 @@ impl<T> ToResult for *const T {
     type Ok = *const T;
 
     #[inline]
-    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
+        E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
     {
         if self.is_null() {
@@ -123,8 +127,9 @@ impl ToResult for raw::c_int {
     type Ok = u32;
 
     #[inline]
-    fn to_result<E: Fail, F>(self, f: F) -> Fallible<Self::Ok>
+    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
+        E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
     {
         if self >= 0 {
