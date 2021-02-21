@@ -47,8 +47,8 @@
 
 use crate::dpdk::CoreId;
 use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
+use anyhow::Result;
 use clap::{clap_app, crate_version};
-use failure::Fallible;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
@@ -412,7 +412,7 @@ impl fmt::Debug for PortConfig {
 /// ```
 /// home$ ./myapp -f config.toml
 /// ```
-pub fn load_config() -> Fallible<RuntimeConfig> {
+pub fn load_config() -> Result<RuntimeConfig> {
     let matches = clap_app!(capsule =>
         (version: crate_version!())
         (@arg file: -f --file +required +takes_value "configuration file")

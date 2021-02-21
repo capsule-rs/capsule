@@ -44,7 +44,7 @@ pub use self::send::*;
 
 use crate::packets::Packet;
 use crate::Mbuf;
-use failure::{Error, Fallible};
+use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -198,7 +198,7 @@ pub trait Batch {
     #[inline]
     fn filter_map<T: Packet, F>(self, f: F) -> FilterMap<Self, T, F>
     where
-        F: FnMut(Self::Item) -> Fallible<Either<T>>,
+        F: FnMut(Self::Item) -> Result<Either<T>>,
         Self: Sized,
     {
         FilterMap::new(self, f)
@@ -216,7 +216,7 @@ pub trait Batch {
     #[inline]
     fn map<T: Packet, F>(self, f: F) -> Map<Self, T, F>
     where
-        F: FnMut(Self::Item) -> Fallible<T>,
+        F: FnMut(Self::Item) -> Result<T>,
         Self: Sized,
     {
         Map::new(self, f)
@@ -238,7 +238,7 @@ pub trait Batch {
     #[inline]
     fn for_each<F>(self, f: F) -> ForEach<Self, F>
     where
-        F: FnMut(&Self::Item) -> Fallible<()>,
+        F: FnMut(&Self::Item) -> Result<()>,
         Self: Sized,
     {
         ForEach::new(self, f)
@@ -343,7 +343,7 @@ pub trait Batch {
     /// });
     fn replace<T: Packet, F>(self, f: F) -> Replace<Self, T, F>
     where
-        F: FnMut(&Self::Item) -> Fallible<T>,
+        F: FnMut(&Self::Item) -> Result<T>,
         Self: Sized,
     {
         Replace::new(self, f)

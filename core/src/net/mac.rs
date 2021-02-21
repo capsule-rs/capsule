@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use failure::Fail;
 use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
+use thiserror::Error;
 
 /// Ethernet MAC address.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
@@ -60,8 +60,8 @@ impl From<[u8; 6]> for MacAddr {
 }
 
 /// Error returned when parsing a malformed MAC address.
-#[derive(Debug, Fail)]
-#[fail(display = "Failed to parse '{}' as MAC address.", _0)]
+#[derive(Error, Debug)]
+#[error("Failed to parse '{0}' as MAC address.")]
 pub struct MacParseError(String);
 
 impl FromStr for MacAddr {
