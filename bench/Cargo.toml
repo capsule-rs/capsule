@@ -10,9 +10,9 @@ Benchmarks for Capsule.
 """
 
 [dev-dependencies]
+anyhow = "1.0"
 capsule = { version = "0.1", path = "../core", features = ["testils"] }
 criterion = "0.3"
-failure = "0.1"
 proptest = "0.10"
 
 [[bench]]

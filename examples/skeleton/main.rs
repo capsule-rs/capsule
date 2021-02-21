@@ -16,13 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::config::load_config;
 use capsule::Runtime;
-use failure::Fallible;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn main() -> Fallible<()> {
+fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::TRACE)
         .finish();

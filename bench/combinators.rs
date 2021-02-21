@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::batch::{Batch, Either};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet};
@@ -23,7 +24,6 @@ use capsule::testils::criterion::BencherExt;
 use capsule::testils::proptest::*;
 use capsule::{compose, Mbuf};
 use criterion::{criterion_group, criterion_main, Criterion};
-use failure::Fallible;
 use proptest::prelude::*;
 use proptest::strategy;
 
@@ -86,7 +86,7 @@ fn map(batch: impl Batch<Item = Mbuf>) -> impl Batch<Item = Ethernet> {
     batch.map(|p| p.parse::<Ethernet>())
 }
 
-fn no_batch_map(mbuf: Mbuf) -> Fallible<Ethernet> {
+fn no_batch_map(mbuf: Mbuf) -> Result<Ethernet> {
     mbuf.parse::<Ethernet>()
 }
 
@@ -189,7 +189,7 @@ fn replace(batch: impl Batch<Item = Mbuf>) -> impl Batch<Item = Mbuf> {
     batch.replace(|_p| Mbuf::new())
 }
 
-fn no_batch_replace(_mbuf: Mbuf) -> Fallible<Mbuf> {
+fn no_batch_replace(_mbuf: Mbuf) -> Result<Mbuf> {
     Mbuf::new()
 }
 

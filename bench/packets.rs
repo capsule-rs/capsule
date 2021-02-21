@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, SegmentRouting};
 use capsule::packets::{Ethernet, Packet, Udp4};
@@ -24,7 +25,6 @@ use capsule::testils::proptest::*;
 use capsule::testils::{PacketExt, Rvg};
 use capsule::{fieldmap, Mbuf};
 use criterion::{criterion_group, criterion_main, Criterion};
-use failure::Fallible;
 use proptest::prelude::*;
 use std::net::Ipv6Addr;
 
@@ -228,7 +228,7 @@ fn multi_remove(c: &mut Criterion) {
     });
 }
 
-fn set_srh_segments(mut args: (SegmentRouting<Ipv6>, Vec<Ipv6Addr>)) -> Fallible<()> {
+fn set_srh_segments(mut args: (SegmentRouting<Ipv6>, Vec<Ipv6Addr>)) -> Result<()> {
     args.0.set_segments(&args.1)
 }
 

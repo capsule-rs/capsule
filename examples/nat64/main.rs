@@ -16,6 +16,7 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::batch::{Batch, Either, Pipeline, Poll};
 use capsule::config::load_config;
 use capsule::packets::ip::v4::Ipv4;
@@ -24,7 +25,6 @@ use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::{Ethernet, Packet, Tcp4, Tcp6};
 use capsule::{Mbuf, PortQueue, Runtime};
 use chashmap::CHashMap;
-use failure::Fallible;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -83,7 +83,7 @@ fn map6to4(addr: Ipv6Addr) -> Ipv4Addr {
 }
 
 #[inline]
-fn nat_4to6(packet: Mbuf) -> Fallible<Either<Mbuf>> {
+fn nat_4to6(packet: Mbuf) -> Result<Either<Mbuf>> {
     let ethernet = packet.parse::<Ethernet>()?;
     let v4 = ethernet.parse::<Ipv4>()?;
     if v4.protocol() == ProtocolNumbers::Tcp && v4.fragment_offset() == 0 && !v4.more_fragments() {
@@ -118,7 +118,7 @@ fn nat_4to6(packet: Mbuf) -> Fallible<Either<Mbuf>> {
 }
 
 #[inline]
-fn nat_6to4(packet: Mbuf) -> Fallible<Either<Mbuf>> {
+fn nat_6to4(packet: Mbuf) -> Result<Either<Mbuf>> {
     let ethernet = packet.parse::<Ethernet>()?;
     let v6 = ethernet.parse::<Ipv6>()?;
     if v6.next_header() == ProtocolNumbers::Tcp {
@@ -161,7 +161,7 @@ fn install_4to6(qs: HashMap<String, PortQueue>) -> impl Pipeline {
         .send(qs["eth1"].clone())
 }
 
-fn main() -> Fallible<()> {
+fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

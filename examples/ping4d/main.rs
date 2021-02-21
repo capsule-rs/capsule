@@ -16,17 +16,17 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::batch::{Batch, Pipeline, Poll};
 use capsule::config::load_config;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet};
 use capsule::{Mbuf, PortQueue, Runtime};
-use failure::Fallible;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Fallible<EchoReply> {
+fn reply_echo(packet: &Mbuf) -> Result<EchoReply> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -57,7 +57,7 @@ fn install(q: PortQueue) -> impl Pipeline {
     Poll::new(q.clone()).replace(reply_echo).send(q)
 }
 
-fn main() -> Fallible<()> {
+fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();
