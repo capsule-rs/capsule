@@ -21,7 +21,7 @@
 pub mod arp;
 pub mod checksum;
 mod ethernet;
-//pub mod icmp;
+pub mod icmp;
 pub mod ip;
 mod tcp;
 pub mod types;

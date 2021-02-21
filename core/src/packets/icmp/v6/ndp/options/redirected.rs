@@ -18,9 +18,9 @@
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{Internal, ParseError};
+use crate::packets::Internal;
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -161,12 +161,17 @@ impl<'a> NdpOption<'a> for RedirectedHeader<'a> {
         self.fields().length
     }
 
+    /// Parses the buffer at offset as redirected header option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `option_type` is not set to `RedirectedHeader`.
     #[inline]
     fn try_parse(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<RedirectedHeader<'a>> {
+    ) -> Result<RedirectedHeader<'a>> {
         let fields = mbuf.read_data::<RedirectedHeaderFields>(offset)?;
         let option = RedirectedHeader {
             mbuf,
@@ -176,18 +181,23 @@ impl<'a> NdpOption<'a> for RedirectedHeader<'a> {
 
         ensure!(
             option.option_type() == NdpOptionTypes::RedirectedHeader,
-            ParseError::new("Option is not redirected header.")
+            anyhow!("not redirected header.")
         );
 
         Ok(option)
     }
 
+    /// Pushes a new redirected header option to the buffer at offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
     fn try_push(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<RedirectedHeader<'a>> {
+    ) -> Result<RedirectedHeader<'a>> {
         mbuf.extend(offset, RedirectedHeaderFields::size_of())?;
         let fields = mbuf.write_data(offset, &RedirectedHeaderFields::default())?;
         Ok(RedirectedHeader {

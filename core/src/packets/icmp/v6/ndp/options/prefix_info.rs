@@ -18,9 +18,9 @@
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::types::u32be;
-use crate::packets::{Internal, ParseError};
+use crate::packets::Internal;
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::Ipv6Addr;
 use std::ptr::NonNull;
@@ -223,12 +223,18 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
         self.fields().length
     }
 
+    /// Parses the buffer at offset as prefix information option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `option_type` is not set to `PrefixInformation`.
+    /// Returns an error if the option length is incorrect.
     #[inline]
     fn try_parse(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<PrefixInformation<'a>> {
+    ) -> Result<PrefixInformation<'a>> {
         let fields = mbuf.read_data::<PrefixInformationFields>(offset)?;
         let option = PrefixInformation {
             _mbuf: mbuf,
@@ -238,23 +244,28 @@ impl<'a> NdpOption<'a> for PrefixInformation<'a> {
 
         ensure!(
             option.option_type() == NdpOptionTypes::PrefixInformation,
-            ParseError::new("Option is not prefix information.")
+            anyhow!("not prefix information.")
         );
 
         ensure!(
             option.length() * 8 == PrefixInformationFields::size_of() as u8,
-            ParseError::new("Invalid prefix information option length.")
+            anyhow!("invalid prefix information option length.")
         );
 
         Ok(option)
     }
 
+    /// Pushes a new prefix information option to the buffer at offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
     fn try_push(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<PrefixInformation<'a>> {
+    ) -> Result<PrefixInformation<'a>> {
         mbuf.extend(offset, PrefixInformationFields::size_of())?;
         let fields = mbuf.write_data(offset, &PrefixInformationFields::default())?;
         Ok(PrefixInformation {

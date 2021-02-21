@@ -46,7 +46,7 @@ pub use self::router_solicit::*;
 use crate::dpdk::BufferError;
 use crate::packets::{Immutable, Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::Result;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
@@ -171,8 +171,13 @@ pub struct ImmutableNdpOption<'a> {
 
 impl<'a> ImmutableNdpOption<'a> {
     /// Creates a new immutable untyped NDP option.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::OutOfBuffer` if the buffer does not have
+    /// enough free space.
     #[inline]
-    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self> {
+    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Result<Self> {
         let tuple = mbuf.read_data(offset)?;
         let option = ImmutableNdpOption {
             mbuf,
@@ -226,7 +231,7 @@ impl<'a> ImmutableNdpOption<'a> {
     /// }
     /// ```
     #[inline]
-    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Fallible<Immutable<'b, T>> {
+    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Result<Immutable<'b, T>> {
         T::try_parse(self.mbuf, self.offset, Internal(())).map(Immutable::new)
     }
 }
@@ -256,7 +261,7 @@ impl ImmutableNdpOptionsIterator<'_> {
     /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
     /// parse error is encountered during iteration.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Fallible<Option<ImmutableNdpOption<'_>>> {
+    pub fn next(&mut self) -> Result<Option<ImmutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
             match ImmutableNdpOption::new(&mut self.mbuf, self.offset) {
                 Ok(option) => {
@@ -289,8 +294,13 @@ pub struct MutableNdpOption<'a> {
 
 impl<'a> MutableNdpOption<'a> {
     /// Creates a new mutable untyped NDP option.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::OutOfBuffer` if the buffer does not have
+    /// enough free space.
     #[inline]
-    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Fallible<Self> {
+    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Result<Self> {
         let tuple = mbuf.read_data(offset)?;
         let option = MutableNdpOption {
             mbuf,
@@ -344,7 +354,7 @@ impl<'a> MutableNdpOption<'a> {
     /// }
     /// ```
     #[inline]
-    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Fallible<T> {
+    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Result<T> {
         T::try_parse(self.mbuf, self.offset, Internal(()))
     }
 }
@@ -373,7 +383,7 @@ impl MutableNdpOptionsIterator<'_> {
     /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
     /// parse error is encountered during iteration.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Fallible<Option<MutableNdpOption<'_>>> {
+    pub fn next(&mut self) -> Result<Option<MutableNdpOption<'_>>> {
         if self.mbuf.data_len() > self.offset {
             match MutableNdpOption::new(&mut self.mbuf, self.offset) {
                 Ok(option) => {
@@ -436,7 +446,7 @@ impl NdpOptions<'_> {
     /// source.set_option_type_source();
     /// ```
     #[inline]
-    pub fn prepend<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
+    pub fn prepend<'a, T: NdpOption<'a>>(&'a mut self) -> Result<T> {
         T::try_push(self.mbuf, self.offset, Internal(()))
     }
 
@@ -451,7 +461,7 @@ impl NdpOptions<'_> {
     /// source.set_option_type_source();
     /// ```
     #[inline]
-    pub fn append<'a, T: NdpOption<'a>>(&'a mut self) -> Fallible<T> {
+    pub fn append<'a, T: NdpOption<'a>>(&'a mut self) -> Result<T> {
         T::try_push(self.mbuf, self.mbuf.data_len(), Internal(()))
     }
 
@@ -468,7 +478,7 @@ impl NdpOptions<'_> {
     /// let mut options = advert.options_mut();
     /// let _ = options.retain(|option| option.option_type() == NdpOptionTypes::PrefixInformation);
     /// ```
-    pub fn retain<F>(&mut self, mut f: F) -> Fallible<()>
+    pub fn retain<F>(&mut self, mut f: F) -> Result<()>
     where
         F: FnMut(&mut ImmutableNdpOption<'_>) -> bool,
     {
@@ -523,7 +533,7 @@ pub trait NdpOption<'a> {
     ///
     /// [`ImmutableNdpOption::downcast`]: ImmutableNdpOption::downcast
     /// [`MutableNdpOption::downcast`]: MutableNdpOption::downcast
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Fallible<Self>
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 
@@ -536,7 +546,7 @@ pub trait NdpOption<'a> {
     ///
     /// [`NdpOptions::prepend`]: NdpOptions::prepend
     /// [`NdpOptions::append`]: NdpOptions::append
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Fallible<Self>
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 }

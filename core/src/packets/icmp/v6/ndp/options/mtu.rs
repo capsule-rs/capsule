@@ -18,9 +18,9 @@
 
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{Internal, ParseError};
+use crate::packets::Internal;
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -101,8 +101,14 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
         self.fields().length
     }
 
+    /// Parses the buffer at offset as MTU option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `option_type` is not set to `MTU`. Returns
+    /// an error if the option length is incorrect.
     #[inline]
-    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Fallible<Mtu<'a>> {
+    fn try_parse(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Result<Mtu<'a>> {
         let fields = mbuf.read_data::<MtuFields>(offset)?;
         let option = Mtu {
             _mbuf: mbuf,
@@ -112,19 +118,24 @@ impl<'a> NdpOption<'a> for Mtu<'a> {
 
         ensure!(
             option.option_type() == NdpOptionTypes::Mtu,
-            ParseError::new("Option is not MTU.")
+            anyhow!("not MTU.")
         );
 
         ensure!(
             option.length() * 8 == MtuFields::size_of() as u8,
-            ParseError::new("Invalid MTU option length.")
+            anyhow!("invalid MTU option length.")
         );
 
         Ok(option)
     }
 
+    /// Pushes a new MTU option to the buffer at offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Fallible<Mtu<'a>> {
+    fn try_push(mbuf: &'a mut Mbuf, offset: usize, _internal: Internal) -> Result<Mtu<'a>> {
         mbuf.extend(offset, MtuFields::size_of())?;
         let fields = mbuf.write_data(offset, &MtuFields::default())?;
         Ok(Mtu {

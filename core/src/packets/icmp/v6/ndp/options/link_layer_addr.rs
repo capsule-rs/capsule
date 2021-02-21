@@ -18,9 +18,9 @@
 
 use crate::net::MacAddr;
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::{Internal, ParseError};
+use crate::packets::Internal;
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -113,12 +113,19 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
         self.fields().length
     }
 
+    /// Parses the buffer at offset as link layer address option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `option_type` is not set to either
+    /// `SourceLinkLayerAddress` or `TargetLinkLayerAddress`. Returns an
+    /// error if the option length is incorrect.
     #[inline]
     fn try_parse(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<LinkLayerAddress<'a>> {
+    ) -> Result<LinkLayerAddress<'a>> {
         let fields = mbuf.read_data::<LinkLayerAddressFields>(offset)?;
         let option = LinkLayerAddress {
             _mbuf: mbuf,
@@ -129,23 +136,28 @@ impl<'a> NdpOption<'a> for LinkLayerAddress<'a> {
         ensure!(
             option.option_type() == NdpOptionTypes::SourceLinkLayerAddress
                 || option.option_type() == NdpOptionTypes::TargetLinkLayerAddress,
-            ParseError::new("Option is not source/target link-layer address.")
+            anyhow!("not source/target link-layer address.")
         );
 
         ensure!(
             option.length() * 8 == LinkLayerAddressFields::size_of() as u8,
-            ParseError::new("Invalid link-layer address option length.")
+            anyhow!("invalid link-layer address option length.")
         );
 
         Ok(option)
     }
 
+    /// Pushes a new link layer address option to the buffer at offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
     fn try_push(
         mbuf: &'a mut Mbuf,
         offset: usize,
         _internal: Internal,
-    ) -> Fallible<LinkLayerAddress<'a>> {
+    ) -> Result<LinkLayerAddress<'a>> {
         mbuf.extend(offset, LinkLayerAddressFields::size_of())?;
         let fields = mbuf.write_data(offset, &LinkLayerAddressFields::default())?;
         Ok(LinkLayerAddress {
