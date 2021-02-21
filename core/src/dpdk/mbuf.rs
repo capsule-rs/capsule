@@ -82,7 +82,7 @@ impl SizeOf for ::std::net::Ipv6Addr {
 }
 
 /// Error indicating buffer access failures.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum BufferError {
     /// The offset exceeds the buffer length.
     #[error("Offset {0} exceeds the buffer length {1}.")]

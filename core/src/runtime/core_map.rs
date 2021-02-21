@@ -149,7 +149,7 @@ pub(crate) struct CoreExecutor {
 }
 
 /// Core errors.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum CoreError {
     /// Core is not found.
     #[error("{0:?} is not found.")]

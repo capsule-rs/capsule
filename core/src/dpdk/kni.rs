@@ -233,7 +233,7 @@ unsafe impl Send for KniRx {}
 unsafe impl Send for KniTx {}
 
 /// KNI errors.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum KniError {
     #[error("KNI is not enabled for the port.")]
     Disabled,

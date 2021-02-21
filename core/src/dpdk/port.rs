@@ -258,7 +258,7 @@ impl PortQueue {
 }
 
 /// Error indicating failed to initialize the port.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum PortError {
     /// Port is not found.
     #[error("Port {0} is not found.")]

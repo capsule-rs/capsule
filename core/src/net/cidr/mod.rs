@@ -27,7 +27,7 @@ pub use self::v6::Ipv6Cidr;
 use thiserror::Error;
 
 /// Error indicating that a CIDR range cannot be parsed or is handled with an invalid prefix length.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum CidrError {
     /// Error returned when parsing a malformed CIDR range.
     #[error("Failed to parse CIDR: {0}")]

@@ -60,7 +60,7 @@ impl From<[u8; 6]> for MacAddr {
 }
 
 /// Error returned when parsing a malformed MAC address.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("Failed to parse '{0}' as MAC address.")]
 pub struct MacParseError(String);
 

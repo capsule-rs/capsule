@@ -167,7 +167,7 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E> {
 }
 
 /// Error when trying to push a generic ICMPv6 header without a message body.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("Cannot push a generic ICMPv6 header without a message body.")]
 pub struct NoIcmpv6MessageBody;
 

@@ -160,7 +160,7 @@ impl fmt::Debug for Icmpv4 {
 }
 
 /// Error when trying to push a generic ICMPv4 header without a message body.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("Cannot push a generic ICMPv4 header without a message body.")]
 pub struct NoIcmpv4MessageBody;
 

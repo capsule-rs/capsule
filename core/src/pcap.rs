@@ -33,7 +33,7 @@ const PCAP_SNAPSHOT_LEN: raw::c_int = ffi::RTE_MBUF_DEFAULT_BUF_SIZE as raw::c_i
 ///
 /// When an FFI call fails, either a specified error message or an `errno` is
 /// translated into a `PcapError`.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("{0}")]
 struct PcapError(String);
 

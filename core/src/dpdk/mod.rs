@@ -46,7 +46,7 @@ use thiserror::Error;
 /// An error generated in `libdpdk`.
 ///
 /// When an FFI call fails, the `errno` is translated into `DpdkError`.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("{0}")]
 pub(crate) struct DpdkError(String);
 

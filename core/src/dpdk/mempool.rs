@@ -128,7 +128,7 @@ thread_local! {
 }
 
 /// Error indicating the `Mempool` is not found or is exhaused.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum MempoolError {
     #[error("Cannot allocate a new mbuf from mempool")]
     Exhausted,

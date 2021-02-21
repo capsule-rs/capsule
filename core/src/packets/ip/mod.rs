@@ -266,7 +266,7 @@ impl fmt::Debug for Flow {
 }
 
 /// IP packet related errors.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum IpPacketError {
     /// Error indicating mixing IPv4 and IPv6 addresses in a flow.
     #[error("Cannot mix IPv4 and IPv6 addresses")]

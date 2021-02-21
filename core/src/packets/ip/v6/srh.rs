@@ -492,7 +492,7 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
 }
 
 /// Error when the segment list length is 0.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 #[error("Segment list length must be greater than 0")]
 pub struct BadSegmentsError;
 
