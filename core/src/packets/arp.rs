@@ -37,9 +37,9 @@ use std::ptr::NonNull;
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |    H Length   |    P Length   |         Operation Code        |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Source Hardware Address                     |
+/// |                   Sender Hardware Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                   Source Protocol Address                     |
+/// |                   Sender Protocol Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |                   Target Hardware Address                     |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -62,13 +62,13 @@ use std::ptr::NonNull;
 /// - *Operation Code*: (16 bits)
 ///      The operation that the sender is performing.
 ///
-/// - *Source Hardware Address*: (variable)
+/// - *Sender Hardware Address*: (variable)
 ///      Hardware address of the sender. In an ARP request this field is used
 ///      to indicate the address of the host sending the request. In an ARP
 ///      reply this field is used to indicate the address of the host that the
 ///      request was looking for. The address size is defined by *H Length*.
 ///
-/// - *Source Protocol Address*: (variable)
+/// - *Sender Protocol Address*: (variable)
 ///      Protocol address of the sender. The address size is defined by
 ///      *P Length*.
 ///
@@ -160,52 +160,52 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
         self.header_mut().operation_code = code.0.into()
     }
 
-    /// Returns the source hardware address.
+    /// Returns the sender hardware address.
     #[inline]
-    pub fn src_hardware_addr(&self) -> H {
-        self.header().src_hardware_addr
+    pub fn sender_hardware_addr(&self) -> H {
+        self.header().sender_hardware_addr
     }
 
-    /// Sets the source hardware address.
+    /// Sets the sender hardware address.
     #[inline]
-    pub fn set_src_hardware_addr(&mut self, addr: H) {
-        self.header_mut().src_hardware_addr = addr
+    pub fn set_sender_hardware_addr(&mut self, addr: H) {
+        self.header_mut().sender_hardware_addr = addr
     }
 
-    /// Returns the source protocol address.
+    /// Returns the sender protocol address.
     #[inline]
-    pub fn src_protocol_addr(&self) -> P {
-        self.header().src_protocol_addr
+    pub fn sender_protocol_addr(&self) -> P {
+        self.header().sender_protocol_addr
     }
 
-    /// Sets the source protocol address.
+    /// Sets the sender protocol address.
     #[inline]
-    pub fn set_src_protocol_addr(&mut self, addr: P) {
-        self.header_mut().src_protocol_addr = addr
+    pub fn set_sender_protocol_addr(&mut self, addr: P) {
+        self.header_mut().sender_protocol_addr = addr
     }
 
     /// Returns the target hardware address.
     #[inline]
-    pub fn tgt_hardware_addr(&self) -> H {
-        self.header().tgt_hardware_addr
+    pub fn target_hardware_addr(&self) -> H {
+        self.header().target_hardware_addr
     }
 
     /// Sets the target hardware address.
     #[inline]
-    pub fn set_tgt_hardware_addr(&mut self, addr: H) {
-        self.header_mut().tgt_hardware_addr = addr
+    pub fn set_target_hardware_addr(&mut self, addr: H) {
+        self.header_mut().target_hardware_addr = addr
     }
 
     /// Returns the target protocol address.
     #[inline]
-    pub fn tgt_protocol_addr(&self) -> P {
-        self.header().tgt_protocol_addr
+    pub fn target_protocol_addr(&self) -> P {
+        self.header().target_protocol_addr
     }
 
     /// Sets the target protocol address.
     #[inline]
-    pub fn set_tgt_protocol_addr(&mut self, addr: P) {
-        self.header_mut().tgt_protocol_addr = addr
+    pub fn set_target_protocol_addr(&mut self, addr: P) {
+        self.header_mut().target_protocol_addr = addr
     }
 }
 
@@ -218,20 +218,20 @@ impl<H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<H, P> {
             .field("protocol_addr_len", &self.protocol_addr_len())
             .field("operation_code", &format!("{}", self.operation_code()))
             .field(
-                "src_hardware_addr",
-                &format!("{}", self.src_hardware_addr()),
+                "sender_hardware_addr",
+                &format!("{}", self.sender_hardware_addr()),
             )
             .field(
-                "src_protocol_addr",
-                &format!("{}", self.src_protocol_addr()),
+                "sender_protocol_addr",
+                &format!("{}", self.sender_protocol_addr()),
             )
             .field(
-                "tgt_hardware_addr",
-                &format!("{}", self.tgt_hardware_addr()),
+                "target_hardware_addr",
+                &format!("{}", self.target_hardware_addr()),
             )
             .field(
-                "tgt_protocol_addr",
-                &format!("{}", self.tgt_protocol_addr()),
+                "target_protocol_addr",
+                &format!("{}", self.target_protocol_addr()),
             )
             .field("$offset", &self.offset())
             .field("$len", &self.len())
@@ -563,10 +563,10 @@ struct ArpHeader<H: HardwareAddr, P: ProtocolAddr> {
     hardware_addr_len: u8,
     protocol_addr_len: u8,
     operation_code: u16be,
-    src_hardware_addr: H,
-    src_protocol_addr: P,
-    tgt_hardware_addr: H,
-    tgt_protocol_addr: P,
+    sender_hardware_addr: H,
+    sender_protocol_addr: P,
+    target_hardware_addr: H,
+    target_protocol_addr: P,
 }
 
 impl<H: HardwareAddr, P: ProtocolAddr> Clone for ArpHeader<H, P> {
@@ -577,10 +577,10 @@ impl<H: HardwareAddr, P: ProtocolAddr> Clone for ArpHeader<H, P> {
             hardware_addr_len: self.hardware_addr_len,
             protocol_addr_len: self.protocol_addr_len,
             operation_code: self.operation_code,
-            src_hardware_addr: self.src_hardware_addr,
-            src_protocol_addr: self.src_protocol_addr,
-            tgt_hardware_addr: self.tgt_hardware_addr,
-            tgt_protocol_addr: self.tgt_protocol_addr,
+            sender_hardware_addr: self.sender_hardware_addr,
+            sender_protocol_addr: self.sender_protocol_addr,
+            target_hardware_addr: self.target_hardware_addr,
+            target_protocol_addr: self.target_protocol_addr,
         }
     }
 }
@@ -593,10 +593,10 @@ impl<H: HardwareAddr, P: ProtocolAddr> Default for ArpHeader<H, P> {
             hardware_addr_len: 0,
             protocol_addr_len: 0,
             operation_code: u16be::default(),
-            src_hardware_addr: H::default(),
-            src_protocol_addr: P::default(),
-            tgt_hardware_addr: H::default(),
-            tgt_protocol_addr: P::default(),
+            sender_hardware_addr: H::default(),
+            sender_protocol_addr: P::default(),
+            target_hardware_addr: H::default(),
+            target_protocol_addr: P::default(),
         }
     }
 }
@@ -623,10 +623,10 @@ mod tests {
         assert_eq!(6, arp4.hardware_addr_len());
         assert_eq!(4, arp4.protocol_addr_len());
         assert_eq!(OperationCodes::Request, arp4.operation_code());
-        assert_eq!("00:00:00:00:00:01", arp4.src_hardware_addr().to_string());
-        assert_eq!("139.133.217.110", arp4.src_protocol_addr().to_string());
-        assert_eq!("00:00:00:00:00:00", arp4.tgt_hardware_addr().to_string());
-        assert_eq!("139.133.233.2", arp4.tgt_protocol_addr().to_string());
+        assert_eq!("00:00:00:00:00:01", arp4.sender_hardware_addr().to_string());
+        assert_eq!("139.133.217.110", arp4.sender_protocol_addr().to_string());
+        assert_eq!("00:00:00:00:00:00", arp4.target_hardware_addr().to_string());
+        assert_eq!("139.133.233.2", arp4.target_protocol_addr().to_string());
     }
 
     #[capsule::test]
@@ -646,14 +646,14 @@ mod tests {
         // check the setters
         arp4.set_operation_code(OperationCodes::Reply);
         assert_eq!(OperationCodes::Reply, arp4.operation_code());
-        arp4.set_src_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 1));
-        assert_eq!("00:00:00:00:00:01", arp4.src_hardware_addr().to_string());
-        arp4.set_src_protocol_addr(Ipv4Addr::new(10, 0, 0, 1));
-        assert_eq!("10.0.0.1", arp4.src_protocol_addr().to_string());
-        arp4.set_tgt_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 2));
-        assert_eq!("00:00:00:00:00:02", arp4.tgt_hardware_addr().to_string());
-        arp4.set_tgt_protocol_addr(Ipv4Addr::new(10, 0, 0, 2));
-        assert_eq!("10.0.0.2", arp4.tgt_protocol_addr().to_string());
+        arp4.set_sender_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 1));
+        assert_eq!("00:00:00:00:00:01", arp4.sender_hardware_addr().to_string());
+        arp4.set_sender_protocol_addr(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!("10.0.0.1", arp4.sender_protocol_addr().to_string());
+        arp4.set_target_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 2));
+        assert_eq!("00:00:00:00:00:02", arp4.target_hardware_addr().to_string());
+        arp4.set_target_protocol_addr(Ipv4Addr::new(10, 0, 0, 2));
+        assert_eq!("10.0.0.2", arp4.target_protocol_addr().to_string());
 
         // make sure the ether type is fixed
         assert_eq!(EtherTypes::Arp, arp4.envelope().ether_type());
