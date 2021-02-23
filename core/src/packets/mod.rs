@@ -18,6 +18,7 @@
 
 //! Packet types for reading and writing various network protocols.
 
+pub mod arp;
 pub mod checksum;
 mod ethernet;
 pub mod icmp;
