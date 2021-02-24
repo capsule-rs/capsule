@@ -19,8 +19,8 @@
 //! Common checksum capabilities and computations for all packet types,
 //! including calculation involving *pseudo headers*.
 
-use crate::packets::ip::{IpPacketError, ProtocolNumber};
-use anyhow::Result;
+use crate::packets::ip::ProtocolNumber;
+use anyhow::{anyhow, Result};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::slice;
 
@@ -195,6 +195,10 @@ pub fn compute_inc(old_checksum: u16, old_value: &[u16], new_value: &[u16]) -> u
 }
 
 /// Incrementally computes the new checksum for an IP address change.
+///
+/// # Errors
+///
+/// Returns an error if the addresses are not of the same address family.
 pub fn compute_with_ipaddr(
     old_checksum: u16,
     old_value: &IpAddr,
@@ -211,7 +215,7 @@ pub fn compute_with_ipaddr(
         (IpAddr::V6(old), IpAddr::V6(new)) => {
             Ok(compute_inc(old_checksum, &old.segments(), &new.segments()))
         }
-        _ => Err(IpPacketError::IpAddrMismatch.into()),
+        _ => Err(anyhow!("cannot mix IPv4 and IPv6 addresses.")),
     }
 }
 

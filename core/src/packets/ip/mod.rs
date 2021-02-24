@@ -26,7 +26,6 @@ use crate::packets::Packet;
 use anyhow::Result;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
-use thiserror::Error;
 
 /// [IANA] recommended default TTL for IP.
 ///
@@ -263,18 +262,6 @@ impl fmt::Debug for Flow {
             .field("protocol", &format!("{}", self.protocol()))
             .finish()
     }
-}
-
-/// IP packet related errors.
-#[derive(Debug, Error)]
-pub enum IpPacketError {
-    /// Error indicating mixing IPv4 and IPv6 addresses in a flow.
-    #[error("Cannot mix IPv4 and IPv6 addresses")]
-    IpAddrMismatch,
-
-    /// Error indicating the MTU is less than the minimum MTU size.
-    #[error("{0} is less than the minimum MTU of {1}.")]
-    MtuTooSmall(usize, usize),
 }
 
 #[cfg(test)]

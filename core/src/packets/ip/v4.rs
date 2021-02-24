@@ -19,7 +19,7 @@
 //! Internet Protocol v4.
 
 use crate::packets::checksum::{self, PseudoHeader};
-use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
+use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::u16be;
 use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
 use crate::{ensure, SizeOf};
@@ -509,7 +509,7 @@ impl IpPacket for Ipv4 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::IpAddrMismatch` if `src` is not an Ipv4Addr.
+    /// Returns an error if `src` is not an Ipv4Addr.
     #[inline]
     fn set_src(&mut self, src: IpAddr) -> Result<()> {
         match src {
@@ -517,7 +517,7 @@ impl IpPacket for Ipv4 {
                 self.set_src(addr);
                 Ok(())
             }
-            _ => Err(IpPacketError::IpAddrMismatch.into()),
+            _ => Err(anyhow!("source address must be IPv4.")),
         }
     }
 
@@ -530,7 +530,7 @@ impl IpPacket for Ipv4 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::IpAddrMismatch` if `dst` is not an Ipv4Addr.
+    /// Returns an error if `dst` is not an Ipv4Addr.
     #[inline]
     fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
         match dst {
@@ -538,7 +538,7 @@ impl IpPacket for Ipv4 {
                 self.set_dst(addr);
                 Ok(())
             }
-            _ => Err(IpPacketError::IpAddrMismatch.into()),
+            _ => Err(anyhow!("destination address must be IPv4.")),
         }
     }
 
@@ -556,15 +556,14 @@ impl IpPacket for Ipv4 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::MtuTooSmall` if the desired MTU is less
-    /// than [`IPV4_MIN_MTU`].
+    /// Returns an error if the desired MTU is less than [`IPV4_MIN_MTU`].
     ///
     /// [`IPV4_MIN_MTU`]: IPV4_MIN_MTU
     #[inline]
     fn truncate(&mut self, mtu: usize) -> Result<()> {
         ensure!(
             mtu >= IPV4_MIN_MTU,
-            IpPacketError::MtuTooSmall(mtu, IPV4_MIN_MTU)
+            anyhow!("MTU {} must be greater than {}.", mtu, IPV4_MIN_MTU)
         );
 
         // accounts for the Ethernet frame length.

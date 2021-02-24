@@ -26,7 +26,6 @@ use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
-use thiserror::Error;
 
 /// IPv6 Segment Routing based on [IETF DRAFT].
 ///
@@ -205,8 +204,8 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     ///
     /// # Errors
     ///
-    /// Returns `BadSegmentsError` if the segments length is 0. Returns an
-    /// error if the buffer does not have enough free space for the segments.
+    /// Returns an error if the segments length is 0. Returns an error if the
+    /// buffer does not have enough free space for the segments.
     #[inline]
     pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Result<()> {
         if !segments.is_empty() {
@@ -229,7 +228,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             self.set_last_entry(new_len - 1);
             Ok(())
         } else {
-            Err(BadSegmentsError.into())
+            Err(anyhow!("segment list length must be greater than 0."))
         }
     }
 }
@@ -490,11 +489,6 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
         self.header_mut().next_header = next_header.0;
     }
 }
-
-/// Error when the segment list length is 0.
-#[derive(Debug, Error)]
-#[error("Segment list length must be greater than 0")]
-pub struct BadSegmentsError;
 
 /// IPv6 segment routing header.
 ///

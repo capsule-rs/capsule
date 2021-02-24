@@ -37,7 +37,6 @@ use crate::{ensure, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
-use thiserror::Error;
 
 /// Internet Control Message Protocol v4 packet based on [IETF RFC 792].
 ///
@@ -159,11 +158,6 @@ impl fmt::Debug for Icmpv4 {
     }
 }
 
-/// Error when trying to push a generic ICMPv4 header without a message body.
-#[derive(Debug, Error)]
-#[error("Cannot push a generic ICMPv4 header without a message body.")]
-pub struct NoIcmpv4MessageBody;
-
 impl Packet for Icmpv4 {
     /// The preceding type for ICMPv4 packet must be IPv4.
     type Envelope = Ipv4;
@@ -226,15 +220,15 @@ impl Packet for Icmpv4 {
     }
 
     /// Cannot push a generic ICMPv4 header without a message body. This
-    /// will always return [`NoIcmpv4MessageBody`]. Instead, push a specific
-    /// message type like [`EchoRequest`], which includes the header and
-    /// the message body.
+    /// will always error. Instead, push a specific message type like
+    /// [`EchoRequest`], which includes the header and the message body.
     ///
-    /// [`NoIcmpv4MessageBody`]: NoIcmpv4MessageBody
     /// [`EchoRequest`]: EchoRequest
     #[inline]
     fn try_push(_envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
-        Err(NoIcmpv4MessageBody.into())
+        Err(anyhow!(
+            "cannot push a generic ICMPv4 header without a message body."
+        ))
     }
 
     #[inline]

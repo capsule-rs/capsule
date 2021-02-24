@@ -25,7 +25,7 @@ pub use self::fragment::*;
 pub use self::srh::*;
 
 use crate::packets::checksum::PseudoHeader;
-use crate::packets::ip::{IpPacket, IpPacketError, ProtocolNumber, DEFAULT_IP_TTL};
+use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::{u16be, u32be};
 use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
 use crate::{ensure, SizeOf};
@@ -354,7 +354,7 @@ impl IpPacket for Ipv6 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::IpAddrMismatch` if `src` is not an Ipv6Addr.
+    /// Returns an error if `src` is not an Ipv6Addr.
     #[inline]
     fn set_src(&mut self, src: IpAddr) -> Result<()> {
         match src {
@@ -362,7 +362,7 @@ impl IpPacket for Ipv6 {
                 self.set_src(addr);
                 Ok(())
             }
-            _ => Err(IpPacketError::IpAddrMismatch.into()),
+            _ => Err(anyhow!("source address must be IPv6.")),
         }
     }
 
@@ -375,7 +375,7 @@ impl IpPacket for Ipv6 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::IpAddrMismatch` if `dst` is not an Ipv6Addr.
+    /// Returns an error if `dst` is not an Ipv6Addr.
     #[inline]
     fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
         match dst {
@@ -383,7 +383,7 @@ impl IpPacket for Ipv6 {
                 self.set_dst(addr);
                 Ok(())
             }
-            _ => Err(IpPacketError::IpAddrMismatch.into()),
+            _ => Err(anyhow!("destination address must be IPv6.")),
         }
     }
 
@@ -401,15 +401,14 @@ impl IpPacket for Ipv6 {
     ///
     /// # Errors
     ///
-    /// Returns `IpPacketError::MtuTooSmall` if the desired MTU is less
-    /// than [`IPV6_MIN_MTU`].
+    /// Returns an error if the desired MTU is less than [`IPV6_MIN_MTU`].
     ///
     /// [`IPV6_MIN_MTU`]: IPV6_MIN_MTU
     #[inline]
     fn truncate(&mut self, mtu: usize) -> Result<()> {
         ensure!(
             mtu >= IPV6_MIN_MTU,
-            IpPacketError::MtuTooSmall(mtu, IPV6_MIN_MTU)
+            anyhow!("MTU {} must be greater than {}.", mtu, IPV6_MIN_MTU)
         );
 
         // accounts for the Ethernet frame length.
