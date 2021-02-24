@@ -36,17 +36,18 @@ pub(crate) use self::stats::*;
 use crate::debug;
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::net::MacAddr;
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use std::cell::Cell;
 use std::fmt;
 use std::mem;
 use std::os::raw;
+use thiserror::Error;
 
 /// An error generated in `libdpdk`.
 ///
 /// When an FFI call fails, the `errno` is translated into `DpdkError`.
-#[derive(Debug, Fail)]
-#[fail(display = "{}", _0)]
+#[derive(Debug, Error)]
+#[error("{0}")]
 pub(crate) struct DpdkError(String);
 
 impl DpdkError {
@@ -151,7 +152,7 @@ impl CoreId {
     /// Sets the current thread's affinity to this core.
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
-    pub(crate) fn set_thread_affinity(&self) -> Fallible<()> {
+    pub(crate) fn set_thread_affinity(&self) -> Result<()> {
         unsafe {
             // the two types that represent `cpu_set` have identical layout,
             // hence it is safe to transmute between them.
@@ -177,7 +178,7 @@ thread_local! {
 }
 
 /// Initializes the Environment Abstraction Layer (EAL).
-pub(crate) fn eal_init(args: Vec<String>) -> Fallible<()> {
+pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
     debug!(arguments=?args);
 
     let len = args.len() as raw::c_int;
@@ -194,7 +195,7 @@ pub(crate) fn eal_init(args: Vec<String>) -> Fallible<()> {
 }
 
 /// Cleans up the Environment Abstraction Layer (EAL).
-pub(crate) fn eal_cleanup() -> Fallible<()> {
+pub(crate) fn eal_cleanup() -> Result<()> {
     unsafe {
         ffi::rte_eal_cleanup()
             .to_result(DpdkError::from_errno)

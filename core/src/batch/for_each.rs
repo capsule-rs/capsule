@@ -17,13 +17,13 @@
 */
 
 use super::{Batch, Disposition};
-use failure::Fallible;
+use anyhow::Result;
 
 /// A batch that calls a closure on packets in the underlying batch.
 #[allow(missing_debug_implementations)]
 pub struct ForEach<B: Batch, F>
 where
-    F: FnMut(&B::Item) -> Fallible<()>,
+    F: FnMut(&B::Item) -> Result<()>,
 {
     batch: B,
     f: F,
@@ -31,7 +31,7 @@ where
 
 impl<B: Batch, F> ForEach<B, F>
 where
-    F: FnMut(&B::Item) -> Fallible<()>,
+    F: FnMut(&B::Item) -> Result<()>,
 {
     /// Creates a new `ForEach` batch.
     #[inline]
@@ -42,7 +42,7 @@ where
 
 impl<B: Batch, F> Batch for ForEach<B, F>
 where
-    F: FnMut(&B::Item) -> Fallible<()>,
+    F: FnMut(&B::Item) -> Result<()>,
 {
     type Item = B::Item;
 

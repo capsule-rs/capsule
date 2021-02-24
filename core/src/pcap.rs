@@ -19,10 +19,11 @@
 use crate::dpdk::{CoreId, DpdkError, PortId, RxTxQueue};
 use crate::ffi::{self, AsStr, ToCString, ToResult};
 use crate::{debug, error};
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use std::fmt;
 use std::os::raw;
 use std::ptr::NonNull;
+use thiserror::Error;
 
 // DLT_EN10MB; LINKTYPE_ETHERNET=1; 10MB is historical
 const DLT_EN10MB: raw::c_int = 1;
@@ -32,8 +33,8 @@ const PCAP_SNAPSHOT_LEN: raw::c_int = ffi::RTE_MBUF_DEFAULT_BUF_SIZE as raw::c_i
 ///
 /// When an FFI call fails, either a specified error message or an `errno` is
 /// translated into a `PcapError`.
-#[derive(Debug, Fail)]
-#[fail(display = "{}", _0)]
+#[derive(Debug, Error)]
+#[error("{0}")]
 struct PcapError(String);
 
 impl PcapError {
@@ -60,7 +61,7 @@ struct Pcap {
 
 impl Pcap {
     /// Creates a file for dumping packets into from a given file path.
-    fn create(path: &str) -> Fallible<Pcap> {
+    fn create(path: &str) -> Result<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
                 .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
@@ -83,7 +84,7 @@ impl Pcap {
 
     /// Append to already-existing file for dumping packets into from a given
     /// file path.
-    fn append(path: &str) -> Fallible<Pcap> {
+    fn append(path: &str) -> Result<Pcap> {
         if !std::path::Path::new(path).exists() {
             return Err(PcapError::new("Pcap filename path does not exist.").into());
         }
@@ -106,13 +107,13 @@ impl Pcap {
     }
 
     /// Write packets to `pcap` file handler.
-    unsafe fn write(&self, ptrs: &[*mut ffi::rte_mbuf]) -> Fallible<()> {
+    unsafe fn write(&self, ptrs: &[*mut ffi::rte_mbuf]) -> Result<()> {
         ptrs.iter().try_for_each(|&p| self.dump_packet(p))?;
 
         self.flush()
     }
 
-    unsafe fn dump_packet(&self, ptr: *mut ffi::rte_mbuf) -> Fallible<()> {
+    unsafe fn dump_packet(&self, ptr: *mut ffi::rte_mbuf) -> Result<()> {
         let mut pcap_hdr = ffi::pcap_pkthdr::default();
         pcap_hdr.len = (*ptr).data_len as u32;
         pcap_hdr.caplen = pcap_hdr.len;
@@ -132,7 +133,7 @@ impl Pcap {
         Ok(())
     }
 
-    fn flush(&self) -> Fallible<()> {
+    fn flush(&self) -> Result<()> {
         unsafe {
             ffi::pcap_dump_flush(self.dumper.as_ptr())
                 .to_result(|_| PcapError::new("Cannot flush packets to packet capture"))
@@ -167,7 +168,7 @@ pub(crate) fn capture_queue(
     port_name: &str,
     core: CoreId,
     q: RxTxQueue,
-) -> Fallible<()> {
+) -> Result<()> {
     match q {
         RxTxQueue::Rx(rxq) => {
             Pcap::create(&format_pcap_file(port_name, core.raw(), "rx"))?;

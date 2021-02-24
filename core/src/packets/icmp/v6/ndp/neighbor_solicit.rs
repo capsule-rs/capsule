@@ -22,7 +22,7 @@ use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
-use failure::Fallible;
+use anyhow::Result;
 use std::fmt;
 use std::net::Ipv6Addr;
 use std::ptr::NonNull;
@@ -128,8 +128,14 @@ impl<E: Ipv6Packet> Icmpv6Message for NeighborSolicitation<E> {
         }
     }
 
+    /// Parses the ICMPv6 packet's payload as neighbor solicitation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload does not have sufficient data for
+    /// the neighbor solicitation message body.
     #[inline]
-    fn try_parse(icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let mbuf = icmp.mbuf();
         let offset = icmp.payload_offset();
         let body = mbuf.read_data(offset)?;
@@ -137,8 +143,14 @@ impl<E: Ipv6Packet> Icmpv6Message for NeighborSolicitation<E> {
         Ok(NeighborSolicitation { icmp, body })
     }
 
+    /// Prepends a new neighbor solicitation message to the beginning of
+    /// the ICMPv6's payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mut icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut icmp: Icmpv6<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let offset = icmp.payload_offset();
         let mbuf = icmp.mbuf_mut();
 

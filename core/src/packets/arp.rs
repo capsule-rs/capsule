@@ -20,9 +20,9 @@
 
 use crate::net::MacAddr;
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet, ParseError};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::Ipv4Addr;
 use std::ptr::NonNull;
@@ -273,11 +273,26 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         }
     }
 
+    /// Parses the Ethernet payload as an ARP packet.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the [`ether_type`] is not set to [`EtherTypes::ARP`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// ARP header. Returns an error if any of the following values does not match
+    /// expectation.
+    ///   * hardware type
+    ///   * hardware address length
+    ///   * protocol type
+    ///   * protocol address length
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Arp`]: EtherTypes::Arp
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.ether_type() == EtherTypes::Arp,
-            ParseError::new("not an ARP packet.")
+            anyhow!("not an ARP packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -292,42 +307,54 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
 
         ensure!(
             packet.hardware_type() == H::addr_type(),
-            ParseError::new(&format!(
+            anyhow!(
                 "hardware type {} does not match expected {}.",
                 packet.hardware_type(),
                 H::addr_type()
-            ))
+            )
         );
         ensure!(
             packet.protocol_type() == P::addr_type(),
-            ParseError::new(&format!(
+            anyhow!(
                 "protocol type {} does not match expected {}.",
                 packet.protocol_type(),
                 P::addr_type()
-            ))
+            )
         );
         ensure!(
             packet.hardware_addr_len() == H::size_of() as u8,
-            ParseError::new(&format!(
+            anyhow!(
                 "hardware address length {} does not match expected {}.",
                 packet.hardware_addr_len(),
                 H::size_of()
-            ))
+            )
         );
         ensure!(
             packet.protocol_addr_len() == P::size_of() as u8,
-            ParseError::new(&format!(
+            anyhow!(
                 "protocol address length {} does not match expected {}.",
                 packet.protocol_addr_len(),
                 P::size_of()
-            ))
+            )
         );
 
         Ok(packet)
     }
 
+    /// Prepends an ARP packet to the beginning of the Ethernet's payload.
+    ///
+    /// [`ether_type`] is set to [`EtherTypes::Arp`]. `hardware_type`,
+    /// `hardware_addr_len`, `protocol_type`, `protocol_addr_len` are set
+    /// based on `H` and `P`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    ///
+    /// [`ether_type`]: Ethernet::ether_type
+    /// [`EtherTypes::Arp`]: EtherTypes::Arp
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 

@@ -32,9 +32,9 @@ pub use capsule_macros::Icmpv4Packet;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::types::u16be;
-use crate::packets::{checksum, Internal, Packet, ParseError};
+use crate::packets::{checksum, Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::{Fail, Fallible};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -130,13 +130,15 @@ impl Icmpv4 {
 
     /// Casts the ICMPv4 packet to a message of type `T`.
     ///
+    /// # Errors
+    ///
     /// Returns an error if the message type in the packet header does not
     /// match the assigned message type for `T`.
     #[inline]
-    pub fn downcast<T: Icmpv4Message>(self) -> Fallible<T> {
+    pub fn downcast<T: Icmpv4Message>(self) -> Result<T> {
         ensure!(
             self.msg_type() == T::msg_type(),
-            ParseError::new(&format!("The ICMPv4 packet is not {}.", T::msg_type()))
+            anyhow!("the ICMPv4 packet is not {}.", T::msg_type())
         );
 
         T::try_parse(self, Internal(()))
@@ -155,11 +157,6 @@ impl fmt::Debug for Icmpv4 {
             .finish()
     }
 }
-
-/// Error when trying to push a generic ICMPv4 header without a message body.
-#[derive(Debug, Fail)]
-#[fail(display = "Cannot push a generic ICMPv4 header without a message body.")]
-pub struct NoIcmpv4MessageBody;
 
 impl Packet for Icmpv4 {
     /// The preceding type for ICMPv4 packet must be IPv4.
@@ -196,16 +193,19 @@ impl Packet for Icmpv4 {
 
     /// Parses the envelope's payload as an ICMPv4 packet.
     ///
-    /// [`Ipv4::protocol`] must be set to [`ProtocolNumbers::Icmpv4`].
-    /// Otherwise, a parsing error is returned.
+    /// # Errors
+    ///
+    /// Returns an error if [`Ipv4::protocol`] is not set to [`ProtocolNumbers::Icmpv4`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// ICMPv4 header.
     ///
     /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
     /// [`ProtocolNumbers::Icmpv4`]: crate::packets::ip::ProtocolNumbers::Icmpv4
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.protocol() == ProtocolNumbers::Icmpv4,
-            ParseError::new("not an ICMPv4 packet.")
+            anyhow!("not an ICMPv4 packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -220,15 +220,15 @@ impl Packet for Icmpv4 {
     }
 
     /// Cannot push a generic ICMPv4 header without a message body. This
-    /// will always return [`NoIcmpv4MessageBody`]. Instead, push a specific
-    /// message type like [`EchoRequest`], which includes the header and
-    /// the message body.
+    /// will always error. Instead, push a specific message type like
+    /// [`EchoRequest`], which includes the header and the message body.
     ///
-    /// [`NoIcmpv4MessageBody`]: NoIcmpv4MessageBody
     /// [`EchoRequest`]: EchoRequest
     #[inline]
-    fn try_push(_envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
-        Err(NoIcmpv4MessageBody.into())
+    fn try_push(_envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
+        Err(anyhow!(
+            "cannot push a generic ICMPv4 header without a message body."
+        ))
     }
 
     #[inline]
@@ -368,7 +368,7 @@ pub trait Icmpv4Message {
     ///
     /// [`Icmpv4::downcast`]: Icmpv4::downcast
     /// [`msg_type`]: Icmpv4::msg_type
-    fn try_parse(icmp: Icmpv4, internal: Internal) -> Fallible<Self>
+    fn try_parse(icmp: Icmpv4, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 
@@ -386,7 +386,7 @@ pub trait Icmpv4Message {
     ///
     /// [`msg_type`]: Icmpv4::msg_type
     /// [`Packet::push`]: Packet::push
-    fn try_push(icmp: Icmpv4, internal: Internal) -> Fallible<Self>
+    fn try_push(icmp: Icmpv4, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 

@@ -16,13 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::batch::{Batch, Pipeline};
 use capsule::config::load_config;
 use capsule::metrics;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet, Tcp4};
 use capsule::{batch, Mbuf, PortQueue, Runtime};
-use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
 use metrics_observer_yaml::YamlBuilder;
 use std::collections::HashMap;
@@ -73,7 +73,7 @@ fn print_stats() {
     println!("{}", observer.drain());
 }
 
-fn main() -> Fallible<()> {
+fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

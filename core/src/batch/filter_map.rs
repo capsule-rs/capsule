@@ -19,7 +19,7 @@
 use super::{Batch, Disposition};
 use crate::packets::Packet;
 use crate::Mbuf;
-use failure::Fallible;
+use anyhow::Result;
 
 /// The result of a [`filter_map`].
 ///
@@ -41,7 +41,7 @@ pub enum Either<T> {
 #[allow(missing_debug_implementations)]
 pub struct FilterMap<B: Batch, T: Packet, F>
 where
-    F: FnMut(B::Item) -> Fallible<Either<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     batch: B,
     f: F,
@@ -49,7 +49,7 @@ where
 
 impl<B: Batch, T: Packet, F> FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Fallible<Either<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     /// Creates a new `FilterMap` batch.
     #[inline]
@@ -60,7 +60,7 @@ where
 
 impl<B: Batch, T: Packet, F> Batch for FilterMap<B, T, F>
 where
-    F: FnMut(B::Item) -> Fallible<Either<T>>,
+    F: FnMut(B::Item) -> Result<Either<T>>,
 {
     type Item = T;
 

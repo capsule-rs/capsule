@@ -23,7 +23,7 @@ pub mod v6;
 
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::Packet;
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -119,7 +119,7 @@ pub trait IpPacket: Packet {
     ///
     /// This lets an upper layer packet like TCP set the source IP address.
     /// on a lower layer packet.
-    fn set_src(&mut self, src: IpAddr) -> Fallible<()>;
+    fn set_src(&mut self, src: IpAddr) -> Result<()>;
 
     /// Returns the destination IP address
     fn dst(&self) -> IpAddr;
@@ -128,13 +128,13 @@ pub trait IpPacket: Packet {
     ///
     /// This lets an upper layer packet like TCP set the destination IP address
     /// on a lower layer packet.
-    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()>;
+    fn set_dst(&mut self, dst: IpAddr) -> Result<()>;
 
     /// Returns the pseudo-header for layer 4 checksum computation.
     fn pseudo_header(&self, packet_len: u16, protocol: ProtocolNumber) -> PseudoHeader;
 
     /// Truncates the IP packet to MTU. The data exceeds MTU is lost.
-    fn truncate(&mut self, mtu: usize) -> Fallible<()>;
+    fn truncate(&mut self, mtu: usize) -> Result<()>;
 }
 
 /// The common attributes (5-tuple) used to identify an IP based network
@@ -262,18 +262,6 @@ impl fmt::Debug for Flow {
             .field("protocol", &format!("{}", self.protocol()))
             .finish()
     }
-}
-
-/// IP packet related errors.
-#[derive(Debug, Fail)]
-pub enum IpPacketError {
-    /// Error indicating mixing IPv4 and IPv6 addresses in a flow.
-    #[fail(display = "Cannot mix IPv4 and IPv6 addresses")]
-    IpAddrMismatch,
-
-    /// Error indicating the MTU is less than the minimum MTU size.
-    #[fail(display = "{} is less than the minimum MTU of {}.", _0, _1)]
-    MtuTooSmall(usize, usize),
 }
 
 #[cfg(test)]

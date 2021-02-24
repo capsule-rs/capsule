@@ -20,9 +20,9 @@ use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet, ParseError};
+use crate::packets::{Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::{Fail, Fallible};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
 use std::ptr::NonNull;
@@ -201,8 +201,13 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
     /// Be aware that when invoking this function, it can affect Tcp and Udp
     /// checksum calculations, as the last segment is used as part of the
     /// pseudo header.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the segments length is 0. Returns an error if the
+    /// buffer does not have enough free space for the segments.
     #[inline]
-    pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Fallible<()> {
+    pub fn set_segments(&mut self, segments: &[Ipv6Addr]) -> Result<()> {
         if !segments.is_empty() {
             let old_len = self.last_entry() + 1;
             let new_len = segments.len() as u8;
@@ -223,7 +228,7 @@ impl<E: Ipv6Packet> SegmentRouting<E> {
             self.set_last_entry(new_len - 1);
             Ok(())
         } else {
-            Err(BadSegmentsError.into())
+            Err(anyhow!("segment list length must be greater than 0."))
         }
     }
 }
@@ -282,16 +287,19 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
 
     /// Parses the envelope's payload as an IPv6 segment routing packet.
     ///
-    /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Route`].
-    /// Otherwise a parsing error is returned.
+    /// # Errors
+    ///
+    /// Returns an error if [`next_header`] is not set to [`ProtocolNumbers::Ipv6Route`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// segment routing extension header or the segment length is inconsistent.
     ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.next_header() == ProtocolNumbers::Ipv6Route,
-            ParseError::new("not an IPv6 routing packet.")
+            anyhow!("not an IPv6 routing packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -314,7 +322,7 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
                 offset,
             })
         } else {
-            Err(ParseError::new("Packet has inconsistent segment list length.").into())
+            Err(anyhow!("Packet has inconsistent segment list length."))
         }
     }
 
@@ -324,10 +332,14 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     /// [`next_header`] is set to the value of the `next_header` field of the
     /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Route`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Route`]: ProtocolNumbers::Ipv6Route
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -362,9 +374,14 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
     /// The envelope's [`next_header`] field is set to the value of the
     /// `next_header` field on the segment routing packet.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have sufficient data to
+    /// remove.
+    ///
     /// [`next_header`]: Ipv6Packet::next_header
     #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
+    fn remove(mut self) -> Result<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         let next_header = self.next_header();
@@ -396,7 +413,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
+    fn set_src(&mut self, src: IpAddr) -> Result<()> {
         self.envelope_mut().set_src(src)
     }
 
@@ -406,7 +423,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
         if let IpAddr::V6(v6_dst) = dst {
             let mut segments = vec![v6_dst];
             for segment in self.segments().iter().skip(1) {
@@ -456,7 +473,7 @@ impl<E: Ipv6Packet> IpPacket for SegmentRouting<E> {
     }
 
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
         self.envelope_mut().truncate(mtu)
     }
 }
@@ -472,11 +489,6 @@ impl<E: Ipv6Packet> Ipv6Packet for SegmentRouting<E> {
         self.header_mut().next_header = next_header.0;
     }
 }
-
-/// Error when the segment list length is 0.
-#[derive(Debug, Fail)]
-#[fail(display = "Segment list length must be greater than 0")]
-pub struct BadSegmentsError;
 
 /// IPv6 segment routing header.
 ///

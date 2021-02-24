@@ -20,7 +20,7 @@ use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, 
 use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet};
 use crate::SizeOf;
-use failure::Fallible;
+use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -115,8 +115,12 @@ impl EchoRequest {
     }
 
     /// Sets the data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    pub fn set_data(&mut self, data: &[u8]) -> Fallible<()> {
+    pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
         let offset = self.data_offset();
         let len = data.len() as isize - self.data_len() as isize;
         self.icmp_mut().mbuf_mut().resize(offset, len)?;
@@ -169,8 +173,14 @@ impl Icmpv4Message for EchoRequest {
         }
     }
 
+    /// Parses the ICMPv4 packet's payload as echo request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload does not have sufficient data for
+    /// the echo request message body.
     #[inline]
-    fn try_parse(icmp: Icmpv4, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(icmp: Icmpv4, _internal: Internal) -> Result<Self> {
         let mbuf = icmp.mbuf();
         let offset = icmp.payload_offset();
         let body = mbuf.read_data(offset)?;
@@ -178,8 +188,14 @@ impl Icmpv4Message for EchoRequest {
         Ok(EchoRequest { icmp, body })
     }
 
+    /// Prepends a new echo request message to the beginning of the ICMPv4's
+    /// payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mut icmp: Icmpv4, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut icmp: Icmpv4, _internal: Internal) -> Result<Self> {
         let offset = icmp.payload_offset();
         let mbuf = icmp.mbuf_mut();
 

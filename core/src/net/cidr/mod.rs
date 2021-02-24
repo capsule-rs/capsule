@@ -24,17 +24,17 @@ pub use self::v4::Ipv4Cidr;
 #[allow(unreachable_pub)]
 pub use self::v6::Ipv6Cidr;
 
-use failure::Fail;
+use thiserror::Error;
 
 /// Error indicating that a CIDR range cannot be parsed or is handled with an invalid prefix length.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum CidrError {
     /// Error returned when parsing a malformed CIDR range.
-    #[fail(display = "Failed to parse CIDR: {}", _0)]
+    #[error("Failed to parse CIDR: {0}")]
     Malformed(String),
 
     /// Error returned when converting from v4/v6 address mask to a prefix length.
-    #[fail(display = "Invalid prefix length")]
+    #[error("Invalid prefix length")]
     InvalidPrefixLength,
 }
 

@@ -21,12 +21,13 @@ use crate::dpdk::{DpdkError, MempoolError};
 use crate::ffi::{self, ToResult};
 use crate::packets::{Internal, Packet};
 use crate::{ensure, trace};
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use std::fmt;
 use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
+use thiserror::Error;
 
 /// A trait for returning the size of a type in bytes.
 ///
@@ -81,21 +82,18 @@ impl SizeOf for ::std::net::Ipv6Addr {
 }
 
 /// Error indicating buffer access failures.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub(crate) enum BufferError {
     /// The offset exceeds the buffer length.
-    #[fail(display = "Offset {} exceeds the buffer length {}.", _0, _1)]
+    #[error("Offset {0} exceeds the buffer length {1}.")]
     BadOffset(usize, usize),
 
     /// The buffer is not resized.
-    #[fail(display = "Buffer is not resized.")]
+    #[error("Buffer is not resized.")]
     NotResized,
 
     /// The struct size exceeds the remaining buffer length.
-    #[fail(
-        display = "Struct size {} exceeds the remaining buffer length {}.",
-        _0, _1
-    )]
+    #[error("Struct size {0} exceeds the remaining buffer length {1}.")]
     OutOfBuffer(usize, usize),
 }
 
@@ -143,8 +141,12 @@ impl Mbuf {
     /// The Mbuf is allocated from the `Mempool` assigned to the current
     /// executing thread by the `Runtime`. The call will fail if invoked
     /// from a thread not managed by the `Runtime`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MempoolError::Exhausted` if the allocation of mbuf fails.
     #[inline]
-    pub fn new() -> Fallible<Self> {
+    pub fn new() -> Result<Self> {
         let mempool = MEMPOOL.with(|tls| tls.get());
         let raw =
             unsafe { ffi::_rte_pktmbuf_alloc(mempool).to_result(|_| MempoolError::Exhausted)? };
@@ -155,8 +157,14 @@ impl Mbuf {
     }
 
     /// Creates a new message buffer from a byte array.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MempoolError::Exhausted` if the allocation of mbuf fails.
+    /// Returns `BufferError::NotResized` if the byte array is larger than
+    /// the maximum mbuf size.
     #[inline]
-    pub fn from_bytes(data: &[u8]) -> Fallible<Self> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self> {
         let mut mbuf = Mbuf::new()?;
         mbuf.extend(0, data.len())?;
         mbuf.write_data_slice(0, data)?;
@@ -207,8 +215,14 @@ impl Mbuf {
     ///
     /// If the offset is not at the end of the data. The data after the
     /// offset is shifted down to make room.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::NotResized` if the offset is out of bound,
+    /// or the length to extend is either 0 or exceeds the available free
+    /// buffer capacity.
     #[inline]
-    pub fn extend(&mut self, offset: usize, len: usize) -> Fallible<()> {
+    pub fn extend(&mut self, offset: usize, len: usize) -> Result<()> {
         ensure!(len > 0, BufferError::NotResized);
         ensure!(offset <= self.data_len(), BufferError::NotResized);
         ensure!(len < self.tailroom(), BufferError::NotResized);
@@ -233,8 +247,13 @@ impl Mbuf {
     /// Shrinks the data buffer at offset by `len` bytes.
     ///
     /// The data at offset is shifted up.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::NotResized` if the length to shrink is either
+    /// 0 or exceeds the used buffer size starting at offset.
     #[inline]
-    pub fn shrink(&mut self, offset: usize, len: usize) -> Fallible<()> {
+    pub fn shrink(&mut self, offset: usize, len: usize) -> Result<()> {
         ensure!(len > 0, BufferError::NotResized);
         ensure!(offset + len <= self.data_len(), BufferError::NotResized);
 
@@ -256,8 +275,10 @@ impl Mbuf {
     }
 
     /// Resizes the data buffer.
+    ///
+    /// Delegates to either `extend` or `shrink`.
     #[inline]
-    pub fn resize(&mut self, offset: usize, len: isize) -> Fallible<()> {
+    pub fn resize(&mut self, offset: usize, len: isize) -> Result<()> {
         if len < 0 {
             self.shrink(offset, -len as usize)
         } else {
@@ -266,8 +287,13 @@ impl Mbuf {
     }
 
     /// Truncates the data buffer to len.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::NotResized` if the target length exceeds the
+    /// actual used buffer size.
     #[inline]
-    pub fn truncate(&mut self, to_len: usize) -> Fallible<()> {
+    pub fn truncate(&mut self, to_len: usize) -> Result<()> {
         ensure!(to_len < self.data_len(), BufferError::NotResized);
 
         self.raw_mut().data_len = to_len as u16;
@@ -277,8 +303,14 @@ impl Mbuf {
     }
 
     /// Reads the data at offset as `T` and returns it as a raw pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::BadOffset` if the offset is out of bound.
+    /// Returns `BufferError::OutOfBuffer` if the size of `T` exceeds the
+    /// size of the data stored at offset.
     #[inline]
-    pub fn read_data<T: SizeOf>(&self, offset: usize) -> Fallible<NonNull<T>> {
+    pub fn read_data<T: SizeOf>(&self, offset: usize) -> Result<NonNull<T>> {
         ensure!(
             offset < self.data_len(),
             BufferError::BadOffset(offset, self.data_len())
@@ -300,8 +332,13 @@ impl Mbuf {
     /// Before writing to the data buffer, should call `Mbuf::extend` first
     /// to make sure enough space is allocated for the write and data is not
     /// being overridden.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::OutOfBuffer` if the size of `T` exceeds the
+    /// available buffer capacity starting at offset.
     #[inline]
-    pub fn write_data<T: SizeOf>(&mut self, offset: usize, item: &T) -> Fallible<NonNull<T>> {
+    pub fn write_data<T: SizeOf>(&mut self, offset: usize, item: &T) -> Result<NonNull<T>> {
         ensure!(
             offset + T::size_of() <= self.data_len(),
             BufferError::OutOfBuffer(T::size_of(), self.data_len() - offset)
@@ -318,12 +355,14 @@ impl Mbuf {
 
     /// Reads the data at offset as a slice of `T` and returns the slice as
     /// a raw pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::BadOffset` if the offset is out of bound.
+    /// Returns `BufferError::OutOfBuffer` if the size of `T` slice exceeds
+    /// the size of the data stored at offset.
     #[inline]
-    pub fn read_data_slice<T: SizeOf>(
-        &self,
-        offset: usize,
-        count: usize,
-    ) -> Fallible<NonNull<[T]>> {
+    pub fn read_data_slice<T: SizeOf>(&self, offset: usize, count: usize) -> Result<NonNull<[T]>> {
         ensure!(
             offset < self.data_len(),
             BufferError::BadOffset(offset, self.data_len())
@@ -346,12 +385,17 @@ impl Mbuf {
     /// Before writing to the data buffer, should call `Mbuf::extend` first
     /// to make sure enough space is allocated for the write and data is not
     /// being overridden.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::OutOfBuffer` if the size of `T` slice exceeds
+    /// the available buffer capacity starting at offset.
     #[inline]
     pub fn write_data_slice<T: SizeOf>(
         &mut self,
         offset: usize,
         slice: &[T],
-    ) -> Fallible<NonNull<[T]>> {
+    ) -> Result<NonNull<[T]>> {
         let count = slice.len();
 
         ensure!(
@@ -380,7 +424,11 @@ impl Mbuf {
     }
 
     /// Allocates a Vec of `Mbuf`s of `len` size.
-    pub fn alloc_bulk(len: usize) -> Fallible<Vec<Mbuf>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `DpdkError` if the allocation of mbuf fails.
+    pub fn alloc_bulk(len: usize) -> Result<Vec<Mbuf>> {
         let mut ptrs = Vec::with_capacity(len);
         let mempool = MEMPOOL.with(|tls| tls.get());
 
@@ -479,12 +527,12 @@ impl Packet for Mbuf {
     }
 
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         Ok(envelope)
     }
 
     #[inline]
-    fn try_push(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         Ok(envelope)
     }
 
@@ -494,7 +542,7 @@ impl Packet for Mbuf {
     }
 
     #[inline]
-    fn remove(self) -> Fallible<Self::Envelope> {
+    fn remove(self) -> Result<Self::Envelope> {
         Ok(self)
     }
 

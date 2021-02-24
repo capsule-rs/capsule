@@ -16,7 +16,7 @@ path = "main.rs"
 doctest = false
 
 [dependencies]
+anyhow = "1.0"
 capsule = { version = "0.1", path = "../../core" }
-failure = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.2"

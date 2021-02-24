@@ -18,7 +18,7 @@
 
 use super::{Batch, Disposition};
 use crate::packets::Packet;
-use failure::Fallible;
+use anyhow::Result;
 
 /// A batch that replaces each packet of the batch with another packet.
 ///
@@ -28,7 +28,7 @@ use failure::Fallible;
 #[allow(missing_debug_implementations)]
 pub struct Replace<B: Batch, T: Packet, F>
 where
-    F: FnMut(&B::Item) -> Fallible<T>,
+    F: FnMut(&B::Item) -> Result<T>,
 {
     batch: B,
     f: F,
@@ -37,7 +37,7 @@ where
 
 impl<B: Batch, T: Packet, F> Replace<B, T, F>
 where
-    F: FnMut(&B::Item) -> Fallible<T>,
+    F: FnMut(&B::Item) -> Result<T>,
 {
     /// Creates a new `Replace` batch.
     #[inline]
@@ -52,7 +52,7 @@ where
 
 impl<B: Batch, T: Packet, F> Batch for Replace<B, T, F>
 where
-    F: FnMut(&B::Item) -> Fallible<T>,
+    F: FnMut(&B::Item) -> Result<T>,
 {
     type Item = T;
 

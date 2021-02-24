@@ -74,12 +74,12 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[inline]
-            fn try_parse(envelope: Self::Envelope, _internal: Internal) -> ::failure::Fallible<Self> {
+            fn try_parse(envelope: Self::Envelope, _internal: Internal) -> ::anyhow::Result<Self> {
                 envelope.parse::<::capsule::packets::icmp::v6::Icmpv6<E>>()?.downcast::<#name<E>>()
             }
 
             #[inline]
-            fn try_push(mut envelope: Self::Envelope, internal: Internal) -> ::failure::Fallible<Self> {
+            fn try_push(mut envelope: Self::Envelope, internal: Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v6::{Icmpv6, Icmpv6Header, Icmpv6Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
 
@@ -172,12 +172,12 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[inline]
-            fn try_parse(envelope: Self::Envelope, _internal: ::capsule::packets::Internal) -> ::failure::Fallible<Self> {
+            fn try_parse(envelope: Self::Envelope, _internal: ::capsule::packets::Internal) -> ::anyhow::Result<Self> {
                 envelope.parse::<::capsule::packets::icmp::v4::Icmpv4>()?.downcast::<#name>()
             }
 
             #[inline]
-            fn try_push(mut envelope: Self::Envelope, internal: ::capsule::packets::Internal) -> ::failure::Fallible<Self> {
+            fn try_push(mut envelope: Self::Envelope, internal: ::capsule::packets::Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v4::{Icmpv4, Icmpv4Header, Icmpv4Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
 

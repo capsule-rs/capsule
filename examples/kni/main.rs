@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use anyhow::Result;
 use capsule::config::load_config;
 use capsule::metrics;
 use capsule::{batch, Runtime};
-use failure::Fallible;
 use metrics_core::{Builder, Drain, Observe};
 use metrics_observer_yaml::YamlBuilder;
 use std::time::Duration;
@@ -32,7 +32,7 @@ fn print_stats() {
     println!("{}", observer.drain());
 }
 
-fn main() -> Fallible<()> {
+fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

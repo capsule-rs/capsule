@@ -33,9 +33,9 @@ pub use capsule_macros::Icmpv6Packet;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::types::u16be;
-use crate::packets::{checksum, Internal, Packet, ParseError};
+use crate::packets::{checksum, Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::{Fail, Fallible};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -137,13 +137,15 @@ impl<E: Ipv6Packet> Icmpv6<E> {
 
     /// Casts the ICMPv6 packet to a message of type `T`.
     ///
+    /// # Errors
+    ///
     /// Returns an error if the message type in the packet header does not
     /// match the assigned message type for `T`.
     #[inline]
-    pub fn downcast<T: Icmpv6Message<Envelope = E>>(self) -> Fallible<T> {
+    pub fn downcast<T: Icmpv6Message<Envelope = E>>(self) -> Result<T> {
         ensure!(
             self.msg_type() == T::msg_type(),
-            ParseError::new(&format!("The ICMPv6 packet is not {}.", T::msg_type()))
+            anyhow!("the ICMPv6 packet is not {}.", T::msg_type())
         );
 
         T::try_parse(self, Internal(()))
@@ -162,11 +164,6 @@ impl<E: Ipv6Packet> fmt::Debug for Icmpv6<E> {
             .finish()
     }
 }
-
-/// Error when trying to push a generic ICMPv6 header without a message body.
-#[derive(Debug, Fail)]
-#[fail(display = "Cannot push a generic ICMPv6 header without a message body.")]
-pub struct NoIcmpv6MessageBody;
 
 impl<E: Ipv6Packet> Packet for Icmpv6<E> {
     /// The preceding type for an ICMPv6 packet must be either an [IPv6]
@@ -206,16 +203,19 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
 
     /// Parses the envelope's payload as an ICMPv6 packet.
     ///
-    /// [`next_header`] must be set to [`ProtocolNumbers::Icmpv6`].
-    /// Otherwise, a parsing error is returned.
+    /// # Errors
+    ///
+    /// Returns an error if [`next_header`] is not set to [`ProtocolNumbers::Icmpv6`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// ICMPv6 header.
     ///
     /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
     /// [`ProtocolNumbers::Icmpv6`]: crate::packets::ip::ProtocolNumbers::Icmpv6
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.next_protocol() == ProtocolNumbers::Icmpv6,
-            ParseError::new("not an ICMPv6 packet.")
+            anyhow!("not an ICMPv6 packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -230,15 +230,15 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
     }
 
     /// Cannot push a generic ICMPv6 header without a message body. This
-    /// will always return [`NoIcmpv6MessageBody`]. Instead, push a specific
-    /// message type like [`EchoRequest`], which includes the header and the
-    /// message body.
+    /// will always error. Instead, push a specific message type like
+    /// [`EchoRequest`], which includes the header and the message body.
     ///
-    /// [`NoIcmpv6MessageBody`]: NoIcmpv6MessageBody
     /// [`EchoRequest`]: EchoRequest
     #[inline]
-    fn try_push(_envelope: Self::Envelope, _internal: crate::packets::Internal) -> Fallible<Self> {
-        Err(NoIcmpv6MessageBody.into())
+    fn try_push(_envelope: Self::Envelope, _internal: crate::packets::Internal) -> Result<Self> {
+        Err(anyhow!(
+            "cannot push a generic ICMPv6 header without a message body."
+        ))
     }
 
     #[inline]
@@ -413,7 +413,7 @@ pub trait Icmpv6Message {
     ///
     /// [`Icmpv6::downcast`]: Icmpv6::downcast
     /// [`msg_type`]: Icmpv6::msg_type
-    fn try_parse(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Fallible<Self>
+    fn try_parse(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 
@@ -431,7 +431,7 @@ pub trait Icmpv6Message {
     ///
     /// [`msg_type`]: Icmpv6::msg_type
     /// [`Packet::push`]: Packet::push
-    fn try_push(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Fallible<Self>
+    fn try_push(icmp: Icmpv6<Self::Envelope>, internal: Internal) -> Result<Self>
     where
         Self: Sized;
 

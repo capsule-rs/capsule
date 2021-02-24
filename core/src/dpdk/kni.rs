@@ -24,12 +24,13 @@ use crate::ffi::{self, AsStr, ToResult};
 use crate::metrics::{labels, Counter, SINK};
 use crate::net::MacAddr;
 use crate::{debug, error, warn};
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use futures::{future, Future, StreamExt};
 use std::cmp;
 use std::mem;
 use std::os::raw;
 use std::ptr::{self, NonNull};
+use thiserror::Error;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 /// Creates a new KNI counter.
@@ -232,12 +233,12 @@ unsafe impl Send for KniRx {}
 unsafe impl Send for KniTx {}
 
 /// KNI errors.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub(crate) enum KniError {
-    #[fail(display = "KNI is not enabled for the port.")]
+    #[error("KNI is not enabled for the port.")]
     Disabled,
 
-    #[fail(display = "Another core owns the handle.")]
+    #[error("Another core owns the handle.")]
     NotAcquired,
 }
 
@@ -277,12 +278,12 @@ impl Kni {
     }
 
     /// Takes ownership of the RX handle.
-    pub(crate) fn take_rx(&mut self) -> Fallible<KniRx> {
+    pub(crate) fn take_rx(&mut self) -> Result<KniRx> {
         self.rx.take().ok_or_else(|| KniError::NotAcquired.into())
     }
 
     /// Takes ownership of the TX handle.
-    pub(crate) fn take_tx(&mut self) -> Fallible<KniTx> {
+    pub(crate) fn take_tx(&mut self) -> Result<KniTx> {
         self.tx.take().ok_or_else(|| KniError::NotAcquired.into())
     }
 
@@ -378,7 +379,7 @@ impl<'a> KniBuilder<'a> {
         self
     }
 
-    pub(crate) fn finish(&mut self) -> Fallible<Kni> {
+    pub(crate) fn finish(&mut self) -> Result<Kni> {
         self.conf.mbuf_size = ffi::RTE_MBUF_DEFAULT_BUF_SIZE;
         self.ops.change_mtu = Some(change_mtu);
         self.ops.config_network_if = Some(config_network_if);
@@ -394,7 +395,7 @@ impl<'a> KniBuilder<'a> {
 }
 
 /// Initializes and preallocates the KNI subsystem.
-pub(crate) fn kni_init(max: usize) -> Fallible<()> {
+pub(crate) fn kni_init(max: usize) -> Result<()> {
     unsafe {
         ffi::rte_kni_init(max as raw::c_uint)
             .to_result(DpdkError::from_errno)

@@ -20,9 +20,9 @@ use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{Internal, Packet, ParseError};
+use crate::packets::{Internal, Packet};
 use crate::{ensure, SizeOf};
-use failure::Fallible;
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::IpAddr;
 use std::ptr::NonNull;
@@ -175,16 +175,19 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
 
     /// Parses the envelope's payload as an IPv6 fragment packet.
     ///
-    /// [`next_header`] of the envelope must be set to [`ProtocolNumbers::Ipv6Frag`].
-    /// Otherwise a parsing error is returned.
+    /// # Errors
+    ///
+    /// Returns an error if [`next_header`] is not set to [`ProtocolNumbers::Ipv6Frag`].
+    /// Returns an error if the payload does not have sufficient data for the
+    /// fragment extension header.
     ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Frag`]: ProtocolNumbers::Ipv6Frag
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
             envelope.next_header() == ProtocolNumbers::Ipv6Frag,
-            ParseError::new("not an IPv6 fragment packet.")
+            anyhow!("not an IPv6 fragment packet.")
         );
 
         let mbuf = envelope.mbuf();
@@ -204,10 +207,14 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
     /// [`next_header`] is set to the value of the `next_header` field of the
     /// envelope, and the envelope is set to [`ProtocolNumbers::Ipv6Frag`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    ///
     /// [`next_header`]: Ipv6Packet::next_header
     /// [`ProtocolNumbers::Ipv6Frag`]: ProtocolNumbers::Ipv6Frag
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 
@@ -233,9 +240,14 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
     /// The envelope's [`next_header`] field is set to the value of the
     /// `next_header` field on the fragment packet.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have sufficient data to
+    /// remove.
+    ///
     /// [`next_header`]: Ipv6Packet::next_header
     #[inline]
-    fn remove(mut self) -> Fallible<Self::Envelope> {
+    fn remove(mut self) -> Result<Self::Envelope> {
         let offset = self.offset();
         let len = self.header_len();
         let next_header = self.next_header();
@@ -267,7 +279,7 @@ impl<E: Ipv6Packet> IpPacket for Fragment<E> {
     }
 
     #[inline]
-    fn set_src(&mut self, src: IpAddr) -> Fallible<()> {
+    fn set_src(&mut self, src: IpAddr) -> Result<()> {
         self.envelope_mut().set_src(src)
     }
 
@@ -277,7 +289,7 @@ impl<E: Ipv6Packet> IpPacket for Fragment<E> {
     }
 
     #[inline]
-    fn set_dst(&mut self, dst: IpAddr) -> Fallible<()> {
+    fn set_dst(&mut self, dst: IpAddr) -> Result<()> {
         self.envelope_mut().set_dst(dst)
     }
 
@@ -287,7 +299,7 @@ impl<E: Ipv6Packet> IpPacket for Fragment<E> {
     }
 
     #[inline]
-    fn truncate(&mut self, mtu: usize) -> Fallible<()> {
+    fn truncate(&mut self, mtu: usize) -> Result<()> {
         self.envelope_mut().truncate(mtu)
     }
 }

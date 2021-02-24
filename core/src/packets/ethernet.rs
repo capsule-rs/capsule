@@ -21,7 +21,7 @@ use crate::net::MacAddr;
 use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet};
 use crate::{ensure, Mbuf, SizeOf};
-use failure::Fallible;
+use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -269,8 +269,14 @@ impl Packet for Ethernet {
         }
     }
 
+    /// Parses the mbuf's payload as `Ethernet`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `Ethernet` header is larger than the data
+    /// payload.
     #[inline]
-    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let mbuf = envelope.mbuf();
         let offset = envelope.payload_offset();
         let header = mbuf.read_data(offset)?;
@@ -293,8 +299,13 @@ impl Packet for Ethernet {
         Ok(packet)
     }
 
+    /// Prepends a new packet to the beginning of the envelope's payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Fallible<Self> {
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         let offset = envelope.payload_offset();
         let mbuf = envelope.mbuf_mut();
 

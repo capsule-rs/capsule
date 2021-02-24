@@ -18,11 +18,12 @@
 
 use crate::dpdk::{CoreId, Mempool, MempoolMap, MEMPOOL};
 use crate::{debug, error, ffi, info};
-use failure::{Fail, Fallible};
+use anyhow::Result;
 use futures::Future;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread::{self, JoinHandle};
+use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_executor::current_thread::{self, CurrentThread};
 use tokio_executor::park::ParkThread;
@@ -148,14 +149,14 @@ pub(crate) struct CoreExecutor {
 }
 
 /// Core errors.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub(crate) enum CoreError {
     /// Core is not found.
-    #[fail(display = "{:?} is not found.", _0)]
+    #[error("{0:?} is not found.")]
     NotFound(CoreId),
 
     /// Core is not assigned to any ports.
-    #[fail(display = "{:?} is not assigned to any ports.", _0)]
+    #[error("{0:?} is not assigned to any ports.")]
     NotAssigned(CoreId),
 }
 
@@ -212,7 +213,7 @@ impl<'a> CoreMapBuilder<'a> {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub(crate) fn finish(&'a mut self) -> Fallible<CoreMap> {
+    pub(crate) fn finish(&'a mut self) -> Result<CoreMap> {
         let mut map = HashMap::new();
 
         // first initializes the master core, which the current running
@@ -301,7 +302,7 @@ impl<'a> CoreMapBuilder<'a> {
 fn init_master_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Fallible<(MasterExecutor, CoreExecutor)> {
+) -> Result<(MasterExecutor, CoreExecutor)> {
     // affinitize the running thread to this core.
     id.set_thread_affinity()?;
 
@@ -341,7 +342,7 @@ fn init_master_core(
 fn init_background_core(
     id: CoreId,
     mempool: *mut ffi::rte_mempool,
-) -> Fallible<(
+) -> Result<(
     CurrentThread<Timer<ParkThread>>,
     Park,
     Shutdown,

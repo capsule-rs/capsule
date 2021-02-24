@@ -78,7 +78,7 @@ pub(crate) use metrics_runtime::Measurement;
 
 use crate::dpdk::{Mempool, MempoolStats, Port};
 use crate::warn;
-use failure::{format_err, Fallible};
+use anyhow::{anyhow, Result};
 use metrics_runtime::{Receiver, Sink};
 use once_cell::sync::{Lazy, OnceCell};
 
@@ -89,12 +89,12 @@ static RECEIVER: OnceCell<Receiver> = OnceCell::new();
 /// potentially fail, the `Lazy` convenience type is not safe.
 ///
 /// Also very important that `init` is not called twice.
-pub(crate) fn init() -> Fallible<()> {
+pub(crate) fn init() -> Result<()> {
     let receiver = Receiver::builder().build()?;
 
     RECEIVER
         .set(receiver)
-        .map_err(|_| format_err!("already initialized."))?;
+        .map_err(|_| anyhow!("already initialized."))?;
     Ok(())
 }
 
