@@ -326,7 +326,7 @@ impl Port {
     /// If the port fails to start, `DpdkError` is returned.
     pub(crate) fn start(&mut self) -> Result<()> {
         unsafe {
-            ffi::rte_eth_dev_start(self.id.0).to_result(DpdkError::from_errno)?;
+            ffi::rte_eth_dev_start(self.id.0).into_result(DpdkError::from_errno)?;
         }
 
         info!("started port {}.", self.name());
@@ -400,8 +400,8 @@ impl<'a> PortBuilder<'a> {
     pub(crate) fn new(name: String, device: String) -> Result<Self> {
         let mut port_id = 0u16;
         unsafe {
-            ffi::rte_eth_dev_get_port_by_name(device.clone().to_cstring().as_ptr(), &mut port_id)
-                .to_result(DpdkError::from_errno)?;
+            ffi::rte_eth_dev_get_port_by_name(device.clone().into_cstring().as_ptr(), &mut port_id)
+                .into_result(DpdkError::from_errno)?;
         }
 
         let port_id = PortId(port_id);
@@ -469,7 +469,7 @@ impl<'a> PortBuilder<'a> {
 
         unsafe {
             ffi::rte_eth_dev_adjust_nb_rx_tx_desc(self.port_id.0, &mut rxd2, &mut txd2)
-                .to_result(DpdkError::from_errno)?;
+                .into_result(DpdkError::from_errno)?;
         }
 
         info!(
@@ -523,7 +523,7 @@ impl<'a> PortBuilder<'a> {
         // must configure the device first before everything else.
         unsafe {
             ffi::rte_eth_dev_configure(self.port_id.0, len, len, &conf)
-                .to_result(DpdkError::from_errno)?;
+                .into_result(DpdkError::from_errno)?;
         }
 
         // if the port is virtual, we will allocate it to the socket of
@@ -575,7 +575,7 @@ impl<'a> PortBuilder<'a> {
                     ptr::null(),
                     mempool,
                 )
-                .to_result(DpdkError::from_errno)?;
+                .into_result(DpdkError::from_errno)?;
             }
 
             // configures the TX queue with defaults
@@ -588,7 +588,7 @@ impl<'a> PortBuilder<'a> {
                     socket_id.0 as raw::c_uint,
                     ptr::null(),
                 )
-                .to_result(DpdkError::from_errno)?;
+                .into_result(DpdkError::from_errno)?;
             }
 
             #[cfg(feature = "pcap-dump")]

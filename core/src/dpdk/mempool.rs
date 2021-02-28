@@ -59,14 +59,14 @@ impl Mempool {
 
         let raw = unsafe {
             ffi::rte_pktmbuf_pool_create(
-                name.clone().to_cstring().as_ptr(),
+                name.clone().into_cstring().as_ptr(),
                 capacity as raw::c_uint,
                 cache_size as raw::c_uint,
                 0,
                 ffi::RTE_MBUF_DEFAULT_BUF_SIZE as u16,
                 socket_id.raw(),
             )
-            .to_result(|_| DpdkError::new())?
+            .into_result(|_| DpdkError::new())?
         };
 
         info!("created {}.", name);

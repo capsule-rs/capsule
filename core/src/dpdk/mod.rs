@@ -159,7 +159,7 @@ impl CoreId {
             let mut set: libc::cpu_set_t = mem::zeroed();
             libc::CPU_SET(self.0, &mut set);
             let mut set: ffi::rte_cpuset_t = mem::transmute(set);
-            ffi::rte_thread_set_affinity(&mut set).to_result(DpdkError::from_errno)?;
+            ffi::rte_thread_set_affinity(&mut set).into_result(DpdkError::from_errno)?;
         }
 
         CURRENT_CORE_ID.with(|tls| tls.set(*self));
@@ -182,7 +182,10 @@ pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
     debug!(arguments=?args);
 
     let len = args.len() as raw::c_int;
-    let args = args.into_iter().map(|s| s.to_cstring()).collect::<Vec<_>>();
+    let args = args
+        .into_iter()
+        .map(|s| s.into_cstring())
+        .collect::<Vec<_>>();
     let mut ptrs = args
         .iter()
         .map(|s| s.as_ptr() as *mut raw::c_char)
@@ -191,14 +194,14 @@ pub(crate) fn eal_init(args: Vec<String>) -> Result<()> {
     let res = unsafe { ffi::rte_eal_init(len, ptrs.as_mut_ptr()) };
     debug!("EAL parsed {} arguments.", res);
 
-    res.to_result(DpdkError::from_errno).map(|_| ())
+    res.into_result(DpdkError::from_errno).map(|_| ())
 }
 
 /// Cleans up the Environment Abstraction Layer (EAL).
 pub(crate) fn eal_cleanup() -> Result<()> {
     unsafe {
         ffi::rte_eal_cleanup()
-            .to_result(DpdkError::from_errno)
+            .into_result(DpdkError::from_errno)
             .map(|_| ())
     }
 }

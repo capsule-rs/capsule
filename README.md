@@ -50,7 +50,7 @@ The easiest way to start developing `Capsule` applications is to use the `Vagran
 
 - [`DPDK` 19.11](https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html)
 - [`Clang`](https://clang.llvm.org/) and [`LLVM`](https://www.llvm.org/)
-- [`Rust 1.49`](https://blog.rust-lang.org/2020/12/31/Rust-1.49.0.html)
+- [`Rust 1.50`](https://blog.rust-lang.org/2021/02/11/Rust-1.50.0.html)
 - [`rr`](https://rr-project.org/) 5.3
 
 First install [`Vagrant`](https://www.vagrantup.com/) and [`VirtualBox`](https://www.virtualbox.org/) on your system. Also install the following `Vagrant` plugins,
@@ -79,7 +79,7 @@ vagrant$ docker run -it --rm \
     --security-opt seccomp=unconfined \
     -v /lib/modules:/lib/modules \
     -v /dev/hugepages:/dev/hugepages \
-    getcapsule/sandbox:19.11.6-1.49 /bin/bash
+    getcapsule/sandbox:19.11.6-1.50 /bin/bash
 ```
 
 Remember to also mount the working directory of your project as a volume for the sandbox. Then you can use `Cargo` commands inside the container as normal.
@@ -103,7 +103,7 @@ This project and everyone participating in it are governed by the [Capsule Code 
 
 ## Contact
 
-You can contact us either through [`Discord`](https://discord.gg/sVN47RU) or [email](mailto:capsule-dev@googlegroups.com).
+You can contact us either through [`Discord`](https://discord.gg/sAgzNV27sA) or [email](mailto:capsule-dev@googlegroups.com).
 
 ## Maintainers
 

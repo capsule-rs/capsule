@@ -13,7 +13,7 @@ Benchmarks for Capsule.
 anyhow = "1.0"
 capsule = { version = "0.1", path = "../core", features = ["testils"] }
 criterion = "0.3"
-proptest = "0.10"
+proptest = "1.0"
 
 [[bench]]
 name = "packets"
