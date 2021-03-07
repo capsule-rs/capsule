@@ -18,12 +18,14 @@
 
 //! Internet Control Message Protocol for IPv6.
 
+mod destination_unreachable;
 mod echo_reply;
 mod echo_request;
 pub mod ndp;
 mod time_exceeded;
 mod too_big;
 
+pub use self::destination_unreachable::*;
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
 pub use self::time_exceeded::*;
@@ -292,6 +294,11 @@ pub mod Icmpv6Types {
     ///
     /// [Time Exceeded]: crate::packets::icmp::v6::TimeExceeded
     pub const TimeExceeded: Icmpv6Type = Icmpv6Type(3);
+
+    /// Message type for [Destination Unreachable].
+    ///
+    /// [Destination Unreachable]: crate::packets::icmp::v6::DestinationUnreachable
+    pub const DestinationUnreachable: Icmpv6Type = Icmpv6Type(1);
 
     /// Message type for [Echo Request].
     ///
