@@ -64,9 +64,9 @@ impl Pcap {
     fn create(path: &str) -> Result<Pcap> {
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
-                .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
-            let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.to_cstring().as_ptr())
-                .to_result(|_| PcapError::get_error(handle))
+                .into_result(|_| PcapError::new("Cannot create packet capture handle."))?;
+            let dumper = ffi::pcap_dump_open(handle.as_ptr(), path.into_cstring().as_ptr())
+                .into_result(|_| PcapError::get_error(handle))
                 .map_err(|err| {
                     ffi::pcap_close(handle.as_ptr());
                     err
@@ -91,9 +91,9 @@ impl Pcap {
 
         unsafe {
             let handle = ffi::pcap_open_dead(DLT_EN10MB, PCAP_SNAPSHOT_LEN)
-                .to_result(|_| PcapError::new("Cannot create packet capture handle."))?;
-            let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.to_cstring().as_ptr())
-                .to_result(|_| PcapError::get_error(handle))
+                .into_result(|_| PcapError::new("Cannot create packet capture handle."))?;
+            let dumper = ffi::pcap_dump_open_append(handle.as_ptr(), path.into_cstring().as_ptr())
+                .into_result(|_| PcapError::get_error(handle))
                 .map_err(|err| {
                     ffi::pcap_close(handle.as_ptr());
                     err
@@ -108,12 +108,12 @@ impl Pcap {
 
     /// Write packets to `pcap` file handler.
     unsafe fn write(&self, ptrs: &[*mut ffi::rte_mbuf]) -> Result<()> {
-        ptrs.iter().try_for_each(|&p| self.dump_packet(p))?;
+        ptrs.iter().for_each(|&p| self.dump_packet(p));
 
         self.flush()
     }
 
-    unsafe fn dump_packet(&self, ptr: *mut ffi::rte_mbuf) -> Result<()> {
+    unsafe fn dump_packet(&self, ptr: *mut ffi::rte_mbuf) {
         let mut pcap_hdr = ffi::pcap_pkthdr::default();
         pcap_hdr.len = (*ptr).data_len as u32;
         pcap_hdr.caplen = pcap_hdr.len;
@@ -129,14 +129,12 @@ impl Pcap {
             &pcap_hdr,
             ((*ptr).buf_addr as *mut u8).offset((*ptr).data_off as isize),
         );
-
-        Ok(())
     }
 
     fn flush(&self) -> Result<()> {
         unsafe {
             ffi::pcap_dump_flush(self.dumper.as_ptr())
-                .to_result(|_| PcapError::new("Cannot flush packets to packet capture"))
+                .into_result(|_| PcapError::new("Cannot flush packets to packet capture"))
                 .map(|_| ())
         }
     }
@@ -177,9 +175,9 @@ pub(crate) fn capture_queue(
                     port_id.raw(),
                     rxq.raw(),
                     Some(append_and_write_rx),
-                    port_name.to_cstring().into_raw() as *mut raw::c_void,
+                    port_name.into_cstring().into_raw() as *mut raw::c_void,
                 )
-                .to_result(|_| DpdkError::new())?;
+                .into_result(|_| DpdkError::new())?;
             }
         }
         RxTxQueue::Tx(txq) => {
@@ -189,9 +187,9 @@ pub(crate) fn capture_queue(
                     port_id.raw(),
                     txq.raw(),
                     Some(append_and_write_tx),
-                    port_name.to_cstring().into_raw() as *mut raw::c_void,
+                    port_name.into_cstring().into_raw() as *mut raw::c_void,
                 )
-                .to_result(|_| DpdkError::new())?;
+                .into_result(|_| DpdkError::new())?;
             }
         }
     }
@@ -259,7 +257,7 @@ mod tests {
     fn read_pcap_plen(path: &str) -> u32 {
         let mut errbuf = [0i8; ffi::RTE_MBUF_DEFAULT_BUF_SIZE as usize];
         let handle =
-            unsafe { ffi::pcap_open_offline(path.to_cstring().as_ptr(), errbuf.as_mut_ptr()) };
+            unsafe { ffi::pcap_open_offline(path.into_cstring().as_ptr(), errbuf.as_mut_ptr()) };
 
         let mut header: *mut ffi::pcap_pkthdr = ptr::null_mut();
         let mut buf: *const libc::c_uchar = ptr::null();

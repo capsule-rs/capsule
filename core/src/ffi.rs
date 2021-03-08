@@ -56,19 +56,19 @@ impl AsStr for [raw::c_char] {
 
 /// Simplify `String` and `&str` to `CString` conversion.
 pub(crate) trait ToCString {
-    fn to_cstring(self) -> CString;
+    fn into_cstring(self) -> CString;
 }
 
 impl ToCString for String {
     #[inline]
-    fn to_cstring(self) -> CString {
+    fn into_cstring(self) -> CString {
         CString::new(self).unwrap()
     }
 }
 
 impl ToCString for &str {
     #[inline]
-    fn to_cstring(self) -> CString {
+    fn into_cstring(self) -> CString {
         CString::new(self).unwrap()
     }
 }
@@ -79,14 +79,14 @@ impl ToCString for &str {
 ///
 /// ```
 /// ffi::rte_eth_add_tx_callback(..., ..., ..., ...)
-///     .to_result(|_| {
+///     .into_result(|_| {
 ///         DpdkError::new()
 /// })?;
 /// ```
 pub(crate) trait ToResult {
     type Ok;
 
-    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
+    fn into_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
         E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
@@ -97,7 +97,7 @@ impl<T> ToResult for *mut T {
     type Ok = NonNull<T>;
 
     #[inline]
-    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
+    fn into_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
         E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
@@ -110,7 +110,7 @@ impl<T> ToResult for *const T {
     type Ok = *const T;
 
     #[inline]
-    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
+    fn into_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
         E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
@@ -127,7 +127,7 @@ impl ToResult for raw::c_int {
     type Ok = u32;
 
     #[inline]
-    fn to_result<E, F>(self, f: F) -> Result<Self::Ok>
+    fn into_result<E, F>(self, f: F) -> Result<Self::Ok>
     where
         E: Error + Send + Sync + 'static,
         F: FnOnce(Self) -> E,
