@@ -20,6 +20,7 @@ use anyhow::Result;
 use capsule::batch::{Batch, Pipeline};
 use capsule::config::load_config;
 use capsule::metrics;
+use capsule::net::MacAddr;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet, Tcp4};
 use capsule::{batch, Mbuf, PortQueue, Runtime};
@@ -32,8 +33,9 @@ use tracing::{debug, error, Level};
 use tracing_subscriber::fmt;
 
 fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
-    let mac = qs["eth1"].mac_addr();
-    let localhost = Ipv4Addr::new(127, 0, 0, 1);
+    let src_mac = qs["eth1"].mac_addr();
+    let dst_ip = Ipv4Addr::new(10, 100, 1, 255);
+    let dst_mac = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
 
     // starts the src ip at 10.0.0.0
     let mut next_ip = 10u32 << 24;
@@ -46,14 +48,15 @@ fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
     })
     .map(move |packet| {
         let mut ethernet = packet.push::<Ethernet>()?;
-        ethernet.set_src(mac);
+        ethernet.set_src(src_mac);
+        ethernet.set_dst(dst_mac);
 
         // +1 to gen the next ip
         next_ip += 1;
 
         let mut v4 = ethernet.push::<Ipv4>()?;
         v4.set_src(next_ip.into());
-        v4.set_dst(localhost);
+        v4.set_dst(dst_ip);
 
         let mut tcp = v4.push::<Tcp4>()?;
         tcp.set_syn();
