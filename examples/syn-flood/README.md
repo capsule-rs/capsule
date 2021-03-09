@@ -14,7 +14,7 @@ The example is located in the `examples/syn-flood` sub-directory. To run the app
 /examples/syn-flood$ cargo run -- -f syn-flood.toml
 ```
 
-To observe the `SYN` flood traffic, in the vagrant VM, run `tcpdump` to capture packets seen by `eth3`,
+To observe the `SYN` flood traffic, in the vagrant VM, run `tcpdump` to capture packets sent to the destination IP address and port,
 
 ```
 $ sudo tcpdump -nn host 10.100.1.255 and port 80
@@ -22,7 +22,7 @@ $ sudo tcpdump -nn host 10.100.1.255 and port 80
 
 ## Explanation
 
-The application schedules a periodic pipeline on port `eth1`'s assigned core `1`. The pipeline will repeat every 10 milliseconds. Instead of receiving packets from the port, the pipeline uses `batch::poll_fn` to generate a batch of new SYN packets each iteration and sends them to `eth3` on port `80`. Every packet is assigned a different spoofed source IP address.
+The application schedules a periodic pipeline on port `eth1`'s assigned core `1`. The pipeline will repeat every 10 milliseconds. Instead of receiving packets from the port, the pipeline uses `batch::poll_fn` to generate a batch of new SYN packets each iteration and sends them to the interface `eth3` with assigned IP `10.100.1.255` on port `80`.  Every packet is assigned a different spoofed source IP address.
 
 On the main core `0`, a scheduled task prints out the port metrics once every second.
 
