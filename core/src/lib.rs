@@ -124,7 +124,7 @@ extern crate self as capsule;
 pub mod batch;
 pub mod config;
 mod dpdk;
-mod ffi;
+pub(crate) mod ffi;
 mod macros;
 #[cfg(feature = "metrics")]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "default", feature = "metrics"))))]
@@ -134,6 +134,7 @@ pub mod packets;
 #[cfg(feature = "pcap-dump")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pcap-dump")))]
 mod pcap;
+mod rt2;
 mod runtime;
 #[cfg(any(test, feature = "testils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]

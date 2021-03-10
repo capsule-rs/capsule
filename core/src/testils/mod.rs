@@ -27,7 +27,8 @@ mod rvg;
 pub use self::packet::*;
 pub use self::rvg::*;
 
-use crate::dpdk::{self, Mempool, SocketId, MEMPOOL};
+use crate::dpdk::{Mempool, SocketId, MEMPOOL};
+use crate::ffi::dpdk;
 use crate::metrics;
 use std::ptr;
 use std::sync::Once;
@@ -38,9 +39,25 @@ static TEST_INIT: Once = Once::new();
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
         dpdk::eal_init(vec![
-            "capsule_test".to_owned(),
-            "--no-huge".to_owned(),
-            "--iova-mode=va".to_owned(),
+            "capsule_test",
+            "--master-lcore",
+            "127",
+            "--lcores",
+            // 2 logical worker cores, pins master core to physical core 0
+            "0,1,127@0",
+            // allows tests to run without hugepages
+            "--no-huge",
+            // allows tests to run without root privilege
+            "--iova-mode=va",
+            "--vdev",
+            // a null device for RX and TX tests
+            "net_null0",
+            "--vdev",
+            // a ring-based device that can be used with assertions
+            "net_ring0",
+            "--vdev",
+            // a TAP device for supported device feature tests
+            "net_tap0",
         ])
         .unwrap();
         let _ = metrics::init();
