@@ -16,12 +16,15 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+pub(crate) mod dpdk;
+
 pub(crate) use capsule_ffi::*;
 
 use crate::warn;
 use anyhow::Result;
 use std::error::Error;
 use std::ffi::{CStr, CString};
+use std::ops::{Deref, DerefMut};
 use std::os::raw;
 use std::ptr::NonNull;
 
@@ -137,5 +140,23 @@ impl ToResult for raw::c_int {
         } else {
             Err(f(self).into())
         }
+    }
+}
+
+/// Makes NonNull even easier to use with the downside that it hides the
+/// unsafeness of the underlying pointer access.
+pub(crate) struct EasyPtr<T>(NonNull<T>);
+
+impl<T> Deref for EasyPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl<T> DerefMut for EasyPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut() }
     }
 }
