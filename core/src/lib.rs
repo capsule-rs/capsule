@@ -24,7 +24,7 @@
 )]
 #![deny(broken_intra_doc_links)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc(html_root_url = "https://docs.rs/capsule/0.1.4")]
+#![doc(html_root_url = "https://docs.rs/capsule/0.1.5")]
 
 //! A framework for network function development. Written in Rust, inspired by
 //! [NetBricks] and built on Intel's [Data Plane Development Kit].

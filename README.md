@@ -42,7 +42,7 @@ The goal of `Capsule` is to offer an ergonomic framework for network function de
 - a fast packet processor that uses minimum number of CPU cycles.
 - a rich packet type system that guarantees memory-safety and thread-safety.
 - a declarative programming model that emphasizes simplicity.
-- an extensible and testable framework that is easy to develop and maintain.
+- an extendable and testable framework that is easy to develop and maintain.
 
 ## Quick Start
 
