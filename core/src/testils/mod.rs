@@ -41,6 +41,10 @@ pub fn cargo_test_init() {
             "capsule_test".to_owned(),
             "--no-huge".to_owned(),
             "--iova-mode=va".to_owned(),
+            "--master-lcore".to_owned(),
+            "127".to_owned(),
+            "--lcores".to_owned(),
+            "0,1,127@0".to_owned(),
         ])
         .unwrap();
         let _ = metrics::init();

@@ -16,14 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use capsule_ffi as cffi;
-
 use super::{AsStr, EasyPtr, ToCString, ToResult};
-use crate::debug;
+use crate::{debug, error};
 use anyhow::Result;
+use capsule_ffi as cffi;
 use std::fmt;
 use std::ops::DerefMut;
 use std::os::raw;
+use std::panic::{self, AssertUnwindSafe};
 use thiserror::Error;
 
 /// Initializes the Environment Abstraction Layer (EAL).
@@ -126,6 +126,78 @@ pub(crate) fn mempool_lookup<S: Into<String>>(name: S) -> Result<MempoolPtr> {
 /// Frees a mempool.
 pub(crate) fn mempool_free(ptr: &mut MempoolPtr) {
     unsafe { cffi::rte_mempool_free(ptr.deref_mut()) };
+}
+
+/// An opaque identifier for a logical execution unit of the processor.
+#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) struct LcoreId(raw::c_uint);
+
+impl LcoreId {
+    /// Any lcore to indicate that no thread affinity is set.
+    pub(crate) const ANY: Self = LcoreId(raw::c_uint::MAX);
+
+    /// Returns the ID of the current execution unit or `LcoreId::ANY` when
+    /// called from a non-EAL thread.
+    #[inline]
+    pub(crate) fn current() -> LcoreId {
+        unsafe { LcoreId(cffi::_rte_lcore_id()) }
+    }
+}
+
+impl fmt::Debug for LcoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "lcore{}", self.0)
+    }
+}
+
+/// Gets the next enabled lcore ID.
+pub(crate) fn get_next_lcore(
+    id: Option<LcoreId>,
+    skip_master: bool,
+    wrap: bool,
+) -> Option<LcoreId> {
+    let (i, wrap) = match id {
+        Some(id) => (id.0, wrap as raw::c_int),
+        None => (raw::c_uint::MAX, 1),
+    };
+
+    let skip_master = skip_master as raw::c_int;
+
+    match unsafe { cffi::rte_get_next_lcore(i, skip_master, wrap) } {
+        cffi::RTE_MAX_LCORE => None,
+        id @ _ => Some(LcoreId(id)),
+    }
+}
+
+/// The function passed to `rte_eal_remote_launch`.
+unsafe extern "C" fn lcore_fn<F>(arg: *mut raw::c_void) -> raw::c_int
+where
+    F: FnOnce() -> () + Send + 'static,
+{
+    let f = Box::from_raw(arg as *mut F);
+
+    // in case the closure panics, let's not crash the app.
+    let result = panic::catch_unwind(AssertUnwindSafe(f));
+
+    if let Err(err) = result {
+        error!(lcore = ?LcoreId::current(), error = ?err, "failed to execute closure.");
+    }
+
+    0
+}
+
+/// Launches a function on another lcore.
+pub(crate) fn eal_remote_launch<F>(worker_id: LcoreId, f: F) -> Result<()>
+where
+    F: FnOnce() -> () + Send + 'static,
+{
+    let ptr = Box::into_raw(Box::new(f)) as *mut raw::c_void;
+
+    unsafe {
+        cffi::rte_eal_remote_launch(Some(lcore_fn::<F>), ptr, worker_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
 }
 
 /// An error generated in `libdpdk`.

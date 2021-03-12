@@ -91,10 +91,7 @@ impl fmt::Debug for Mempool {
 
 impl Drop for Mempool {
     fn drop(&mut self) {
-        unsafe {
-            dpdk::mempool_free(&mut self.ptr);
-        }
-
+        dpdk::mempool_free(&mut self.ptr);
         debug!(mempool = ?self.name(), "pool freed.");
     }
 }
