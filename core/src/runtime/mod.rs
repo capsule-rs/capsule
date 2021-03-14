@@ -434,11 +434,11 @@ impl Runtime {
     pub fn add_periodic_task_to_core<F>(
         &mut self,
         core: usize,
-        task: F,
+        mut task: F,
         dur: Duration,
     ) -> Result<&mut Self>
     where
-        F: Fn() + Send + Sync + 'static,
+        F: FnMut() + Send + Sync + 'static,
     {
         let core_id = CoreId::new(core);
         let thread = &self.get_core(core_id)?.thread;
