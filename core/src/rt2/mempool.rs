@@ -40,6 +40,10 @@ impl Mempool {
     /// caching is enabled. New `Mbuf` will be retrieved first from cache,
     /// subsequently from the common pool. The cache can be disabled if
     /// `cache_size` is set to 0.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DpdkError` if the mempool allocation fails.
     pub(crate) fn new<S: Into<String>>(
         name: S,
         capacity: usize,
@@ -51,6 +55,11 @@ impl Mempool {
         info!(mempool = ?name, "pool created.");
 
         Ok(Self { ptr })
+    }
+
+    /// Returns the raw pointer.
+    pub(crate) fn ptr_mut(&mut self) -> &mut MempoolPtr {
+        &mut self.ptr
     }
 
     /// Returns the pool name.

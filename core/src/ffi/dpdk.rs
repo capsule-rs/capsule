@@ -17,6 +17,7 @@
 */
 
 use super::{AsStr, EasyPtr, ToCString, ToResult};
+use crate::net::MacAddr;
 use crate::{debug, error};
 use anyhow::Result;
 use capsule_ffi as cffi;
@@ -24,6 +25,7 @@ use std::fmt;
 use std::ops::DerefMut;
 use std::os::raw;
 use std::panic::{self, AssertUnwindSafe};
+use std::ptr;
 use thiserror::Error;
 
 /// Initializes the Environment Abstraction Layer (EAL).
@@ -197,6 +199,183 @@ where
         cffi::rte_eal_remote_launch(Some(lcore_fn::<F>), ptr, worker_id.0)
             .into_result(DpdkError::from_errno)
             .map(|_| ())
+    }
+}
+
+/// An opaque identifier for a PMD device port.
+#[derive(Copy, Clone)]
+pub(crate) struct PortId(u16);
+
+impl PortId {
+    /// Returns the ID of the socket the port is connected to.
+    #[inline]
+    pub(crate) fn socket(self) -> SocketId {
+        unsafe { cffi::rte_eth_dev_socket_id(self.0).into() }
+    }
+}
+
+impl fmt::Debug for PortId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "port{}", self.0)
+    }
+}
+
+/// Gets the port id from device name.
+pub(crate) fn eth_dev_get_port_by_name<S: Into<String>>(name: S) -> Result<PortId> {
+    let name: String = name.into();
+    let mut port_id = 0u16;
+    unsafe {
+        cffi::rte_eth_dev_get_port_by_name(name.into_cstring().as_ptr(), &mut port_id)
+            .into_result(DpdkError::from_errno)?;
+    }
+    Ok(PortId(port_id))
+}
+
+/// Retrieves the Ethernet address of a device.
+pub(crate) fn eth_macaddr_get(port_id: PortId) -> Result<MacAddr> {
+    let mut addr = cffi::rte_ether_addr::default();
+    unsafe {
+        cffi::rte_eth_macaddr_get(port_id.0, &mut addr).into_result(DpdkError::from_errno)?;
+    }
+    Ok(addr.addr_bytes.into())
+}
+
+/// Retrieves the contextual information of a device.
+pub(crate) fn eth_dev_info_get(port_id: PortId) -> Result<cffi::rte_eth_dev_info> {
+    let mut port_info = cffi::rte_eth_dev_info::default();
+    unsafe {
+        cffi::rte_eth_dev_info_get(port_id.0, &mut port_info).into_result(DpdkError::from_errno)?;
+    }
+    Ok(port_info)
+}
+
+/// Checks that numbers of Rx and Tx descriptors satisfy descriptors limits
+/// from the ethernet device information, otherwise adjust them to boundaries.
+pub(crate) fn eth_dev_adjust_nb_rx_tx_desc(
+    port_id: PortId,
+    nb_rx_desc: usize,
+    nb_tx_desc: usize,
+) -> Result<(usize, usize)> {
+    let mut nb_rx_desc = nb_rx_desc as u16;
+    let mut nb_tx_desc = nb_tx_desc as u16;
+
+    unsafe {
+        cffi::rte_eth_dev_adjust_nb_rx_tx_desc(port_id.0, &mut nb_rx_desc, &mut nb_tx_desc)
+            .into_result(DpdkError::from_errno)?;
+    }
+
+    Ok((nb_rx_desc as usize, nb_tx_desc as usize))
+}
+
+/// Returns the value of promiscuous mode for a device.
+pub(crate) fn eth_promiscuous_get(port_id: PortId) -> bool {
+    match unsafe { cffi::rte_eth_promiscuous_get(port_id.0).into_result(DpdkError::from_errno) } {
+        Ok(1) => true,
+        // assuming port_id is valid, we treat error as mode disabled.
+        _ => false,
+    }
+}
+
+/// Enables receipt in promiscuous mode for a device.
+pub(crate) fn eth_promiscuous_enable(port_id: PortId) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_promiscuous_enable(port_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Disables receipt in promiscuous mode for a device.
+pub(crate) fn eth_promiscuous_disable(port_id: PortId) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_promiscuous_disable(port_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Returns the value of allmulticast mode for a device.
+pub(crate) fn eth_allmulticast_get(port_id: PortId) -> bool {
+    match unsafe { cffi::rte_eth_allmulticast_get(port_id.0).into_result(DpdkError::from_errno) } {
+        Ok(1) => true,
+        // assuming port_id is valid, we treat error as mode disabled.
+        _ => false,
+    }
+}
+
+/// Enables the receipt of any multicast frame by a device.
+pub(crate) fn eth_allmulticast_enable(port_id: PortId) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_allmulticast_enable(port_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Disables the receipt of any multicast frame by a device.
+pub(crate) fn eth_allmulticast_disable(port_id: PortId) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_allmulticast_disable(port_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Configures a device.
+pub(crate) fn eth_dev_configure(
+    port_id: PortId,
+    nb_rx_queue: usize,
+    nb_tx_queue: usize,
+    eth_conf: &cffi::rte_eth_conf,
+) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_dev_configure(port_id.0, nb_rx_queue as u16, nb_tx_queue as u16, eth_conf)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Allocates and sets up a receive queue for a device.
+pub(crate) fn eth_rx_queue_setup(
+    port_id: PortId,
+    rx_queue_id: usize,
+    nb_rx_desc: usize,
+    socket_id: SocketId,
+    rx_conf: Option<&cffi::rte_eth_rxconf>,
+    mb_pool: &mut MempoolPtr,
+) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_rx_queue_setup(
+            port_id.0,
+            rx_queue_id as u16,
+            nb_rx_desc as u16,
+            socket_id.0 as raw::c_uint,
+            rx_conf.map_or(ptr::null(), |conf| conf),
+            mb_pool.deref_mut(),
+        )
+        .into_result(DpdkError::from_errno)
+        .map(|_| ())
+    }
+}
+
+/// Allocates and sets up a transmit queue for a device.
+pub(crate) fn eth_tx_queue_setup(
+    port_id: PortId,
+    tx_queue_id: usize,
+    nb_tx_desc: usize,
+    socket_id: SocketId,
+    tx_conf: Option<&cffi::rte_eth_txconf>,
+) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_tx_queue_setup(
+            port_id.0,
+            tx_queue_id as u16,
+            nb_tx_desc as u16,
+            socket_id.0 as raw::c_uint,
+            tx_conf.map_or(ptr::null(), |conf| conf),
+        )
+        .into_result(DpdkError::from_errno)
+        .map(|_| ())
     }
 }
 

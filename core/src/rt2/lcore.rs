@@ -64,6 +64,10 @@ pub(crate) struct Lcore {
 
 impl Lcore {
     /// Creates a new executor for the given lcore id.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DpdkError` if the executor fails to run on the given lcore.
     fn new(id: LcoreId) -> Result<Self> {
         let executor = Arc::new(Executor::new());
         let (trigger, shutdown) = shutdown_trigger();
