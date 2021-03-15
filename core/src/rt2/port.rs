@@ -20,8 +20,9 @@ use super::Mempool;
 use crate::ffi::dpdk::{self, PortId};
 use crate::net::MacAddr;
 use crate::{debug, ensure, info, warn};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use capsule_ffi as cffi;
+use std::collections::HashMap;
 use std::fmt;
 use thiserror::Error;
 
@@ -79,6 +80,28 @@ impl fmt::Debug for Port {
     }
 }
 
+/// Map to lookup the port by the port name.
+pub(crate) struct PortMap(HashMap<String, Port>);
+
+impl PortMap {
+    /// Returns the lcore with the assigned id.
+    fn get(&self, name: &str) -> Result<&Port> {
+        self.0
+            .get(name)
+            .ok_or_else(|| anyhow!("port with name '{}' not found.", name))
+    }
+}
+
+impl From<Vec<Port>> for PortMap {
+    fn from(ports: Vec<Port>) -> Self {
+        let ports = ports
+            .into_iter()
+            .map(|port| (port.name.clone(), port))
+            .collect::<HashMap<_, _>>();
+        PortMap(ports)
+    }
+}
+
 /// Port related errors.
 #[derive(Debug, Error)]
 pub(crate) enum PortError {
@@ -123,7 +146,7 @@ impl Builder {
         let device: String = device.into();
 
         let port_id = dpdk::eth_dev_get_port_by_name(&device)?;
-        debug!(port = ?name, id = ?port_id, ?device);
+        debug!(?name, id = ?port_id, ?device);
 
         let port_info = dpdk::eth_dev_info_get(port_id)?;
 
@@ -150,7 +173,7 @@ impl Builder {
     /// the number of lcores assigned.
     pub(crate) fn set_rx_lcores(&mut self, lcores: Vec<usize>) -> Result<&mut Self> {
         ensure!(
-            !lcores.is_empty() && self.port_info.max_rx_queues >= lcores.len() as u16,
+            self.port_info.max_rx_queues >= lcores.len() as u16,
             PortError::InsufficientRxQueues(self.port_info.max_rx_queues)
         );
 
@@ -183,7 +206,7 @@ impl Builder {
     /// the number of lcores assigned.
     pub(crate) fn set_tx_lcores(&mut self, lcores: Vec<usize>) -> Result<&mut Self> {
         ensure!(
-            !lcores.is_empty() && self.port_info.max_tx_queues >= lcores.len() as u16,
+            self.port_info.max_tx_queues >= lcores.len() as u16,
             PortError::InsufficientTxQueues(self.port_info.max_tx_queues)
         );
 
@@ -199,7 +222,7 @@ impl Builder {
     /// # Errors
     ///
     /// Returns `DpdkError` if failed to set the queue capacity.
-    pub(crate) fn set_rxq_txq_capacity(&mut self, rxqs: usize, txqs: usize) -> Result<&mut Self> {
+    pub(crate) fn set_rxqs_txqs(&mut self, rxqs: usize, txqs: usize) -> Result<&mut Self> {
         let (rxqs2, txqs2) = dpdk::eth_dev_adjust_nb_rx_tx_desc(self.port_id, rxqs, txqs)?;
 
         info!(
@@ -314,6 +337,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ffi::dpdk::SocketId;
 
     #[capsule::test]
     fn port_not_found() {
@@ -355,11 +379,11 @@ mod tests {
     }
 
     #[capsule::test]
-    fn set_rxq_txq_capacity() -> Result<()> {
+    fn set_rxqs_txqs() -> Result<()> {
         let mut builder = Builder::for_device("test0", "net_ring0")?;
 
         // unfortunately can't test boundary adjustment
-        assert!(builder.set_rxq_txq_capacity(32, 32).is_ok());
+        assert!(builder.set_rxqs_txqs(32, 32).is_ok());
         assert_eq!(32, builder.rxqs);
         assert_eq!(32, builder.txqs);
 
@@ -390,7 +414,7 @@ mod tests {
     fn build_port() -> Result<()> {
         let rx_lcores = (0..2).collect::<Vec<_>>();
         let tx_lcores = (3..6).collect::<Vec<_>>();
-        let mut pool = Mempool::new("mp_build_port", 15, 0)?;
+        let mut pool = Mempool::new("mp_build_port", 15, 0, SocketId::ANY)?;
         let port = Builder::for_device("test0", "net_ring0")?
             .set_rx_lcores(rx_lcores.clone())?
             .set_tx_lcores(tx_lcores.clone())?
