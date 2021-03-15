@@ -2,23 +2,25 @@
 
 Thank you for your help improving the project! No contribution is too small and all contributions are valued.
 
-When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sVN47RU) or [email](mailto:capsule-dev@googlegroups.com) with the `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue, [Discord](https://discord.gg/sAgzNV27sA) or [email](mailto:capsule-dev@googlegroups.com) with the `Capsule` [maintainers](https://github.com/orgs/capsule-rs/teams/maintainers/members) before making a change.
 
 This guide will help you get started. Please note that we have a [Code of Conduct](CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
 ## Table of Contents
 
-* [Code of Conduct](#code-of-conduct)
-* [Contributing in Issues](#contributing-in-issues)
-    * [Asking for General Help](#asking-for-general-help)
-    * [Submitting a Bug Report](#submitting-a-bug-report)
-    * [Requesting a New Feature](#requesting-a-new-feature)
-* [Pull Requests](#pull-requests)
-    * [Development Notes](#development-notes)
-    * [Commits](#commits)
-    * [Opening the Pull Request](#opening-the-pull-request)
-    * [Contributor License Agreement](#contributor-license-agreement)
-    * [Pull Request Approval](#pull-request-approval)
+- [Contributing to Capsule](#contributing-to-capsule)
+  - [Table of Contents](#table-of-contents)
+  - [Code of Conduct](#code-of-conduct)
+  - [Contributing in Issues](#contributing-in-issues)
+    - [Asking for General Help](#asking-for-general-help)
+    - [Submitting a Bug Report](#submitting-a-bug-report)
+    - [Requesting a New Feature](#requesting-a-new-feature)
+  - [Pull Requests](#pull-requests)
+    - [Development Notes](#development-notes)
+    - [Commits](#commits)
+    - [Opening the Pull Request](#opening-the-pull-request)
+    - [Contributor License Agreement](#contributor-license-agreement)
+    - [Pull Request Approval](#pull-request-approval)
 
 ## Code of Conduct
 
@@ -31,7 +33,7 @@ Work on `Capsule` is tracked by Github Issues. Anybody can participate in any st
 
 ### Asking for General Help
 
-If you have reviewed existing documentation and still have questions or are having problems, you can join our [Discord](https://discord.gg/sVN47RU) to ask for help. When applicable, we would appretiate it if you can contribute back a documentation PR that helps others avoid the problems that you encountered.
+If you have reviewed existing documentation and still have questions or are having problems, you can join our [Discord](https://discord.gg/sAgzNV27sA) to ask for help. When applicable, we would appretiate it if you can contribute back a documentation PR that helps others avoid the problems that you encountered.
 
 ### Submitting a Bug Report
 
