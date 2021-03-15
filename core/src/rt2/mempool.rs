@@ -48,11 +48,12 @@ impl Mempool {
         name: S,
         capacity: usize,
         cache_size: usize,
+        socket_id: SocketId,
     ) -> Result<Self> {
         let name: String = name.into();
-        let ptr = dpdk::pktmbuf_pool_create(&name, capacity, cache_size, SocketId::current())?;
+        let ptr = dpdk::pktmbuf_pool_create(&name, capacity, cache_size, socket_id)?;
 
-        info!(mempool = ?name, "pool created.");
+        info!(?name, "pool created.");
 
         Ok(Self { ptr })
     }
@@ -100,8 +101,10 @@ impl fmt::Debug for Mempool {
 
 impl Drop for Mempool {
     fn drop(&mut self) {
+        let name = self.name().to_string();
+        debug!(?name, "freeing mempool.");
         dpdk::mempool_free(&mut self.ptr);
-        debug!(mempool = ?self.name(), "pool freed.");
+        info!(?name, "mempool freed.");
     }
 }
 
@@ -111,7 +114,7 @@ mod tests {
 
     #[capsule::test]
     fn create_mempool() -> Result<()> {
-        let pool = Mempool::new("pool1", 15, 1)?;
+        let pool = Mempool::new("pool1", 15, 1, SocketId::ANY)?;
 
         assert_eq!("pool1", pool.name());
         assert_eq!(15, pool.capacity());
@@ -123,7 +126,7 @@ mod tests {
     #[capsule::test]
     fn drop_mempool() -> Result<()> {
         let name = "pool2";
-        let pool = Mempool::new(name, 7, 0)?;
+        let pool = Mempool::new(name, 7, 0, SocketId::ANY)?;
 
         let res = dpdk::mempool_lookup(name);
         assert!(res.is_ok());

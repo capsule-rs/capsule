@@ -17,11 +17,12 @@
 */
 
 use crate::ffi::dpdk::{self, LcoreId};
-use crate::info;
-use anyhow::Result;
+use crate::{debug, info};
+use anyhow::{anyhow, Result};
 use async_channel::{self, Receiver, Recv, Sender};
 use async_executor::Executor;
 use futures_lite::future;
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -69,14 +70,15 @@ impl Lcore {
     ///
     /// Returns `DpdkError` if the executor fails to run on the given lcore.
     fn new(id: LcoreId) -> Result<Self> {
+        debug!(?id, "starting lcore.");
         let executor = Arc::new(Executor::new());
         let (trigger, shutdown) = shutdown_trigger();
 
         let executor2 = Arc::clone(&executor);
         dpdk::eal_remote_launch(id, move || {
-            info!(lcore = ?id, "lcore started.");
+            info!(?id, "lcore started.");
             let _ = future::block_on(executor2.run(shutdown.wait()));
-            info!(lcore = ?id, "lcore stopped.");
+            info!(?id, "lcore stopped.");
         })?;
 
         Ok(Lcore {
@@ -104,14 +106,36 @@ impl Lcore {
 impl Drop for Lcore {
     fn drop(&mut self) {
         if let Some(trigger) = self.trigger.take() {
-            info!(lcore = ?self.id, "stopping lcore.");
+            debug!(id = ?self.id, "stopping lcore.");
             trigger.fire();
         }
     }
 }
 
+/// Map to lookup the lcore by the assigned id.
+pub(crate) struct LcoreMap(HashMap<usize, Lcore>);
+
+impl LcoreMap {
+    /// Returns the lcore with the assigned id.
+    fn get(&self, id: usize) -> Result<&Lcore> {
+        self.0
+            .get(&id)
+            .ok_or_else(|| anyhow!("lcore with id '{}' not found.", id))
+    }
+}
+
+impl From<Vec<Lcore>> for LcoreMap {
+    fn from(lcores: Vec<Lcore>) -> Self {
+        let map = lcores
+            .into_iter()
+            .map(|lcore| (lcore.id.raw(), lcore))
+            .collect::<HashMap<_, _>>();
+        LcoreMap(map)
+    }
+}
+
 /// Returns the enabled worker lcores.
-pub(crate) fn lcore_pool() -> Vec<Lcore> {
+pub(crate) fn lcore_pool() -> LcoreMap {
     let mut lcores = Vec::new();
     let mut current = None;
 
@@ -120,7 +144,7 @@ pub(crate) fn lcore_pool() -> Vec<Lcore> {
         current = Some(id);
     }
 
-    lcores
+    lcores.into()
 }
 
 #[cfg(test)]

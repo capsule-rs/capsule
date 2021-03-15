@@ -131,7 +131,7 @@ pub(crate) fn mempool_free(ptr: &mut MempoolPtr) {
 }
 
 /// An opaque identifier for a logical execution unit of the processor.
-#[derive(Copy, Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone)]
 pub(crate) struct LcoreId(raw::c_uint);
 
 impl LcoreId {
@@ -143,6 +143,24 @@ impl LcoreId {
     #[inline]
     pub(crate) fn current() -> LcoreId {
         unsafe { LcoreId(cffi::_rte_lcore_id()) }
+    }
+
+    /// Returns the ID of the main lcore.
+    #[inline]
+    pub(crate) fn main() -> LcoreId {
+        unsafe { LcoreId(cffi::rte_get_master_lcore()) }
+    }
+
+    /// Returns the ID of the physical CPU socket of the lcore.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[inline]
+    pub(crate) fn socket(&self) -> SocketId {
+        unsafe { (cffi::rte_lcore_to_socket_id(self.0) as raw::c_int).into() }
+    }
+
+    /// Returns the raw value.
+    pub(crate) fn raw(&self) -> usize {
+        self.0 as usize
     }
 }
 
