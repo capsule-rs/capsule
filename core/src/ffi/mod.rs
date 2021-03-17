@@ -160,3 +160,17 @@ impl<T> DerefMut for EasyPtr<T> {
         unsafe { self.0.as_mut() }
     }
 }
+
+// delete later?
+impl<T> From<NonNull<T>> for EasyPtr<T> {
+    fn from(ptr: NonNull<T>) -> Self {
+        EasyPtr(ptr)
+    }
+}
+
+// delete later?
+impl<T> From<EasyPtr<T>> for NonNull<T> {
+    fn from(ptr: EasyPtr<T>) -> Self {
+        ptr.0
+    }
+}
