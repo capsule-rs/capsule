@@ -16,15 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::MEMPOOL;
-use crate::dpdk::{DpdkError, MempoolError};
-use crate::ffi::{self, ToResult};
+use crate::ffi::dpdk::{self, MbufPtr};
 use crate::packets::{Internal, Packet};
+use crate::rt2::Mempool;
 use crate::{ensure, trace};
 use anyhow::Result;
+use capsule_ffi as cffi;
 use std::fmt;
 use std::mem;
-use std::os::raw;
 use std::ptr::{self, NonNull};
 use std::slice;
 use thiserror::Error;
@@ -113,21 +112,21 @@ enum MbufInner {
     /// Original version of the message buffer that should be freed when it goes
     /// out of scope, unless the ownership of the pointer is given back to
     /// DPDK on transmit.
-    Original(NonNull<ffi::rte_mbuf>),
+    Original(NonNull<cffi::rte_mbuf>),
     /// A clone version of the message buffer that should not be freed when
     /// it goes out of scope.
-    Clone(NonNull<ffi::rte_mbuf>),
+    Clone(NonNull<cffi::rte_mbuf>),
 }
 
 impl MbufInner {
-    fn ptr(&self) -> &NonNull<ffi::rte_mbuf> {
+    fn ptr(&self) -> &NonNull<cffi::rte_mbuf> {
         match self {
             MbufInner::Original(raw) => raw,
             MbufInner::Clone(raw) => raw,
         }
     }
 
-    fn ptr_mut(&mut self) -> &mut NonNull<ffi::rte_mbuf> {
+    fn ptr_mut(&mut self) -> &mut NonNull<cffi::rte_mbuf> {
         match self {
             MbufInner::Original(ref mut raw) => raw,
             MbufInner::Clone(ref mut raw) => raw,
@@ -144,15 +143,15 @@ impl Mbuf {
     ///
     /// # Errors
     ///
-    /// Returns `MempoolError::Exhausted` if the allocation of mbuf fails.
+    /// Returns `MempoolPtrUnsetError` if invoked from a non lcore.
+    /// Returns `DpdkError` if the allocation of mbuf fails.
     #[inline]
     pub fn new() -> Result<Self> {
-        let mempool = MEMPOOL.with(|tls| tls.get());
-        let raw =
-            unsafe { ffi::_rte_pktmbuf_alloc(mempool).into_result(|_| MempoolError::Exhausted)? };
+        let mut mp = Mempool::thread_local_ptr()?;
+        let ptr = dpdk::pktmbuf_alloc(&mut mp)?;
 
         Ok(Mbuf {
-            inner: MbufInner::Original(raw),
+            inner: MbufInner::Original(ptr.into()),
         })
     }
 
@@ -160,7 +159,7 @@ impl Mbuf {
     ///
     /// # Errors
     ///
-    /// Returns `MempoolError::Exhausted` if the allocation of mbuf fails.
+    /// Returns `DpdkError` if the allocation of mbuf fails.
     /// Returns `BufferError::NotResized` if the byte array is larger than
     /// the maximum mbuf size.
     #[inline]
@@ -173,7 +172,15 @@ impl Mbuf {
 
     /// Creates a new `Mbuf` from a raw pointer.
     #[inline]
-    pub(crate) unsafe fn from_ptr(ptr: *mut ffi::rte_mbuf) -> Self {
+    pub(crate) fn from_easyptr(ptr: MbufPtr) -> Self {
+        Mbuf {
+            inner: MbufInner::Original(ptr.into()),
+        }
+    }
+
+    /// Creates a new `Mbuf` from a raw pointer.
+    #[inline]
+    pub(crate) unsafe fn from_ptr(ptr: *mut cffi::rte_mbuf) -> Self {
         Mbuf {
             inner: MbufInner::Original(NonNull::new_unchecked(ptr)),
         }
@@ -181,13 +188,13 @@ impl Mbuf {
 
     /// Returns the raw struct needed for FFI calls.
     #[inline]
-    fn raw(&self) -> &ffi::rte_mbuf {
+    fn raw(&self) -> &cffi::rte_mbuf {
         unsafe { self.inner.ptr().as_ref() }
     }
 
     /// Returns the raw struct needed for FFI calls.
     #[inline]
-    fn raw_mut(&mut self) -> &mut ffi::rte_mbuf {
+    fn raw_mut(&mut self) -> &mut cffi::rte_mbuf {
         unsafe { self.inner.ptr_mut().as_mut() }
     }
 
@@ -417,7 +424,18 @@ impl Mbuf {
     /// The `Mbuf` is consumed. It is the caller's the responsibility to
     /// free the raw pointer after use. Otherwise the buffer is leaked.
     #[inline]
-    pub(crate) fn into_ptr(self) -> *mut ffi::rte_mbuf {
+    pub(crate) fn into_easyptr(self) -> MbufPtr {
+        let ptr = self.inner.ptr().clone();
+        mem::forget(self);
+        ptr.into()
+    }
+
+    /// Acquires the underlying raw struct pointer.
+    ///
+    /// The `Mbuf` is consumed. It is the caller's the responsibility to
+    /// free the raw pointer after use. Otherwise the buffer is leaked.
+    #[inline]
+    pub(crate) fn into_ptr(self) -> *mut cffi::rte_mbuf {
         let ptr = self.inner.ptr().as_ptr();
         mem::forget(self);
         ptr
@@ -430,25 +448,21 @@ impl Mbuf {
     /// Returns `DpdkError` if the allocation of mbuf fails.
     pub fn alloc_bulk(len: usize) -> Result<Vec<Mbuf>> {
         let mut ptrs = Vec::with_capacity(len);
-        let mempool = MEMPOOL.with(|tls| tls.get());
+        let mut mp = Mempool::thread_local_ptr()?;
+        dpdk::pktmbuf_alloc_bulk(&mut mp, &mut ptrs)?;
 
-        let mbufs = unsafe {
-            ffi::_rte_pktmbuf_alloc_bulk(mempool, ptrs.as_mut_ptr(), len as raw::c_uint)
-                .into_result(DpdkError::from_errno)?;
-
-            ptrs.set_len(len);
-            ptrs.into_iter()
-                .map(|ptr| Mbuf::from_ptr(ptr))
-                .collect::<Vec<_>>()
-        };
+        let mbufs = ptrs.into_iter().map(Mbuf::from_easyptr).collect::<Vec<_>>();
 
         Ok(mbufs)
     }
 
     /// Frees the message buffers in bulk.
     pub(crate) fn free_bulk(mbufs: Vec<Mbuf>) {
-        let ptrs = mbufs.into_iter().map(Mbuf::into_ptr).collect::<Vec<_>>();
-        super::mbuf_free_bulk(ptrs);
+        let mut ptrs = mbufs
+            .into_iter()
+            .map(Mbuf::into_easyptr)
+            .collect::<Vec<_>>();
+        dpdk::pktmbuf_free_bulk(&mut ptrs);
     }
 }
 
@@ -469,9 +483,7 @@ impl Drop for Mbuf {
         match self.inner {
             MbufInner::Original(_) => {
                 trace!("freeing mbuf@{:p}.", self.raw().buf_addr);
-                unsafe {
-                    ffi::_rte_pktmbuf_free(self.raw_mut());
-                }
+                dpdk::pktmbuf_free(self.inner.ptr().clone().into());
             }
             MbufInner::Clone(_) => (),
         }

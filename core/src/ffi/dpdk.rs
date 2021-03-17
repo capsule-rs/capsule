@@ -131,7 +131,7 @@ pub(crate) fn mempool_free(ptr: &mut MempoolPtr) {
 }
 
 /// An opaque identifier for a logical execution unit of the processor.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq)]
 pub(crate) struct LcoreId(raw::c_uint);
 
 impl LcoreId {
@@ -394,6 +394,79 @@ pub(crate) fn eth_tx_queue_setup(
         )
         .into_result(DpdkError::from_errno)
         .map(|_| ())
+    }
+}
+
+/// A `rte_mbuf` pointer.
+pub(crate) type MbufPtr = EasyPtr<cffi::rte_mbuf>;
+
+/// Allocates a new mbuf from a mempool.
+pub(crate) fn pktmbuf_alloc(mp: &mut MempoolPtr) -> Result<MbufPtr> {
+    let ptr =
+        unsafe { cffi::_rte_pktmbuf_alloc(mp.deref_mut()).into_result(|_| DpdkError::new())? };
+
+    Ok(EasyPtr(ptr))
+}
+
+/// Allocates a bulk of mbufs.
+pub(crate) fn pktmbuf_alloc_bulk(mp: &mut MempoolPtr, mbufs: &mut Vec<MbufPtr>) -> Result<()> {
+    let len = mbufs.capacity();
+
+    unsafe {
+        cffi::_rte_pktmbuf_alloc_bulk(
+            mp.deref_mut(),
+            mbufs.as_mut_ptr() as *mut *mut cffi::rte_mbuf,
+            len as raw::c_uint,
+        )
+        .into_result(DpdkError::from_errno)?;
+
+        mbufs.set_len(len);
+    }
+
+    Ok(())
+}
+
+/// Frees a packet mbuf back into its original mempool.
+pub(crate) fn pktmbuf_free(mut m: MbufPtr) {
+    unsafe {
+        cffi::_rte_pktmbuf_free(m.deref_mut());
+    }
+}
+
+/// Frees a bulk of packet mbufs back into their original mempools.
+pub(crate) fn pktmbuf_free_bulk(mbufs: &mut Vec<MbufPtr>) {
+    assert!(!mbufs.is_empty());
+
+    let mut to_free = Vec::with_capacity(mbufs.len());
+    let mut pool = mbufs[0].pool;
+
+    for mbuf in mbufs.drain(..) {
+        if pool == mbuf.pool {
+            to_free.push(mbuf);
+        } else {
+            unsafe {
+                let len = to_free.len();
+                cffi::_rte_mempool_put_bulk(
+                    pool,
+                    to_free.as_ptr() as *const *mut raw::c_void,
+                    len as u32,
+                );
+                to_free.set_len(0);
+            }
+
+            pool = mbuf.pool;
+            to_free.push(mbuf);
+        }
+    }
+
+    unsafe {
+        let len = to_free.len();
+        cffi::_rte_mempool_put_bulk(
+            pool,
+            to_free.as_ptr() as *const *mut raw::c_void,
+            len as u32,
+        );
+        to_free.set_len(0);
     }
 }
 

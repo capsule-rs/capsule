@@ -16,11 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::ffi::dpdk::{self, MempoolPtr, SocketId};
+use crate::ffi::dpdk::{self, LcoreId, MempoolPtr, SocketId};
 use crate::ffi::AsStr;
 use crate::{debug, info};
 use anyhow::Result;
+use std::cell::Cell;
 use std::fmt;
+use std::ptr::{self, NonNull};
+use thiserror::Error;
 
 /// A memory pool is an allocator of message buffers, or `Mbuf`. For best
 /// performance, each socket should have a dedicated `Mempool`. However,
@@ -59,6 +62,7 @@ impl Mempool {
     }
 
     /// Returns the raw pointer.
+    #[inline]
     pub(crate) fn ptr_mut(&mut self) -> &mut MempoolPtr {
         &mut self.ptr
     }
@@ -86,6 +90,19 @@ impl Mempool {
     pub(crate) fn socket(&self) -> SocketId {
         self.ptr.socket_id.into()
     }
+
+    /// Returns the thread local mempool pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MempoolPtrUnsetError` if the thread local pointer is not
+    /// set. For example when invoked from a non-EAL thread.
+    pub(crate) fn thread_local_ptr() -> Result<MempoolPtr> {
+        let ptr = MEMPOOL.with(|tls| tls.get());
+        NonNull::new(ptr)
+            .ok_or_else(|| MempoolPtrUnsetError(LcoreId::current()).into())
+            .map(|ptr| ptr.into())
+    }
 }
 
 impl fmt::Debug for Mempool {
@@ -106,6 +123,19 @@ impl Drop for Mempool {
         dpdk::mempool_free(&mut self.ptr);
         info!(?name, "mempool freed.");
     }
+}
+
+/// The thread local mempool is not set.
+#[derive(Debug, Error)]
+#[error("thread local mempool pointer not set for {0:?}.")]
+pub(crate) struct MempoolPtrUnsetError(LcoreId);
+
+thread_local! {
+    /// The `Mempool` assigned to the core when the core is initialized.
+    /// `Mbuf::new` uses this pool to allocate new buffers when executed on
+    /// the core. For best performance, the `Mempool` and the core should
+    /// share the same socket.
+    pub(crate) static MEMPOOL: Cell<*mut capsule_ffi::rte_mempool> = Cell::new(ptr::null_mut());
 }
 
 #[cfg(test)]
