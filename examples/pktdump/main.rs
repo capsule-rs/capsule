@@ -16,26 +16,32 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use anyhow::Result;
-use capsule::batch::{Batch, Pipeline, Poll};
-use capsule::config::load_config;
+use anyhow::{anyhow, Result};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
 use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp, Tcp4, Tcp6};
-use capsule::{compose, Mbuf, PortQueue, Runtime};
+use capsule::rt2::{self, Mbuf, Runtime};
 use colored::*;
+use signal_hook::consts;
+use signal_hook::flag;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
 #[inline]
-fn dump_eth(packet: Mbuf) -> Result<Ethernet> {
+fn dump_pkt(packet: Mbuf) -> Result<()> {
     let ethernet = packet.parse::<Ethernet>()?;
 
     let info_fmt = format!("{:?}", ethernet).magenta().bold();
     println!("{}", info_fmt);
 
-    Ok(ethernet)
+    match ethernet.ether_type() {
+        EtherTypes::Ipv4 => dump_v4(&ethernet),
+        EtherTypes::Ipv6 => dump_v6(&ethernet),
+        _ => Err(anyhow!("not v4 or v6.")),
+    }
 }
 
 #[inline]
@@ -71,36 +77,25 @@ fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
     println!("{}", flow_fmt);
 }
 
-fn install(q: PortQueue) -> impl Pipeline {
-    Poll::new(q.clone())
-        .map(dump_eth)
-        .group_by(
-            |ethernet| ethernet.ether_type(),
-            |groups| {
-                compose!( groups {
-                    EtherTypes::Ipv4 => |group| {
-                        group.for_each(dump_v4)
-                    }
-                    EtherTypes::Ipv6 => |group| {
-                        group.for_each(dump_v6)
-                    }
-                });
-            },
-        )
-        .send(q)
-}
-
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = load_config()?;
+    let config = rt2::load_config()?;
     debug!(?config);
 
-    Runtime::build(config)?
-        .add_pipeline_to_port("eth1", install)?
-        .add_pipeline_to_port("eth2", install)?
-        .execute()
+    let guard = Runtime::from_config(config)?
+        .set_port_pipeline("eth1", dump_pkt)?
+        .set_port_pipeline("eth2", dump_pkt)?
+        .execute()?;
+
+    let term = Arc::new(AtomicBool::new(false));
+    flag::register(consts::SIGINT, Arc::clone(&term))?;
+    println!("ctrl-c to quit ...");
+    while !term.load(Ordering::Relaxed) {}
+
+    drop(guard);
+    Ok(())
 }

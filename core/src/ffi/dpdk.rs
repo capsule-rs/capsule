@@ -22,7 +22,7 @@ use crate::{debug, error};
 use anyhow::Result;
 use capsule_ffi as cffi;
 use std::fmt;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::os::raw;
 use std::panic::{self, AssertUnwindSafe};
 use std::ptr;
@@ -90,6 +90,15 @@ impl From<raw::c_int> for SocketId {
 /// A `rte_mempool` pointer.
 pub(crate) type MempoolPtr = EasyPtr<cffi::rte_mempool>;
 
+impl Clone for MempoolPtr {
+    fn clone(&self) -> Self {
+        self.0.clone().into()
+    }
+}
+
+// Allows the pointer to go across thread/lcore boundaries.
+unsafe impl Send for MempoolPtr {}
+
 /// Creates a mbuf pool.
 pub(crate) fn pktmbuf_pool_create<S: Into<String>>(
     name: S,
@@ -125,9 +134,14 @@ pub(crate) fn mempool_lookup<S: Into<String>>(name: S) -> Result<MempoolPtr> {
     Ok(EasyPtr(ptr))
 }
 
+/// Returns the number of elements which have been allocated from the mempool.
+pub(crate) fn mempool_in_use_count(mp: &MempoolPtr) -> usize {
+    unsafe { cffi::rte_mempool_in_use_count(mp.deref()) as usize }
+}
+
 /// Frees a mempool.
-pub(crate) fn mempool_free(ptr: &mut MempoolPtr) {
-    unsafe { cffi::rte_mempool_free(ptr.deref_mut()) };
+pub(crate) fn mempool_free(mp: &mut MempoolPtr) {
+    unsafe { cffi::rte_mempool_free(mp.deref_mut()) };
 }
 
 /// An opaque identifier for a logical execution unit of the processor.
@@ -353,10 +367,26 @@ pub(crate) fn eth_dev_configure(
     }
 }
 
+/// An opaque identifier for a port's receive queue.
+#[derive(Copy, Clone)]
+pub(crate) struct PortRxQueueId(u16);
+
+impl fmt::Debug for PortRxQueueId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "rxq{}", self.0)
+    }
+}
+
+impl From<usize> for PortRxQueueId {
+    fn from(id: usize) -> Self {
+        PortRxQueueId(id as u16)
+    }
+}
+
 /// Allocates and sets up a receive queue for a device.
 pub(crate) fn eth_rx_queue_setup(
     port_id: PortId,
-    rx_queue_id: usize,
+    rx_queue_id: PortRxQueueId,
     nb_rx_desc: usize,
     socket_id: SocketId,
     rx_conf: Option<&cffi::rte_eth_rxconf>,
@@ -365,7 +395,7 @@ pub(crate) fn eth_rx_queue_setup(
     unsafe {
         cffi::rte_eth_rx_queue_setup(
             port_id.0,
-            rx_queue_id as u16,
+            rx_queue_id.0,
             nb_rx_desc as u16,
             socket_id.0 as raw::c_uint,
             rx_conf.map_or(ptr::null(), |conf| conf),
@@ -376,10 +406,42 @@ pub(crate) fn eth_rx_queue_setup(
     }
 }
 
+/// Retrieves a burst of input packets from a receive queue of a device.
+pub(crate) fn eth_rx_burst(port_id: PortId, queue_id: PortRxQueueId, rx_pkts: &mut Vec<MbufPtr>) {
+    let nb_pkts = rx_pkts.capacity();
+
+    unsafe {
+        let len = cffi::_rte_eth_rx_burst(
+            port_id.0,
+            queue_id.0,
+            rx_pkts.as_mut_ptr() as *mut *mut cffi::rte_mbuf,
+            nb_pkts as u16,
+        );
+
+        rx_pkts.set_len(len as usize);
+    }
+}
+
+/// An opaque identifier for a port's transmit queue.
+#[derive(Copy, Clone)]
+pub(crate) struct PortTxQueueId(u16);
+
+impl fmt::Debug for PortTxQueueId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "txq{}", self.0)
+    }
+}
+
+impl From<usize> for PortTxQueueId {
+    fn from(id: usize) -> Self {
+        PortTxQueueId(id as u16)
+    }
+}
+
 /// Allocates and sets up a transmit queue for a device.
 pub(crate) fn eth_tx_queue_setup(
     port_id: PortId,
-    tx_queue_id: usize,
+    tx_queue_id: PortTxQueueId,
     nb_tx_desc: usize,
     socket_id: SocketId,
     tx_conf: Option<&cffi::rte_eth_txconf>,
@@ -387,7 +449,7 @@ pub(crate) fn eth_tx_queue_setup(
     unsafe {
         cffi::rte_eth_tx_queue_setup(
             port_id.0,
-            tx_queue_id as u16,
+            tx_queue_id.0,
             nb_tx_desc as u16,
             socket_id.0 as raw::c_uint,
             tx_conf.map_or(ptr::null(), |conf| conf),

@@ -16,14 +16,16 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::Mempool;
-use crate::ffi::dpdk::{self, PortId};
+use super::{LcoreMap, Mbuf, Mempool, ShutdownTrigger};
+use crate::ffi::dpdk::{self, LcoreId, PortId, PortRxQueueId};
 use crate::net::MacAddr;
 use crate::{debug, ensure, info, warn};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use capsule_ffi as cffi;
+use futures_lite::future;
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// A PMD device port.
@@ -32,6 +34,7 @@ pub(crate) struct Port {
     port_id: PortId,
     rx_lcores: Vec<usize>,
     tx_lcores: Vec<usize>,
+    shutdown: Option<ShutdownTrigger>,
 }
 
 impl Port {
@@ -64,6 +67,44 @@ impl Port {
     pub(crate) fn multicast(&self) -> bool {
         dpdk::eth_allmulticast_get(self.port_id)
     }
+
+    /// Sets the packet processing pipeline.
+    pub(crate) fn spawn_rx_loops<F>(&self, f: F, lcores: &LcoreMap) -> Result<()>
+    where
+        F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+    {
+        // port is built with the builder, this would not panic.
+        let shutdown = self.shutdown.as_ref().unwrap();
+
+        // can't run pipeline without assigned rx cores.
+        ensure!(self.rx_lcores.len() > 0, PortError::RxNotEnabled);
+        // pipeline already set if the trigger is waited on.
+        ensure!(!shutdown.is_waited(), PortError::PipelineSet);
+
+        let f = Arc::new(f);
+
+        for (index, lcore_id) in self.rx_lcores.iter().enumerate() {
+            let lcore = lcores.get(*lcore_id)?;
+            let port_id = self.port_id.clone();
+            let port_name = self.name.clone();
+            let handle = shutdown.get_wait();
+            let f = f.clone();
+
+            debug!(name = ?self.name, lcore = ?lcore.id(), "spawning rx loop.");
+
+            // the rx loop is endless, so we use a shutdown trigger to signal
+            // when the loop should stop executing.
+            lcore.spawn(future::or(
+                async move {
+                    handle.wait().await;
+                    debug!(name = ?port_name, lcore = ?LcoreId::current(), "rx loop stopped.");
+                },
+                rx_loop(port_id, index.into(), 32, f),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl fmt::Debug for Port {
@@ -80,15 +121,49 @@ impl fmt::Debug for Port {
     }
 }
 
+async fn rx_loop<F>(port_id: PortId, queue_id: PortRxQueueId, batch_size: usize, f: Arc<F>)
+where
+    F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+{
+    let rxq = PortRxQueue { port_id, queue_id };
+
+    let mut packets = Vec::with_capacity(batch_size);
+
+    loop {
+        rxq.receive(&mut packets);
+        for packet in packets.drain(..) {
+            let _ = f(packet);
+        }
+
+        // cooperatively moves to the back of the execution queue,
+        // making room for other tasks before polling rx again.
+        future::yield_now().await;
+    }
+}
+
+/// Port's receive queue.
+pub(crate) struct PortRxQueue {
+    port_id: PortId,
+    queue_id: PortRxQueueId,
+}
+
+impl PortRxQueue {
+    /// Receives a burst of packets, up to the `Vec`'s capacity.
+    pub(crate) fn receive(&self, mbufs: &mut Vec<Mbuf>) {
+        let mut ptrs = Vec::with_capacity(mbufs.capacity());
+        dpdk::eth_rx_burst(self.port_id, self.queue_id, &mut ptrs);
+        ptrs.into_iter()
+            .for_each(|ptr| mbufs.push(Mbuf::from_easyptr(ptr)));
+    }
+}
+
 /// Map to lookup the port by the port name.
 pub(crate) struct PortMap(HashMap<String, Port>);
 
 impl PortMap {
     /// Returns the lcore with the assigned id.
-    fn get(&self, name: &str) -> Result<&Port> {
-        self.0
-            .get(name)
-            .ok_or_else(|| anyhow!("port with name '{}' not found.", name))
+    pub(crate) fn get(&self, name: &str) -> Result<&Port> {
+        self.0.get(name).ok_or_else(|| PortError::NotFound.into())
     }
 }
 
@@ -105,15 +180,27 @@ impl From<Vec<Port>> for PortMap {
 /// Port related errors.
 #[derive(Debug, Error)]
 pub(crate) enum PortError {
+    /// The port is not found.
+    #[error("port not found.")]
+    NotFound,
+
     /// The maximum number of RX queues is less than the number of queues
     /// requested.
-    #[error("Insufficient number of RX queues. Max is {0}.")]
+    #[error("insufficient number of receive queues. max is {0}.")]
     InsufficientRxQueues(u16),
 
     /// The maximum number of TX queues is less than the number of queues
     /// requested.
-    #[error("Insufficient number of TX queues. Max is {0}.")]
+    #[error("insufficient number of transmit queues. max is {0}.")]
     InsufficientTxQueues(u16),
+
+    /// The port does not have RX enabled.
+    #[error("receive not enabled on port.")]
+    RxNotEnabled,
+
+    /// The pipeline for the port is already set.
+    #[error("pipeline already set.")]
+    PipelineSet,
 }
 
 pub(crate) struct Builder {
@@ -312,7 +399,7 @@ impl Builder {
         for index in 0..self.rx_lcores.len() {
             dpdk::eth_rx_queue_setup(
                 self.port_id,
-                index,
+                index.into(),
                 self.rxqs,
                 socket,
                 None,
@@ -322,7 +409,7 @@ impl Builder {
 
         // configures the tx queues.
         for index in 0..self.tx_lcores.len() {
-            dpdk::eth_tx_queue_setup(self.port_id, index, self.txqs, socket, None)?;
+            dpdk::eth_tx_queue_setup(self.port_id, index.into(), self.txqs, socket, None)?;
         }
 
         Ok(Port {
@@ -330,6 +417,7 @@ impl Builder {
             port_id: self.port_id,
             rx_lcores: self.rx_lcores.clone(),
             tx_lcores: self.tx_lcores.clone(),
+            shutdown: Some(ShutdownTrigger::new()),
         })
     }
 }
@@ -425,6 +513,28 @@ mod tests {
         assert!(port.multicast());
         assert_eq!(rx_lcores, port.rx_lcores);
         assert_eq!(tx_lcores, port.tx_lcores);
+
+        Ok(())
+    }
+
+    #[capsule::test]
+    fn port_rx_tx() -> Result<()> {
+        let mut pool = Mempool::new("mp_port_rx", 15, 0, SocketId::ANY)?;
+        let port = Builder::for_device("test0", "net_null0")?
+            .set_rx_lcores(vec![0])?
+            .build(&mut pool)?;
+
+        let rxq = PortRxQueue {
+            port_id: port.port_id,
+            queue_id: 0.into(),
+        };
+
+        let mut packets = Vec::with_capacity(4);
+        assert_eq!(0, packets.len());
+
+        rxq.receive(&mut packets);
+        assert_eq!(4, packets.len());
+        assert_eq!(4, dpdk::mempool_in_use_count(pool.ptr_mut()));
 
         Ok(())
     }

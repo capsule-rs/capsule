@@ -16,51 +16,22 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use super::ShutdownTrigger;
 use crate::ffi::dpdk::{self, LcoreId};
 use crate::{debug, info};
-use anyhow::{anyhow, Result};
-use async_channel::{self, Receiver, Recv, Sender};
+use anyhow::Result;
 use async_executor::Executor;
 use futures_lite::future;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
-
-/// Trigger for the shutdown.
-pub(crate) struct Trigger(Sender<()>);
-
-impl Trigger {
-    /// Triggers the shutdown.
-    pub(crate) fn fire(self) {
-        drop(self.0)
-    }
-}
-
-/// Shutdown wait handle.
-pub(crate) struct Shutdown(Receiver<()>);
-
-impl Shutdown {
-    /// A future that waits till the trigger is fired.
-    pub(crate) fn wait(&self) -> Recv<'_, ()> {
-        self.0.recv()
-    }
-}
-
-/// Creates a shutdown and trigger pair.
-///
-/// Leverages the behavior of an async channel. When the sender is dropped
-/// from scope, it closes the channel and causes the receiver side future
-/// in the executor queue to resolve.
-pub(crate) fn shutdown_trigger() -> (Trigger, Shutdown) {
-    let (s, r) = async_channel::unbounded();
-    (Trigger(s), Shutdown(r))
-}
+use thiserror::Error;
 
 /// An async executor abstraction on top of a DPDK logical core.
 pub(crate) struct Lcore {
     id: LcoreId,
     executor: Arc<Executor<'static>>,
-    trigger: Option<Trigger>,
+    shutdown: Option<ShutdownTrigger>,
 }
 
 impl Lcore {
@@ -71,21 +42,27 @@ impl Lcore {
     /// Returns `DpdkError` if the executor fails to run on the given lcore.
     fn new(id: LcoreId) -> Result<Self> {
         debug!(?id, "starting lcore.");
+        let trigger = ShutdownTrigger::new();
         let executor = Arc::new(Executor::new());
-        let (trigger, shutdown) = shutdown_trigger();
 
+        let handle = trigger.get_wait();
         let executor2 = Arc::clone(&executor);
         dpdk::eal_remote_launch(id, move || {
             info!(?id, "lcore started.");
-            let _ = future::block_on(executor2.run(shutdown.wait()));
+            let _ = future::block_on(executor2.run(handle.wait()));
             info!(?id, "lcore stopped.");
         })?;
 
         Ok(Lcore {
             id,
             executor,
-            trigger: Some(trigger),
+            shutdown: Some(trigger),
         })
+    }
+
+    /// Returns the lcore id.
+    pub(crate) fn id(&self) -> LcoreId {
+        self.id
     }
 
     /// Spawns an async task and waits for it to complete.
@@ -105,22 +82,30 @@ impl Lcore {
 
 impl Drop for Lcore {
     fn drop(&mut self) {
-        if let Some(trigger) = self.trigger.take() {
+        if let Some(trigger) = self.shutdown.take() {
             debug!(id = ?self.id, "stopping lcore.");
             trigger.fire();
         }
     }
 }
 
+/// Lcore not found error.
+#[derive(Debug, Error)]
+#[error("lcore not found.")]
+pub(crate) struct LcoreNotFound;
+
 /// Map to lookup the lcore by the assigned id.
 pub(crate) struct LcoreMap(HashMap<usize, Lcore>);
 
 impl LcoreMap {
     /// Returns the lcore with the assigned id.
-    fn get(&self, id: usize) -> Result<&Lcore> {
-        self.0
-            .get(&id)
-            .ok_or_else(|| anyhow!("lcore with id '{}' not found.", id))
+    pub(crate) fn get(&self, id: usize) -> Result<&Lcore> {
+        self.0.get(&id).ok_or_else(|| LcoreNotFound.into())
+    }
+
+    /// Returns a lcore iterator.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Lcore> {
+        self.0.values()
     }
 }
 
