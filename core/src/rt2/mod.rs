@@ -24,13 +24,58 @@ mod port;
 pub use self::config::*;
 pub(crate) use self::lcore::*;
 pub(crate) use self::mempool::*;
-pub(crate) use self::port::*;
+pub use self::port::{Outbox, Port, PortError, PortMap};
+pub use crate::dpdk::Mbuf;
 
 use crate::ffi::dpdk::{self, LcoreId};
 use crate::{debug, info};
 use anyhow::Result;
+use async_channel::{self, Receiver, Sender};
 use std::fmt;
 use std::mem::ManuallyDrop;
+use std::ops::DerefMut;
+
+/// Trigger for the shutdown.
+pub(crate) struct ShutdownTrigger(Sender<()>, Receiver<()>);
+
+impl ShutdownTrigger {
+    /// Creates a new shutdown trigger.
+    ///
+    /// Leverages the behavior of an async channel. When the sender is dropped
+    /// from scope, it closes the channel and causes the receiver side future
+    /// in the executor queue to resolve.
+    pub(crate) fn new() -> Self {
+        let (s, r) = async_channel::unbounded();
+        Self(s, r)
+    }
+
+    /// Returns a wait handle.
+    pub(crate) fn get_wait(&self) -> ShutdownWait {
+        ShutdownWait(self.1.clone())
+    }
+
+    /// Returns whether the trigger is being waited on.
+    pub(crate) fn is_waited(&self) -> bool {
+        // a receiver count greater than 1 indicating that there are receiver
+        // clones in scope, hence the trigger is being waited on.
+        self.0.receiver_count() > 1
+    }
+
+    /// Triggers the shutdown.
+    pub(crate) fn fire(self) {
+        drop(self.0)
+    }
+}
+
+/// Shutdown wait handle.
+pub(crate) struct ShutdownWait(Receiver<()>);
+
+impl ShutdownWait {
+    /// A future that waits till the shutdown trigger is fired.
+    pub(crate) async fn wait(&self) {
+        self.0.recv().await.unwrap_or(())
+    }
+}
 
 /// The Capsule runtime.
 ///
@@ -43,6 +88,11 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// Returns the configured ports.
+    pub fn ports(&self) -> &PortMap {
+        &self.ports
+    }
+
     /// Initializes a new runtime from config settings.
     pub fn from_config(config: RuntimeConfig) -> Result<Self> {
         info!("starting runtime.");
@@ -63,10 +113,15 @@ impl Runtime {
         debug!("initializing lcore schedulers ...");
         let lcores = self::lcore_pool();
 
+        for lcore in lcores.iter() {
+            let mut ptr = mempool.ptr_mut().clone();
+            lcore.block_on(async move { MEMPOOL.with(|tls| tls.set(ptr.deref_mut())) });
+        }
+
         info!("initializing ports ...");
         let mut ports = Vec::new();
         for port in config.ports.iter() {
-            let port = port::Builder::for_device(&port.name, &port.device)?
+            let mut port = port::Builder::for_device(&port.name, &port.device)?
                 .set_rxqs_txqs(port.rxqs, port.txqs)?
                 .set_promiscuous(port.promiscuous)?
                 .set_multicast(port.multicast)?
@@ -75,6 +130,12 @@ impl Runtime {
                 .build(&mut mempool)?;
 
             debug!(?port);
+
+            if !port.tx_lcores().is_empty() {
+                port.spawn_tx_loops(&lcores)?;
+            }
+
+            port.start()?;
             ports.push(port);
         }
 
@@ -85,6 +146,16 @@ impl Runtime {
             lcores: ManuallyDrop::new(lcores),
             ports: ManuallyDrop::new(ports.into()),
         })
+    }
+
+    /// Sets the packet processing pipeline for port.
+    pub fn set_port_pipeline<F>(&self, port: &str, f: F) -> Result<()>
+    where
+        F: Fn(Mbuf) -> Result<()> + Clone + Send + Sync + 'static,
+    {
+        let port = self.ports.get(port)?;
+        port.spawn_rx_loops(f, &self.lcores)?;
+        Ok(())
     }
 
     /// Starts the runtime execution.
@@ -109,6 +180,10 @@ pub struct RuntimeGuard {
 impl Drop for RuntimeGuard {
     fn drop(&mut self) {
         info!("shutting down runtime.");
+
+        for port in self.runtime.ports.iter_mut() {
+            port.stop();
+        }
 
         unsafe {
             ManuallyDrop::drop(&mut self.runtime.ports);

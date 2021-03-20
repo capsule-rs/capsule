@@ -1,6 +1,6 @@
 app_name = "ping4d"
-master_core = 0
-duration = 5
+main_core = 0
+worker_cores = [0]
 
 [mempool]
     capacity = 65535
@@ -8,6 +8,6 @@ duration = 5
 
 [[ports]]
     name = "eth1"
-    device = "net_pcap0"
-    args = "rx_pcap=echo.pcap,tx_iface=lo"
-    cores = [0]
+    device = "0000:00:08.0"
+    rx_cores = [0]
+    tx_cores = [1]
