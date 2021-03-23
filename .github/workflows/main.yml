@@ -25,17 +25,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* Build @ audit"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
   # issue on critcmp: https://github.com/BurntSushi/critcmp/issues/5
   bench-pr:
     if: github.event_name == 'pull_request'
@@ -113,17 +102,6 @@ jobs:
           path: ./target/criterion
         continue-on-error: true
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ bench-pr"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
   bench:
     if: github.event_name == 'push'
     runs-on: ubuntu-18.04
@@ -143,17 +121,6 @@ jobs:
         with:
           name: criterion-report
           path: ./target/criterion
-
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ bench"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   check:
     runs-on: ubuntu-18.04
@@ -184,17 +151,6 @@ jobs:
       - name: cargo-check
         run: make check
         continue-on-error: ${{ matrix.can-fail }}
-
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ check"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   coverage:
     runs-on: ubuntu-18.04
@@ -230,17 +186,6 @@ jobs:
         with:
           file: ./cobertura.xml
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ coverage"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
   format:
     runs-on: ubuntu-18.04
     steps:
@@ -257,17 +202,6 @@ jobs:
           command: fmt
           args: --all -- --check
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ format"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
   lint:
     runs-on: ubuntu-18.04
 
@@ -280,17 +214,6 @@ jobs:
 
       - name: cargo-clippy
         run: make lint
-
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ lint"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   sanitize:
     runs-on: ubuntu-18.04
@@ -317,17 +240,6 @@ jobs:
             && rustup component add rust-src \
             && cargo run --target x86_64-unknown-linux-gnu -Zbuild-std -- -f ping4d.toml"
 
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ sanitize"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
   test:
     runs-on: ubuntu-18.04
 
@@ -340,49 +252,6 @@ jobs:
 
       - name: cargo-test
         run: make test
-
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: failure() || cancelled()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}* @ test"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-  slack-pr:
-    if: github.event_name == 'pull_request'
-    needs: [audit, bench-pr, check, coverage, format, lint, sanitize, test]
-    runs-on: ubuntu-18.04
-    steps:
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: always()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}*"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-  slack:
-    if: github.event_name == 'push'
-    needs: [audit, bench, check, coverage, format, lint, sanitize, test]
-    runs-on: ubuntu-18.04
-    steps:
-      - name: slack-it
-        uses: homoluctus/slatify@v2.1.2
-        if: always()
-        with:
-          type: ${{ job.status }}
-          job_name: "*${{ github.workflow }}*"
-          url: ${{ secrets.SLACK_WEBHOOK }}
-          commit: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   discord-pr:
     if: github.event_name == 'pull_request'
