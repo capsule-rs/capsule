@@ -24,7 +24,7 @@ mod port;
 pub use self::config::*;
 pub(crate) use self::lcore::*;
 pub(crate) use self::mempool::*;
-pub(crate) use self::port::*;
+pub use self::port::{Outbox, Port, PortError, PortMap};
 pub use crate::dpdk::Mbuf;
 
 use crate::ffi::dpdk::{self, LcoreId};
@@ -88,6 +88,11 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// Returns the configured ports.
+    pub fn ports(&self) -> &PortMap {
+        &self.ports
+    }
+
     /// Initializes a new runtime from config settings.
     pub fn from_config(config: RuntimeConfig) -> Result<Self> {
         info!("starting runtime.");
@@ -116,7 +121,7 @@ impl Runtime {
         info!("initializing ports ...");
         let mut ports = Vec::new();
         for port in config.ports.iter() {
-            let port = port::Builder::for_device(&port.name, &port.device)?
+            let mut port = port::Builder::for_device(&port.name, &port.device)?
                 .set_rxqs_txqs(port.rxqs, port.txqs)?
                 .set_promiscuous(port.promiscuous)?
                 .set_multicast(port.multicast)?
@@ -125,6 +130,12 @@ impl Runtime {
                 .build(&mut mempool)?;
 
             debug!(?port);
+
+            if !port.tx_lcores().is_empty() {
+                port.spawn_tx_loops(&lcores)?;
+            }
+
+            port.start()?;
             ports.push(port);
         }
 
@@ -138,13 +149,13 @@ impl Runtime {
     }
 
     /// Sets the packet processing pipeline for port.
-    pub fn set_port_pipeline<F>(self, port: &str, f: F) -> Result<Self>
+    pub fn set_port_pipeline<F>(&self, port: &str, f: F) -> Result<()>
     where
-        F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+        F: Fn(Mbuf) -> Result<()> + Clone + Send + Sync + 'static,
     {
         let port = self.ports.get(port)?;
         port.spawn_rx_loops(f, &self.lcores)?;
-        Ok(self)
+        Ok(())
     }
 
     /// Starts the runtime execution.
@@ -169,6 +180,10 @@ pub struct RuntimeGuard {
 impl Drop for RuntimeGuard {
     fn drop(&mut self) {
         info!("shutting down runtime.");
+
+        for port in self.runtime.ports.iter_mut() {
+            port.stop();
+        }
 
         unsafe {
             ManuallyDrop::drop(&mut self.runtime.ports);

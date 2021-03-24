@@ -17,23 +17,25 @@
 */
 
 use super::{LcoreMap, Mbuf, Mempool, ShutdownTrigger};
-use crate::ffi::dpdk::{self, LcoreId, PortId, PortRxQueueId};
+use crate::ffi::dpdk::{self, LcoreId, MbufPtr, PortId, PortRxQueueId, PortTxQueueId};
 use crate::net::MacAddr;
+use crate::packets::Packet;
 use crate::{debug, ensure, info, warn};
 use anyhow::Result;
+use async_channel::{self, Receiver, Sender};
 use capsule_ffi as cffi;
 use futures_lite::future;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 use thiserror::Error;
 
 /// A PMD device port.
-pub(crate) struct Port {
+pub struct Port {
     name: String,
     port_id: PortId,
     rx_lcores: Vec<usize>,
     tx_lcores: Vec<usize>,
+    outbox: Option<Sender<MbufPtr>>,
     shutdown: Option<ShutdownTrigger>,
 }
 
@@ -42,7 +44,7 @@ impl Port {
     ///
     /// For applications with more than one port, this name can be used to
     /// identifer the port.
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -51,59 +53,128 @@ impl Port {
         self.port_id
     }
 
+    /// Returns the assigned RX lcores.
+    pub fn rx_lcores(&self) -> &Vec<usize> {
+        &self.rx_lcores
+    }
+
+    /// Returns the assigned TX lcores.
+    pub fn tx_lcores(&self) -> &Vec<usize> {
+        &self.tx_lcores
+    }
+
     /// Returns the MAC address of the port.
     ///
     /// If fails to retrieve the MAC address, `MacAddr::default` is returned.
-    pub(crate) fn mac_addr(&self) -> MacAddr {
+    pub fn mac_addr(&self) -> MacAddr {
         dpdk::eth_macaddr_get(self.port_id).unwrap_or_default()
     }
 
     /// Returns whether the port has promiscuous mode enabled.
-    pub(crate) fn promiscuous(&self) -> bool {
+    pub fn promiscuous(&self) -> bool {
         dpdk::eth_promiscuous_get(self.port_id)
     }
 
     /// Returns whether the port has multicast mode enabled.
-    pub(crate) fn multicast(&self) -> bool {
+    pub fn multicast(&self) -> bool {
         dpdk::eth_allmulticast_get(self.port_id)
     }
 
-    /// Sets the packet processing pipeline.
+    /// Returns the outbox queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PortError::TxNotEnabled` if the port is not configured
+    /// to transmit packets.
+    pub fn outbox(&self) -> Result<Outbox> {
+        self.outbox
+            .as_ref()
+            .map(|s| Outbox(self.name.clone(), s.clone()))
+            .ok_or(PortError::TxNotEnabled.into())
+    }
+
+    /// Spawns the port receiving loop.
     pub(crate) fn spawn_rx_loops<F>(&self, f: F, lcores: &LcoreMap) -> Result<()>
     where
-        F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+        F: Fn(Mbuf) -> Result<()> + Clone + Send + Sync + 'static,
     {
         // port is built with the builder, this would not panic.
         let shutdown = self.shutdown.as_ref().unwrap();
 
-        // can't run pipeline without assigned rx cores.
+        // can't run loop without assigned rx cores.
         ensure!(self.rx_lcores.len() > 0, PortError::RxNotEnabled);
         // pipeline already set if the trigger is waited on.
         ensure!(!shutdown.is_waited(), PortError::PipelineSet);
 
-        let f = Arc::new(f);
-
         for (index, lcore_id) in self.rx_lcores.iter().enumerate() {
             let lcore = lcores.get(*lcore_id)?;
-            let port_id = self.port_id.clone();
             let port_name = self.name.clone();
             let handle = shutdown.get_wait();
             let f = f.clone();
 
-            debug!(name = ?self.name, lcore = ?lcore.id(), "spawning rx loop.");
+            debug!(port = ?self.name, lcore = ?lcore.id(), "spawning rx loop.");
 
             // the rx loop is endless, so we use a shutdown trigger to signal
             // when the loop should stop executing.
             lcore.spawn(future::or(
                 async move {
                     handle.wait().await;
-                    debug!(name = ?port_name, lcore = ?LcoreId::current(), "rx loop stopped.");
+                    debug!(port = ?port_name, lcore = ?LcoreId::current(), "rx loop exited.");
                 },
-                rx_loop(port_id, index.into(), 32, f),
+                rx_loop(self.name.clone(), self.port_id, index.into(), 32, f),
             ));
         }
 
         Ok(())
+    }
+
+    /// Spawns the port transmitting loop.
+    pub(crate) fn spawn_tx_loops(&mut self, lcores: &LcoreMap) -> Result<()> {
+        // though the channel is unbounded, in reality, it's bounded by the
+        // mempool size because that's the max number of mbufs the program
+        // has allocated.
+        let (sender, receiver) = async_channel::unbounded();
+
+        for (index, lcore_id) in self.tx_lcores.iter().enumerate() {
+            let lcore = lcores.get(*lcore_id)?;
+            let receiver = receiver.clone();
+
+            debug!(port = ?self.name, lcore = ?lcore.id(), "spawning tx loop.");
+
+            lcore.spawn(tx_loop(
+                self.name.clone(),
+                self.port_id,
+                index.into(),
+                32,
+                receiver,
+            ))
+        }
+
+        self.outbox = Some(sender);
+        Ok(())
+    }
+
+    /// Starts the port. This is the final step before packets can be
+    /// received or transmitted on this port.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DpdkError` if the port fails to start.
+    pub(crate) fn start(&self) -> Result<()> {
+        dpdk::eth_dev_start(self.port_id)?;
+        info!(port = ?self.name, "port started.");
+        Ok(())
+    }
+
+    /// Stops the port.
+    pub(crate) fn stop(&mut self) {
+        if let Some(trigger) = self.shutdown.take() {
+            debug!(port = ?self.name, "exiting rx loops.");
+            trigger.fire();
+        }
+
+        dpdk::eth_dev_stop(self.port_id);
+        info!(port = ?self.name, "port stopped.");
     }
 }
 
@@ -121,23 +192,22 @@ impl fmt::Debug for Port {
     }
 }
 
-async fn rx_loop<F>(port_id: PortId, queue_id: PortRxQueueId, batch_size: usize, f: Arc<F>)
-where
-    F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
-{
-    let rxq = PortRxQueue { port_id, queue_id };
+/// An in-memory queue of packets waiting for transmission.
+#[derive(Clone)]
+pub struct Outbox(String, Sender<MbufPtr>);
 
-    let mut packets = Vec::with_capacity(batch_size);
+impl Outbox {
+    /// Pushes a new packet to the back of the queue.
+    pub fn push<P: Packet>(&self, packet: P) -> std::result::Result<(), Mbuf> {
+        self.1
+            .try_send(packet.reset().into_easyptr())
+            .map_err(|err| Mbuf::from_easyptr(err.into_inner()))
+    }
+}
 
-    loop {
-        rxq.receive(&mut packets);
-        for packet in packets.drain(..) {
-            let _ = f(packet);
-        }
-
-        // cooperatively moves to the back of the execution queue,
-        // making room for other tasks before polling rx again.
-        future::yield_now().await;
+impl fmt::Debug for Outbox {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}#outbox", self.0)
     }
 }
 
@@ -149,21 +219,119 @@ pub(crate) struct PortRxQueue {
 
 impl PortRxQueue {
     /// Receives a burst of packets, up to the `Vec`'s capacity.
-    pub(crate) fn receive(&self, mbufs: &mut Vec<Mbuf>) {
-        let mut ptrs = Vec::with_capacity(mbufs.capacity());
-        dpdk::eth_rx_burst(self.port_id, self.queue_id, &mut ptrs);
-        ptrs.into_iter()
-            .for_each(|ptr| mbufs.push(Mbuf::from_easyptr(ptr)));
+    pub(crate) fn receive(&self, mbufs: &mut Vec<MbufPtr>) {
+        dpdk::eth_rx_burst(self.port_id, self.queue_id, mbufs);
     }
 }
 
+async fn rx_loop<F>(
+    port_name: String,
+    port_id: PortId,
+    queue_id: PortRxQueueId,
+    batch_size: usize,
+    f: F,
+) where
+    F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+{
+    debug!(port = ?port_name, lcore = ?LcoreId::current(), "executing rx loop.");
+
+    let rxq = PortRxQueue { port_id, queue_id };
+    let mut ptrs = Vec::with_capacity(batch_size);
+
+    loop {
+        rxq.receive(&mut ptrs);
+        for ptr in ptrs.drain(..) {
+            let _ = f(Mbuf::from_easyptr(ptr));
+        }
+
+        // cooperatively moves to the back of the execution queue,
+        // making room for other tasks before polling rx again.
+        future::yield_now().await;
+    }
+}
+
+/// Port's transmit queue.
+pub(crate) struct PortTxQueue {
+    port_id: PortId,
+    queue_id: PortTxQueueId,
+}
+
+impl PortTxQueue {
+    /// Transmits a burst of packets.
+    ///
+    /// If the TX is full, the excess packets are dropped.
+    pub(crate) fn transmit(&self, mbufs: &mut Vec<MbufPtr>) {
+        dpdk::eth_tx_burst(self.port_id, self.queue_id, mbufs);
+
+        if !mbufs.is_empty() {
+            // tx queue is full, we have to drop the excess.
+            dpdk::pktmbuf_free_bulk(mbufs);
+        }
+    }
+}
+
+async fn tx_loop(
+    port_name: String,
+    port_id: PortId,
+    queue_id: PortTxQueueId,
+    batch_size: usize,
+    receiver: Receiver<MbufPtr>,
+) {
+    debug!(port = ?port_name, lcore = ?LcoreId::current(), "executing tx loop.");
+
+    let txq = PortTxQueue { port_id, queue_id };
+    let mut ptrs = Vec::with_capacity(batch_size);
+
+    loop {
+        if let Ok(ptr) = receiver.recv().await {
+            ptrs.push(ptr);
+
+            // try to batch the packets up to batch size.
+            for _ in 1..batch_size {
+                match receiver.try_recv() {
+                    Ok(ptr) => ptrs.push(ptr),
+                    // no more packets to batch, ready to transmit.
+                    Err(_) => break,
+                }
+            }
+
+            txq.transmit(&mut ptrs);
+
+            // cooperatively moves to the back of the execution queue,
+            // making room for other tasks before transmitting again.
+            future::yield_now().await;
+        } else {
+            // this branch can only be reached if the channel is closed,
+            // indicating the tx loop should exit.
+            break;
+        }
+    }
+
+    debug!(port = ?port_name, lcore = ?LcoreId::current(), "tx loop exited.");
+}
+
 /// Map to lookup the port by the port name.
-pub(crate) struct PortMap(HashMap<String, Port>);
+#[derive(Debug)]
+pub struct PortMap(HashMap<String, Port>);
 
 impl PortMap {
-    /// Returns the lcore with the assigned id.
-    pub(crate) fn get(&self, name: &str) -> Result<&Port> {
+    /// Returns the port with the assigned name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PortError::NotFound` if the port name is not found.
+    pub fn get(&self, name: &str) -> Result<&Port> {
         self.0.get(name).ok_or_else(|| PortError::NotFound.into())
+    }
+
+    /// Returns a port iterator.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Port> {
+        self.0.values()
+    }
+
+    /// Returns a port iterator.
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &'_ mut Port> {
+        self.0.values_mut()
     }
 }
 
@@ -179,7 +347,7 @@ impl From<Vec<Port>> for PortMap {
 
 /// Port related errors.
 #[derive(Debug, Error)]
-pub(crate) enum PortError {
+pub enum PortError {
     /// The port is not found.
     #[error("port not found.")]
     NotFound,
@@ -194,15 +362,20 @@ pub(crate) enum PortError {
     #[error("insufficient number of transmit queues. max is {0}.")]
     InsufficientTxQueues(u16),
 
-    /// The port does not have RX enabled.
+    /// The port does not have receive enabled.
     #[error("receive not enabled on port.")]
     RxNotEnabled,
+
+    /// The port does not have transmit enabled.
+    #[error("transmit not enabled on port.")]
+    TxNotEnabled,
 
     /// The pipeline for the port is already set.
     #[error("pipeline already set.")]
     PipelineSet,
 }
 
+/// Port builder.
 pub(crate) struct Builder {
     name: String,
     port_id: PortId,
@@ -417,6 +590,7 @@ impl Builder {
             port_id: self.port_id,
             rx_lcores: self.rx_lcores.clone(),
             tx_lcores: self.tx_lcores.clone(),
+            outbox: None,
             shutdown: Some(ShutdownTrigger::new()),
         })
     }
@@ -522,19 +696,29 @@ mod tests {
         let mut pool = Mempool::new("mp_port_rx", 15, 0, SocketId::ANY)?;
         let port = Builder::for_device("test0", "net_null0")?
             .set_rx_lcores(vec![0])?
+            .set_tx_lcores(vec![0])?
             .build(&mut pool)?;
+
+        let mut packets = Vec::with_capacity(4);
+        assert_eq!(0, packets.len());
 
         let rxq = PortRxQueue {
             port_id: port.port_id,
             queue_id: 0.into(),
         };
 
-        let mut packets = Vec::with_capacity(4);
-        assert_eq!(0, packets.len());
-
         rxq.receive(&mut packets);
         assert_eq!(4, packets.len());
         assert_eq!(4, dpdk::mempool_in_use_count(pool.ptr_mut()));
+
+        let txq = PortTxQueue {
+            port_id: port.port_id,
+            queue_id: 0.into(),
+        };
+
+        txq.transmit(&mut packets);
+        assert_eq!(0, packets.len());
+        assert_eq!(0, dpdk::mempool_in_use_count(pool.ptr_mut()));
 
         Ok(())
     }

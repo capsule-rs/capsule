@@ -22,6 +22,7 @@ use crate::{debug, error};
 use anyhow::Result;
 use capsule_ffi as cffi;
 use std::fmt;
+use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::os::raw;
 use std::panic::{self, AssertUnwindSafe};
@@ -459,8 +460,56 @@ pub(crate) fn eth_tx_queue_setup(
     }
 }
 
+/// Sends a burst of output packets on a transmit queue of a device.
+pub(crate) fn eth_tx_burst(
+    port_id: PortId,
+    queue_id: PortTxQueueId,
+    tx_pkts: &mut Vec<MbufPtr>,
+) -> usize {
+    let nb_pkts = tx_pkts.len();
+
+    let sent = unsafe {
+        cffi::_rte_eth_tx_burst(
+            port_id.0,
+            queue_id.0,
+            tx_pkts.as_mut_ptr() as *mut *mut cffi::rte_mbuf,
+            nb_pkts as u16,
+        )
+    } as usize;
+
+    if nb_pkts > sent {
+        // wasn't able to send everything.
+        mem::forget(tx_pkts.drain(..sent));
+    } else {
+        unsafe {
+            tx_pkts.set_len(0);
+        }
+    }
+
+    sent
+}
+
+/// Starts a device.
+pub(crate) fn eth_dev_start(port_id: PortId) -> Result<()> {
+    unsafe {
+        cffi::rte_eth_dev_start(port_id.0)
+            .into_result(DpdkError::from_errno)
+            .map(|_| ())
+    }
+}
+
+/// Stops a device.
+pub(crate) fn eth_dev_stop(port_id: PortId) {
+    unsafe {
+        cffi::rte_eth_dev_stop(port_id.0);
+    }
+}
+
 /// A `rte_mbuf` pointer.
 pub(crate) type MbufPtr = EasyPtr<cffi::rte_mbuf>;
+
+// Allows the pointer to go across thread/lcore boundaries.
+unsafe impl Send for MbufPtr {}
 
 /// Allocates a new mbuf from a mempool.
 pub(crate) fn pktmbuf_alloc(mp: &mut MempoolPtr) -> Result<MbufPtr> {

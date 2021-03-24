@@ -17,16 +17,18 @@
 */
 
 use anyhow::Result;
-use capsule::batch::{Batch, Pipeline, Poll};
-use capsule::config::load_config;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::{Ethernet, Packet};
-use capsule::{Mbuf, PortQueue, Runtime};
+use capsule::rt2::{self, Mbuf, Outbox, Runtime};
+use signal_hook::consts;
+use signal_hook::flag;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Result<EchoReply> {
+fn reply_echo(packet: Mbuf, eth1: &Outbox) -> Result<()> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -50,11 +52,9 @@ fn reply_echo(packet: &Mbuf) -> Result<EchoReply> {
     debug!(?request);
     debug!(?reply);
 
-    Ok(reply)
-}
+    let _ = eth1.push(reply);
 
-fn install(q: PortQueue) -> impl Pipeline {
-    Poll::new(q.clone()).replace(reply_echo).send(q)
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -63,10 +63,20 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = load_config()?;
+    let config = rt2::load_config()?;
     debug!(?config);
 
-    Runtime::build(config)?
-        .add_pipeline_to_port("eth1", install)?
-        .execute()
+    let runtime = Runtime::from_config(config)?;
+
+    let outbox = runtime.ports().get("eth1")?.outbox()?;
+    runtime.set_port_pipeline("eth1", move |packet| reply_echo(packet, &outbox))?;
+
+    let _guard = runtime.execute()?;
+
+    let term = Arc::new(AtomicBool::new(false));
+    flag::register(consts::SIGINT, Arc::clone(&term))?;
+    println!("ctrl-c to quit ...");
+    while !term.load(Ordering::Relaxed) {}
+
+    Ok(())
 }

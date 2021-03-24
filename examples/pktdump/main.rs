@@ -86,16 +86,15 @@ fn main() -> Result<()> {
     let config = rt2::load_config()?;
     debug!(?config);
 
-    let guard = Runtime::from_config(config)?
-        .set_port_pipeline("eth1", dump_pkt)?
-        .set_port_pipeline("eth2", dump_pkt)?
-        .execute()?;
+    let runtime = Runtime::from_config(config)?;
+    runtime.set_port_pipeline("eth1", dump_pkt)?;
+    runtime.set_port_pipeline("eth2", dump_pkt)?;
+    let _guard = runtime.execute()?;
 
     let term = Arc::new(AtomicBool::new(false));
     flag::register(consts::SIGINT, Arc::clone(&term))?;
     println!("ctrl-c to quit ...");
     while !term.load(Ordering::Relaxed) {}
 
-    drop(guard);
     Ok(())
 }
