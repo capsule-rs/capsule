@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Capsule runtime.
+
 mod config;
 mod lcore;
 mod mempool;
@@ -23,11 +25,13 @@ mod port;
 
 pub use self::config::*;
 pub(crate) use self::lcore::*;
+pub use self::lcore::{Lcore, LcoreMap, LcoreNotFound};
+pub use self::mempool::Mempool;
 pub(crate) use self::mempool::*;
 pub use self::port::{Outbox, Port, PortError, PortMap};
-pub use crate::dpdk::Mbuf;
 
 use crate::ffi::dpdk::{self, LcoreId};
+use crate::packets::{Mbuf, Postmark};
 use crate::{debug, info};
 use anyhow::Result;
 use async_channel::{self, Receiver, Sender};
@@ -88,6 +92,19 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// Returns the mempool.
+    ///
+    /// For simplicity, we currently only support one global Mempool. Multi-
+    /// socket support may be added in the future.
+    pub fn mempool(&self) -> &Mempool {
+        &self.mempool
+    }
+
+    /// Returns the lcores.
+    pub fn lcores(&self) -> &LcoreMap {
+        &self.lcores
+    }
+
     /// Returns the configured ports.
     pub fn ports(&self) -> &PortMap {
         &self.ports
@@ -151,7 +168,7 @@ impl Runtime {
     /// Sets the packet processing pipeline for port.
     pub fn set_port_pipeline<F>(&self, port: &str, f: F) -> Result<()>
     where
-        F: Fn(Mbuf) -> Result<()> + Clone + Send + Sync + 'static,
+        F: Fn(Mbuf) -> Result<Postmark> + Clone + Send + Sync + 'static,
     {
         let port = self.ports.get(port)?;
         port.spawn_rx_loops(f, &self.lcores)?;

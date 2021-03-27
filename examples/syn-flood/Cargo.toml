@@ -17,8 +17,10 @@ doctest = false
 
 [dependencies]
 anyhow = "1.0"
+async-io = "1.3"
 capsule = { version = "0.1", path = "../../core" }
-metrics-core = "0.5"
-metrics-observer-yaml = "0.1"
+futures-lite = "1.11"
+rand = "0.8"
+signal-hook = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.2"

@@ -20,35 +20,35 @@ use anyhow::{anyhow, Result};
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
-use capsule::packets::{EtherTypes, Ethernet, Packet, Tcp, Tcp4, Tcp6};
-use capsule::rt2::{self, Mbuf, Runtime};
-use colored::*;
+use capsule::packets::{EtherTypes, Ethernet, Mbuf, Packet, Postmark, Tcp, Tcp4, Tcp6};
+use capsule::rt2::{self, Runtime};
+use colored::Colorize;
 use signal_hook::consts;
 use signal_hook::flag;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tracing::{debug, Level};
+use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
-#[inline]
-fn dump_pkt(packet: Mbuf) -> Result<()> {
+fn dump_pkt(packet: Mbuf) -> Result<Postmark> {
     let ethernet = packet.parse::<Ethernet>()?;
 
-    let info_fmt = format!("{:?}", ethernet).magenta().bold();
-    println!("{}", info_fmt);
+    let fmt = format!("{:?}", ethernet).magenta().bold();
+    info!("{}", fmt);
 
     match ethernet.ether_type() {
         EtherTypes::Ipv4 => dump_v4(&ethernet),
         EtherTypes::Ipv6 => dump_v6(&ethernet),
         _ => Err(anyhow!("not v4 or v6.")),
-    }
+    }?;
+
+    Ok(Postmark::Drop(ethernet.reset()))
 }
 
-#[inline]
 fn dump_v4(ethernet: &Ethernet) -> Result<()> {
     let v4 = ethernet.peek::<Ipv4>()?;
-    let info_fmt = format!("{:?}", v4).yellow();
-    println!("{}", info_fmt);
+    let fmt = format!("{:?}", v4).yellow();
+    info!("{}", fmt);
 
     let tcp = v4.peek::<Tcp4>()?;
     dump_tcp(&tcp);
@@ -56,11 +56,10 @@ fn dump_v4(ethernet: &Ethernet) -> Result<()> {
     Ok(())
 }
 
-#[inline]
 fn dump_v6(ethernet: &Ethernet) -> Result<()> {
     let v6 = ethernet.peek::<Ipv6>()?;
-    let info_fmt = format!("{:?}", v6).cyan();
-    println!("{}", info_fmt);
+    let fmt = format!("{:?}", v6).cyan();
+    info!("{}", fmt);
 
     let tcp = v6.peek::<Tcp6>()?;
     dump_tcp(&tcp);
@@ -68,32 +67,29 @@ fn dump_v6(ethernet: &Ethernet) -> Result<()> {
     Ok(())
 }
 
-#[inline]
 fn dump_tcp<T: IpPacket>(tcp: &Tcp<T>) {
-    let tcp_fmt = format!("{:?}", tcp).green();
-    println!("{}", tcp_fmt);
+    let fmt = format!("{:?}", tcp).green();
+    info!("{}", fmt);
 
-    let flow_fmt = format!("{:?}", tcp.flow()).bright_blue();
-    println!("{}", flow_fmt);
+    let fmt = format!("{:?}", tcp.flow()).bright_blue();
+    info!("{}", fmt);
 }
 
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
     let config = rt2::load_config()?;
-    debug!(?config);
-
     let runtime = Runtime::from_config(config)?;
-    runtime.set_port_pipeline("eth1", dump_pkt)?;
-    runtime.set_port_pipeline("eth2", dump_pkt)?;
+    runtime.set_port_pipeline("cap0", dump_pkt)?;
+    runtime.set_port_pipeline("cap1", dump_pkt)?;
     let _guard = runtime.execute()?;
 
     let term = Arc::new(AtomicBool::new(false));
     flag::register(consts::SIGINT, Arc::clone(&term))?;
-    println!("ctrl-c to quit ...");
+    info!("ctrl-c to quit ...");
     while !term.load(Ordering::Relaxed) {}
 
     Ok(())

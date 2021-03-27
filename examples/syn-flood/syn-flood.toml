@@ -1,13 +1,13 @@
 app_name = "syn-flood"
-master_core = 0
+main_core = 0
+worker_cores = [1]
 
 [mempool]
     capacity = 65535
     cache_size = 256
 
 [[ports]]
-    name = "eth1"
+    name = "cap0"
     device = "0000:00:08.0"
-    cores = [1]
-    rxd = 512
-    txd = 512
+    tx_cores = [0]
+    txd = 2048

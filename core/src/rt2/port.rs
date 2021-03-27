@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{LcoreMap, Mbuf, Mempool, ShutdownTrigger};
+use super::{LcoreMap, Mempool, ShutdownTrigger};
 use crate::ffi::dpdk::{self, LcoreId, MbufPtr, PortId, PortRxQueueId, PortTxQueueId};
 use crate::net::MacAddr;
-use crate::packets::Packet;
+use crate::packets::{Mbuf, Packet, Postmark};
 use crate::{debug, ensure, info, warn};
 use anyhow::Result;
 use async_channel::{self, Receiver, Sender};
@@ -96,7 +96,7 @@ impl Port {
     /// Spawns the port receiving loop.
     pub(crate) fn spawn_rx_loops<F>(&self, f: F, lcores: &LcoreMap) -> Result<()>
     where
-        F: Fn(Mbuf) -> Result<()> + Clone + Send + Sync + 'static,
+        F: Fn(Mbuf) -> Result<Postmark> + Clone + Send + Sync + 'static,
     {
         // port is built with the builder, this would not panic.
         let shutdown = self.shutdown.as_ref().unwrap();
@@ -231,7 +231,7 @@ async fn rx_loop<F>(
     batch_size: usize,
     f: F,
 ) where
-    F: Fn(Mbuf) -> Result<()> + Send + Sync + 'static,
+    F: Fn(Mbuf) -> Result<Postmark> + Send + Sync + 'static,
 {
     debug!(port = ?port_name, lcore = ?LcoreId::current(), "executing rx loop.");
 
@@ -240,8 +240,18 @@ async fn rx_loop<F>(
 
     loop {
         rxq.receive(&mut ptrs);
+        let mut drops = vec![];
+
         for ptr in ptrs.drain(..) {
-            let _ = f(Mbuf::from_easyptr(ptr));
+            match f(Mbuf::from_easyptr(ptr)) {
+                Ok(Postmark::Emit) => (),
+                Ok(Postmark::Drop(ptr)) => drops.push(ptr),
+                Err(_) => (),
+            }
+        }
+
+        if !drops.is_empty() {
+            Mbuf::free_bulk(drops);
         }
 
         // cooperatively moves to the back of the execution queue,
@@ -325,7 +335,7 @@ impl PortMap {
     }
 
     /// Returns a port iterator.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Port> {
+    pub fn iter(&self) -> impl Iterator<Item = &Port> {
         self.0.values()
     }
 

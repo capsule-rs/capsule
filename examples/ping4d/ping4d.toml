@@ -1,13 +1,13 @@
 app_name = "ping4d"
 main_core = 0
-worker_cores = [0]
+worker_cores = []
 
 [mempool]
     capacity = 65535
     cache_size = 256
 
 [[ports]]
-    name = "eth1"
+    name = "cap0"
     device = "0000:00:08.0"
     rx_cores = [0]
     tx_cores = [1]

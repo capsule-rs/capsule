@@ -23,14 +23,15 @@ use tracing_subscriber::fmt;
 
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
     let config = rt2::load_config()?;
     debug!(?config);
 
-    let _ = Runtime::from_config(config)?.execute()?;
+    let runtime = Runtime::from_config(config)?;
+    let _guard = runtime.execute()?;
 
     Ok(())
 }

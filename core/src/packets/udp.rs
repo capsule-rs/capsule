@@ -146,6 +146,19 @@ impl<E: IpPacket> Udp<E> {
         self.header_mut().checksum = u16be::default();
     }
 
+    /// Returns the data as a `u8` slice.
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        if let Ok(data) = self
+            .mbuf()
+            .read_data_slice(self.payload_offset(), self.payload_len())
+        {
+            unsafe { &*data.as_ptr() }
+        } else {
+            unreachable!()
+        }
+    }
+
     /// Returns the 5-tuple that uniquely identifies a UDP connection.
     #[inline]
     pub fn flow(&self) -> Flow {
@@ -394,6 +407,7 @@ mod tests {
         assert_eq!(1087, udp.dst_port());
         assert_eq!(18, udp.length());
         assert_eq!(0x7228, udp.checksum());
+        assert_eq!(10, udp.data().len());
     }
 
     #[capsule::test]

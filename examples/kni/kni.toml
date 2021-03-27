@@ -1,12 +1,19 @@
 app_name = "kni"
-master_core = 0
+main_core = 0
+worker_cores = []
 
 [mempool]
     capacity = 65535
     cache_size = 256
 
 [[ports]]
-    name = "kni0"
+    name = "cap0"
     device = "0000:00:08.0"
-    cores = [1]
-    kni = true
+    rx_cores = [1]
+    tx_cores = [2]
+
+[[ports]]
+    name = "kni0"
+    device = "net_kni0"
+    rx_cores = [1]
+    tx_cores = [2]

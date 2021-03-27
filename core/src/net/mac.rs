@@ -32,7 +32,7 @@ impl MacAddr {
 
     /// Creates a MAC address from 6 octets.
     #[allow(clippy::many_single_char_names)]
-    pub fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> Self {
+    pub const fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> Self {
         MacAddr([a, b, c, d, e, f])
     }
 

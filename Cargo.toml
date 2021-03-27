@@ -6,7 +6,6 @@ members = [
     "examples/nat64",
     "examples/ping4d",
     "examples/pktdump",
-    "examples/signals",
     "examples/skeleton",
     "examples/syn-flood",
     "ffi",

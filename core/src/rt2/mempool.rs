@@ -26,10 +26,8 @@ use std::ptr::{self, NonNull};
 use thiserror::Error;
 
 /// A memory pool is an allocator of message buffers, or `Mbuf`. For best
-/// performance, each socket should have a dedicated `Mempool`. However,
-/// for simplicity, we currently only support one global Mempool. Multi-
-/// socket support may be added in the future.
-pub(crate) struct Mempool {
+/// performance, each socket should have a dedicated `Mempool`.
+pub struct Mempool {
     ptr: MempoolPtr,
 }
 
@@ -75,13 +73,13 @@ impl Mempool {
 
     /// Returns the maximum number of Mbufs in the pool.
     #[inline]
-    pub(crate) fn capacity(&self) -> usize {
+    pub fn capacity(&self) -> usize {
         self.ptr.size as usize
     }
 
     /// Returns the per core cache size.
     #[inline]
-    pub(crate) fn cache_size(&self) -> usize {
+    pub fn cache_size(&self) -> usize {
         self.ptr.cache_size as usize
     }
 
