@@ -23,12 +23,13 @@ use anyhow::Result;
 use async_executor::Executor;
 use futures_lite::future;
 use std::collections::HashMap;
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 use thiserror::Error;
 
 /// An async executor abstraction on top of a DPDK logical core.
-pub(crate) struct Lcore {
+pub struct Lcore {
     id: LcoreId,
     executor: Arc<Executor<'static>>,
     shutdown: Option<ShutdownTrigger>,
@@ -75,8 +76,14 @@ impl Lcore {
     }
 
     /// Spawns a background async task.
-    pub(crate) fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) {
+    pub fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) {
         self.executor.spawn(future).detach();
+    }
+}
+
+impl fmt::Debug for Lcore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lcore").field("id", &self.id()).finish()
     }
 }
 
@@ -92,19 +99,20 @@ impl Drop for Lcore {
 /// Lcore not found error.
 #[derive(Debug, Error)]
 #[error("lcore not found.")]
-pub(crate) struct LcoreNotFound;
+pub struct LcoreNotFound;
 
 /// Map to lookup the lcore by the assigned id.
-pub(crate) struct LcoreMap(HashMap<usize, Lcore>);
+#[derive(Debug)]
+pub struct LcoreMap(HashMap<usize, Lcore>);
 
 impl LcoreMap {
     /// Returns the lcore with the assigned id.
-    pub(crate) fn get(&self, id: usize) -> Result<&Lcore> {
+    pub fn get(&self, id: usize) -> Result<&Lcore> {
         self.0.get(&id).ok_or_else(|| LcoreNotFound.into())
     }
 
     /// Returns a lcore iterator.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Lcore> {
+    pub fn iter(&self) -> impl Iterator<Item = &Lcore> {
         self.0.values()
     }
 }

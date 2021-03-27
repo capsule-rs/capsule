@@ -19,16 +19,16 @@
 use anyhow::Result;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Packet};
-use capsule::rt2::{self, Mbuf, Outbox, Runtime};
+use capsule::packets::{Ethernet, Mbuf, Packet, Postmark};
+use capsule::rt2::{self, Outbox, Runtime};
 use signal_hook::consts;
 use signal_hook::flag;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tracing::{debug, Level};
+use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: Mbuf, eth1: &Outbox) -> Result<()> {
+fn reply_echo(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -49,33 +49,31 @@ fn reply_echo(packet: Mbuf, eth1: &Outbox) -> Result<()> {
     reply.set_data(request.data())?;
     reply.reconcile_all();
 
-    debug!(?request);
-    debug!(?reply);
+    info!(?request);
+    info!(?reply);
 
-    let _ = eth1.push(reply);
+    let _ = cap0.push(reply);
 
-    Ok(())
+    Ok(Postmark::Drop(packet))
 }
 
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
     let config = rt2::load_config()?;
-    debug!(?config);
-
     let runtime = Runtime::from_config(config)?;
 
-    let outbox = runtime.ports().get("eth1")?.outbox()?;
-    runtime.set_port_pipeline("eth1", move |packet| reply_echo(packet, &outbox))?;
+    let outbox = runtime.ports().get("cap0")?.outbox()?;
+    runtime.set_port_pipeline("cap0", move |packet| reply_echo(packet, &outbox))?;
 
     let _guard = runtime.execute()?;
 
     let term = Arc::new(AtomicBool::new(false));
     flag::register(consts::SIGINT, Arc::clone(&term))?;
-    println!("ctrl-c to quit ...");
+    info!("ctrl-c to quit ...");
     while !term.load(Ordering::Relaxed) {}
 
     Ok(())

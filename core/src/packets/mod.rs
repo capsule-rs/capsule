@@ -30,8 +30,8 @@ mod udp;
 pub use self::ethernet::*;
 pub use self::tcp::*;
 pub use self::udp::*;
+pub use crate::dpdk::Mbuf;
 
-use crate::Mbuf;
 use anyhow::{Context, Result};
 use std::fmt;
 use std::marker::PhantomData;
@@ -334,6 +334,20 @@ impl<T> Deref for Immutable<'_, T> {
     fn deref(&self) -> &Self::Target {
         &self.value
     }
+}
+
+/// Mark of the packet as either `Emit` or `Drop`.
+///
+/// Together, a `Result<Postmark>` represents all three possible outcome
+/// of packet processing. A packet can either be emitted through port TX,
+/// intentionally dropped, or aborted due to an error.
+#[derive(Debug)]
+pub enum Postmark {
+    /// Packet emitted through a port TX.
+    Emit,
+
+    /// Packet intentionally dropped.
+    Drop(Mbuf),
 }
 
 #[cfg(test)]
