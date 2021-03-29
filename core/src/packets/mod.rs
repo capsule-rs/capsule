@@ -23,14 +23,18 @@ pub mod checksum;
 mod ethernet;
 pub mod icmp;
 pub mod ip;
+mod mbuf;
+mod size_of;
 mod tcp;
 pub mod types;
 mod udp;
 
 pub use self::ethernet::*;
+pub use self::mbuf::*;
+pub use self::size_of::*;
 pub use self::tcp::*;
 pub use self::udp::*;
-pub use crate::dpdk::Mbuf;
+pub use capsule_macros::SizeOf;
 
 use anyhow::{Context, Result};
 use std::fmt;

@@ -16,9 +16,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use super::{Internal, Packet, SizeOf};
 use crate::ffi::dpdk::{self, MbufPtr};
-use crate::packets::{Internal, Packet};
-use crate::rt2::Mempool;
+use crate::runtime::Mempool;
 use crate::{ensure, trace};
 use anyhow::Result;
 use capsule_ffi as cffi;
@@ -27,58 +27,6 @@ use std::mem;
 use std::ptr::{self, NonNull};
 use std::slice;
 use thiserror::Error;
-
-/// A trait for returning the size of a type in bytes.
-///
-/// Size of the structs are used for bound checks when reading and writing
-/// packets.
-///
-///
-/// # Derivable
-///
-/// The `SizeOf` trait can be used with `#[derive]` and defaults to
-/// `std::mem::size_of::<Self>()`.
-///
-/// ```
-/// #[derive(SizeOf)]
-/// pub struct Ipv4Header {
-///     ...
-/// }
-/// ```
-pub trait SizeOf {
-    /// Returns the size of a type in bytes.
-    fn size_of() -> usize;
-}
-
-impl SizeOf for () {
-    fn size_of() -> usize {
-        std::mem::size_of::<()>()
-    }
-}
-
-impl SizeOf for u8 {
-    fn size_of() -> usize {
-        std::mem::size_of::<u8>()
-    }
-}
-
-impl SizeOf for [u8; 2] {
-    fn size_of() -> usize {
-        std::mem::size_of::<[u8; 2]>()
-    }
-}
-
-impl SizeOf for [u8; 16] {
-    fn size_of() -> usize {
-        std::mem::size_of::<[u8; 16]>()
-    }
-}
-
-impl SizeOf for ::std::net::Ipv6Addr {
-    fn size_of() -> usize {
-        std::mem::size_of::<std::net::Ipv6Addr>()
-    }
-}
 
 /// Error indicating buffer access failures.
 #[derive(Debug, Error)]
@@ -175,14 +123,6 @@ impl Mbuf {
     pub(crate) fn from_easyptr(ptr: MbufPtr) -> Self {
         Mbuf {
             inner: MbufInner::Original(ptr.into()),
-        }
-    }
-
-    /// Creates a new `Mbuf` from a raw pointer.
-    #[inline]
-    pub(crate) unsafe fn from_ptr(ptr: *mut cffi::rte_mbuf) -> Self {
-        Mbuf {
-            inner: MbufInner::Original(NonNull::new_unchecked(ptr)),
         }
     }
 
@@ -428,17 +368,6 @@ impl Mbuf {
         let ptr = self.inner.ptr().clone();
         mem::forget(self);
         ptr.into()
-    }
-
-    /// Acquires the underlying raw struct pointer.
-    ///
-    /// The `Mbuf` is consumed. It is the caller's the responsibility to
-    /// free the raw pointer after use. Otherwise the buffer is leaked.
-    #[inline]
-    pub(crate) fn into_ptr(self) -> *mut cffi::rte_mbuf {
-        let ptr = self.inner.ptr().as_ptr();
-        mem::forget(self);
-        ptr
     }
 
     /// Allocates a Vec of `Mbuf`s of `len` size.

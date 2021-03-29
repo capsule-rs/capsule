@@ -28,8 +28,7 @@ pub use self::packet::*;
 pub use self::rvg::*;
 
 use crate::ffi::dpdk::{self, SocketId};
-use crate::metrics;
-use crate::rt2::{Mempool, MEMPOOL};
+use crate::runtime::{Mempool, MEMPOOL};
 use std::ops::DerefMut;
 use std::ptr;
 use std::sync::Once;
@@ -62,7 +61,6 @@ pub fn cargo_test_init() {
             "net_tap0",
         ])
         .unwrap();
-        let _ = metrics::init();
     });
 }
 

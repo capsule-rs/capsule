@@ -43,10 +43,9 @@ pub use self::redirect::*;
 pub use self::router_advert::*;
 pub use self::router_solicit::*;
 
-use crate::dpdk::BufferError;
-use crate::packets::{Immutable, Internal, Packet};
-use crate::{ensure, Mbuf, SizeOf};
-use anyhow::Result;
+use crate::ensure;
+use crate::packets::{Immutable, Internal, Mbuf, Packet, SizeOf};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
@@ -174,8 +173,7 @@ impl<'a> ImmutableNdpOption<'a> {
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::OutOfBuffer` if the buffer does not have
-    /// enough free space.
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
     fn new(mbuf: &'a mut Mbuf, offset: usize) -> Result<Self> {
         let tuple = mbuf.read_data(offset)?;
@@ -189,7 +187,7 @@ impl<'a> ImmutableNdpOption<'a> {
         // indicated by the length field stored in the option itself
         ensure!(
             option.mbuf.len() >= option.end_offset(),
-            BufferError::OutOfBuffer(option.end_offset(), option.mbuf.len())
+            anyhow!("option size exceeds remaining buffer size.")
         );
 
         Ok(option)
@@ -297,8 +295,7 @@ impl<'a> MutableNdpOption<'a> {
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::OutOfBuffer` if the buffer does not have
-    /// enough free space.
+    /// Returns an error if the buffer does not have enough free space.
     #[inline]
     fn new(mbuf: &'a mut Mbuf, offset: usize) -> Result<Self> {
         let tuple = mbuf.read_data(offset)?;
@@ -312,7 +309,7 @@ impl<'a> MutableNdpOption<'a> {
         // indicated by the length field stored in the option itself
         ensure!(
             option.mbuf.len() >= option.end_offset(),
-            BufferError::OutOfBuffer(option.end_offset(), option.mbuf.len())
+            anyhow!("option size exceeds remaining buffer size.")
         );
 
         Ok(option)

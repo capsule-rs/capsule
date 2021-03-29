@@ -16,12 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::Ipv6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{checksum, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{checksum, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::IpAddr;
@@ -665,9 +665,8 @@ impl Default for TcpHeader {
 mod tests {
     use super::*;
     use crate::packets::ip::v6::SegmentRouting;
-    use crate::packets::Ethernet;
+    use crate::packets::{Ethernet, Mbuf};
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET, SR_TCP_PACKET};
-    use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]

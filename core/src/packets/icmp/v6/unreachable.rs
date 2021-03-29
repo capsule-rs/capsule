@@ -19,8 +19,7 @@
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
 use crate::packets::types::u32be;
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -165,9 +164,8 @@ struct DestinationUnreachableBody {
 mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
+    use crate::packets::{Ethernet, Mbuf};
     use crate::testils::byte_arrays::IPV6_TCP_PACKET;
-    use crate::Mbuf;
 
     #[test]
     fn size_of_destination_unreachable_body() {

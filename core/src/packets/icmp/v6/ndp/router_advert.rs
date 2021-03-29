@@ -20,8 +20,7 @@ use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -303,8 +302,7 @@ struct RouterAdvertisementBody {
 mod tests {
     use super::*;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
-    use crate::Mbuf;
+    use crate::packets::{Ethernet, Mbuf};
 
     #[test]
     fn size_of_router_advertisement_body() {

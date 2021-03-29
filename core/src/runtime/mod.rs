@@ -16,615 +16,219 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-mod core_map;
+//! Capsule runtime.
 
-pub(crate) use self::core_map::*;
+mod config;
+mod lcore;
+mod mempool;
+#[cfg(feature = "pcap-dump")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pcap-dump")))]
+mod pcap_dump;
+mod port;
 
-use crate::batch::Pipeline;
-use crate::config::RuntimeConfig;
-use crate::dpdk::{
-    self, CoreId, KniError, KniRx, Mempool, Port, PortBuilder, PortError, PortQueue,
-};
-use crate::{debug, ensure, info};
+pub use self::config::*;
+pub(crate) use self::lcore::*;
+pub use self::lcore::{Lcore, LcoreMap, LcoreNotFound};
+pub use self::mempool::Mempool;
+pub(crate) use self::mempool::*;
+pub use self::port::{Outbox, Port, PortError, PortMap};
+
+use crate::ffi::dpdk::{self, LcoreId};
+use crate::packets::{Mbuf, Postmark};
+use crate::{debug, info};
 use anyhow::Result;
-use futures::{future, stream, StreamExt};
-use std::collections::{HashMap, HashSet};
+use async_channel::{self, Receiver, Sender};
 use std::fmt;
 use std::mem::ManuallyDrop;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio_executor::current_thread;
-use tokio_net::driver;
-use tokio_net::signal::unix::{self, SignalKind};
-use tokio_timer::{timer, Interval};
+use std::ops::DerefMut;
 
-/// Supported [Unix signals].
-///
-/// [Unix signals]: https://en.wikipedia.org/wiki/Signal_(IPC)#POSIX_signals
-#[derive(Copy, Clone, Debug)]
-pub enum UnixSignal {
-    /// This signal is sent to a process when its controlling terminal is closed.
-    /// In modern systems, this signal usually means that the controlling pseudo
-    /// or virtual terminal has been closed. Many daemons will reload their
-    /// configuration files and reopen their log files instead of exiting when
-    /// receiving this signal. `nohup` is a command to make a command ignore the
-    /// signal.
-    SIGHUP = libc::SIGHUP as isize,
-    /// This signal is sent to a process by its controlling terminal when a user
-    /// wishes to interrupt the process. This is typically initiated by pressing
-    /// `Ctrl-C`, but on some systems, the "delete" character or "break" key can
-    /// be used.
-    SIGINT = libc::SIGINT as isize,
-    /// This signal is sent to a process to request its termination. Unlike the
-    /// `SIGKILL` signal, it can be caught and interpreted or ignored by the
-    /// process. This allows the process to perform nice termination releasing
-    /// resources and saving state if appropriate. `SIGINT` is nearly identical
-    /// to `SIGTERM`.
-    SIGTERM = libc::SIGTERM as isize,
+/// Trigger for the shutdown.
+pub(crate) struct ShutdownTrigger(Sender<()>, Receiver<()>);
+
+impl ShutdownTrigger {
+    /// Creates a new shutdown trigger.
+    ///
+    /// Leverages the behavior of an async channel. When the sender is dropped
+    /// from scope, it closes the channel and causes the receiver side future
+    /// in the executor queue to resolve.
+    pub(crate) fn new() -> Self {
+        let (s, r) = async_channel::unbounded();
+        Self(s, r)
+    }
+
+    /// Returns a wait handle.
+    pub(crate) fn get_wait(&self) -> ShutdownWait {
+        ShutdownWait(self.1.clone())
+    }
+
+    /// Returns whether the trigger is being waited on.
+    pub(crate) fn is_waited(&self) -> bool {
+        // a receiver count greater than 1 indicating that there are receiver
+        // clones in scope, hence the trigger is being waited on.
+        self.0.receiver_count() > 1
+    }
+
+    /// Triggers the shutdown.
+    pub(crate) fn fire(self) {
+        drop(self.0)
+    }
+}
+
+/// Shutdown wait handle.
+pub(crate) struct ShutdownWait(Receiver<()>);
+
+impl ShutdownWait {
+    /// A future that waits till the shutdown trigger is fired.
+    pub(crate) async fn wait(&self) {
+        self.0.recv().await.unwrap_or(())
+    }
 }
 
 /// The Capsule runtime.
 ///
 /// The runtime initializes the underlying DPDK environment, and it also manages
-/// the task scheduler that executes the packet processing pipelines.
+/// the task scheduler that executes the packet processing tasks.
 pub struct Runtime {
-    ports: ManuallyDrop<Vec<Port>>,
-    mempools: ManuallyDrop<Vec<Mempool>>,
-    core_map: CoreMap,
-    on_signal: Arc<dyn Fn(UnixSignal) -> bool>,
-    config: RuntimeConfig,
+    mempool: ManuallyDrop<Mempool>,
+    lcores: ManuallyDrop<LcoreMap>,
+    ports: ManuallyDrop<PortMap>,
+    #[cfg(feature = "pcap-dump")]
+    pcap_dump: ManuallyDrop<self::pcap_dump::PcapDump>,
 }
 
 impl Runtime {
-    /// Builds a runtime from config settings.
-    #[allow(clippy::cognitive_complexity)]
-    pub fn build(config: RuntimeConfig) -> Result<Self> {
-        info!("initializing EAL...");
+    /// Returns the mempool.
+    ///
+    /// For simplicity, we currently only support one global Mempool. Multi-
+    /// socket support may be added in the future.
+    pub fn mempool(&self) -> &Mempool {
+        &self.mempool
+    }
+
+    /// Returns the lcores.
+    pub fn lcores(&self) -> &LcoreMap {
+        &self.lcores
+    }
+
+    /// Returns the configured ports.
+    pub fn ports(&self) -> &PortMap {
+        &self.ports
+    }
+
+    /// Initializes a new runtime from config settings.
+    pub fn from_config(config: RuntimeConfig) -> Result<Self> {
+        info!("starting runtime.");
+
+        debug!("initializing EAL ...");
         dpdk::eal_init(config.to_eal_args())?;
 
-        #[cfg(feature = "metrics")]
-        {
-            info!("initializing metrics subsystem...");
-            crate::metrics::init()?;
+        debug!("initializing mempool ...");
+        let socket = LcoreId::main().socket();
+        let mut mempool = Mempool::new(
+            "mempool",
+            config.mempool.capacity,
+            config.mempool.cache_size,
+            socket,
+        )?;
+        debug!(?mempool);
+
+        debug!("initializing lcore schedulers ...");
+        let lcores = self::lcore_pool();
+
+        for lcore in lcores.iter() {
+            let mut ptr = mempool.ptr_mut().clone();
+            lcore.block_on(async move { MEMPOOL.with(|tls| tls.set(ptr.deref_mut())) });
         }
 
-        let cores = config.all_cores();
-
-        info!("initializing mempools...");
-        let sockets = cores.iter().map(CoreId::socket_id).collect::<HashSet<_>>();
-        let mut mempools = vec![];
-        for socket in sockets {
-            let mempool = Mempool::new(config.mempool.capacity, config.mempool.cache_size, socket)?;
-            debug!(?mempool);
-            mempools.push(mempool);
-        }
-
-        info!("intializing cores...");
-        let core_map = CoreMapBuilder::new()
-            .app_name(&config.app_name)
-            .cores(&cores)
-            .master_core(config.master_core)
-            .mempools(&mut mempools)
-            .finish()?;
-
-        let len = config.num_knis();
-        if len > 0 {
-            info!("initializing KNI subsystem...");
-            dpdk::kni_init(len)?;
-        }
-
-        info!("initializing ports...");
-        let mut ports = vec![];
-        for conf in config.ports.iter() {
-            let port = PortBuilder::new(conf.name.clone(), conf.device.clone())?
-                .cores(&conf.cores)?
-                .mempools(&mut mempools)
-                .rx_tx_queue_capacity(conf.rxd, conf.txd)?
-                .finish(conf.promiscuous, conf.multicast, conf.kni)?;
+        info!("initializing ports ...");
+        let mut ports = Vec::new();
+        for port in config.ports.iter() {
+            let mut port = port::Builder::for_device(&port.name, &port.device)?
+                .set_rxqs_txqs(port.rxqs, port.txqs)?
+                .set_promiscuous(port.promiscuous)?
+                .set_multicast(port.multicast)?
+                .set_rx_lcores(port.rx_cores.clone())?
+                .set_tx_lcores(port.tx_cores.clone())?
+                .build(&mut mempool)?;
 
             debug!(?port);
+
+            if !port.tx_lcores().is_empty() {
+                port.spawn_tx_loops(&lcores)?;
+            }
+
+            port.start()?;
             ports.push(port);
         }
+        let ports: PortMap = ports.into();
 
-        #[cfg(feature = "metrics")]
-        {
-            crate::metrics::register_port_stats(&ports);
-            crate::metrics::register_mempool_stats(&mempools);
-        }
+        #[cfg(feature = "pcap-dump")]
+        let pcap_dump = self::pcap_dump::enable_pcap_dump(&config.data_dir(), &ports, &lcores)?;
 
         info!("runtime ready.");
 
         Ok(Runtime {
+            mempool: ManuallyDrop::new(mempool),
+            lcores: ManuallyDrop::new(lcores),
             ports: ManuallyDrop::new(ports),
-            mempools: ManuallyDrop::new(mempools),
-            core_map,
-            on_signal: Arc::new(|_| true),
-            config,
+            #[cfg(feature = "pcap-dump")]
+            pcap_dump: ManuallyDrop::new(pcap_dump),
         })
     }
 
-    #[inline]
-    fn get_port(&self, name: &str) -> Result<&Port> {
-        self.ports
-            .iter()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| PortError::NotFound(name.to_owned()).into())
-    }
-
-    #[inline]
-    fn get_port_mut(&mut self, name: &str) -> Result<&mut Port> {
-        self.ports
-            .iter_mut()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| PortError::NotFound(name.to_owned()).into())
-    }
-
-    #[inline]
-    fn get_core(&self, core_id: CoreId) -> Result<&CoreExecutor> {
-        self.core_map
-            .cores
-            .get(&core_id)
-            .ok_or_else(|| CoreError::NotFound(core_id).into())
-    }
-
-    #[inline]
-    fn get_port_qs(&self, core_id: CoreId) -> Result<HashMap<String, PortQueue>> {
-        let map = self
-            .ports
-            .iter()
-            .filter_map(|p| {
-                p.queues()
-                    .get(&core_id)
-                    .map(|q| (p.name().to_owned(), q.clone()))
-            })
-            .collect::<HashMap<_, _>>();
-
-        ensure!(!map.is_empty(), CoreError::NotAssigned(core_id));
-
-        Ok(map)
-    }
-
-    /// Sets the Unix signal handler.
-    ///
-    /// `SIGHUP`, `SIGINT` and `SIGTERM` are the supported Unix signals.
-    /// The return of the handler determines whether to terminate the
-    /// process. `true` indicates the signal is received and the process
-    /// should be terminated. `false` indicates to discard the signal and
-    /// keep the process running.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(&config)?;
-    ///     .set_on_signal(|signal| match signal {
-    ///         SIGHUP => {
-    ///             reload_config();
-    ///             false
-    ///         }
-    ///         _ => true,
-    ///     })
-    ///     .execute();
-    /// ```
-    pub fn set_on_signal<F>(&mut self, f: F) -> &mut Self
+    /// Sets the packet processing pipeline for port.
+    pub fn set_port_pipeline<F>(&self, port: &str, f: F) -> Result<()>
     where
-        F: Fn(UnixSignal) -> bool + 'static,
+        F: Fn(Mbuf) -> Result<Postmark> + Clone + Send + Sync + 'static,
     {
-        self.on_signal = Arc::new(f);
-        self
-    }
-
-    /// Installs a pipeline to a port. The pipeline will run on all the
-    /// cores assigned to the port.
-    ///
-    /// `port` is the logical name that identifies the port. The `installer`
-    /// is a closure that takes in a [`PortQueue`] and returns a [`Pipeline`]
-    /// that will be spawned onto the thread executor.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(config)?
-    ///     .add_add_pipeline_to_port("eth1", install)?
-    ///     .execute()
-    /// ```
-    ///
-    /// [`PortQueue`]: crate::PortQueue
-    /// [`Pipeline`]: crate::batch::Pipeline
-    pub fn add_pipeline_to_port<T: Pipeline + 'static, F>(
-        &mut self,
-        port: &str,
-        installer: F,
-    ) -> Result<&mut Self>
-    where
-        F: Fn(PortQueue) -> T + Send + Sync + 'static,
-    {
-        let port = self.get_port(port)?;
-        let f = Arc::new(installer);
-
-        for (core_id, port_q) in port.queues() {
-            let f = f.clone();
-            let port_q = port_q.clone();
-            let thread = &self.get_core(*core_id)?.thread;
-
-            // spawns the bootstrap. we want the bootstrapping to execute on the
-            // target core instead of the master core. that way the actual task
-            // is spawned locally and the type bounds are less restricting.
-            thread.spawn(future::lazy(move |_| {
-                let fut = f(port_q);
-                debug!("spawned pipeline {}.", fut.name());
-                current_thread::spawn(fut);
-            }))?;
-
-            debug!("installed pipeline on port_q for {:?}.", core_id);
-        }
-
-        info!("installed pipeline for port {}.", port.name());
-
-        Ok(self)
-    }
-
-    /// Installs a pipeline to a KNI enabled port to receive packets coming
-    /// from the kernel. This pipeline will run on a randomly select core
-    /// that's assigned to the port.
-    ///
-    /// # Remarks
-    ///
-    /// This function has be to invoked once per port. Otherwise the packets
-    /// coming from the kernel will be silently dropped. For the most common
-    /// use case where the application only needs simple packet forwarding,
-    /// use [`batch::splice`] to join the kernel's RX with the port's TX.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(config)?
-    ///     .add_add_pipeline_to_port("kni0", install)?
-    ///     .add_kni_rx_pipeline_to_port("kni0", batch::splice)?
-    ///     .execute()
-    /// ```
-    ///
-    /// [`batch::splice`]: crate::batch::splice
-    pub fn add_kni_rx_pipeline_to_port<T: Pipeline + 'static, F>(
-        &mut self,
-        port: &str,
-        installer: F,
-    ) -> Result<&mut Self>
-    where
-        F: FnOnce(KniRx, PortQueue) -> T + Send + Sync + 'static,
-    {
-        // takes ownership of the kni rx handle.
-        let kni_rx = self
-            .get_port_mut(port)?
-            .kni()
-            .ok_or(KniError::Disabled)?
-            .take_rx()?;
-
-        // selects a core to run a rx pipeline for this port. the selection is
-        // randomly choosing the last core we find. if the port has more than one
-        // core assigned, this will be different from the core that's running the
-        // tx pipeline.
-        let port = self.get_port(port)?;
-        let core_id = port.queues().keys().last().unwrap();
-        let port_q = port.queues()[core_id].clone();
-        let thread = &self.get_core(*core_id)?.thread;
-
-        // spawns the bootstrap. we want the bootstrapping to execute on the
-        // target core instead of the master core.
-        thread.spawn(future::lazy(move |_| {
-            let fut = installer(kni_rx, port_q);
-            debug!("spawned kni rx pipeline {}.", fut.name());
-            current_thread::spawn(fut);
-        }))?;
-
-        info!("installed kni rx pipeline for port {}.", port.name());
-
-        Ok(self)
-    }
-
-    /// Installs a pipeline to a core. All the ports the core is assigned
-    /// to will be available to the pipeline.
-    ///
-    /// `core` is the logical id that identifies the core. The `installer`
-    /// is a closure that takes in a hashmap of [`PortQueues`] and returns a
-    /// [`Pipeline`] that will be spawned onto the thread executor of the core.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(config)?
-    ///     .add_pipeline_to_core(1, install)?
-    ///     .execute()
-    /// ```
-    ///
-    /// [`PortQueues`]: crate::PortQueue
-    /// [`Pipeline`]: crate::batch::Pipeline
-    pub fn add_pipeline_to_core<T: Pipeline + 'static, F>(
-        &mut self,
-        core: usize,
-        installer: F,
-    ) -> Result<&mut Self>
-    where
-        F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
-    {
-        let core_id = CoreId::new(core);
-        let thread = &self.get_core(core_id)?.thread;
-        let port_qs = self.get_port_qs(core_id)?;
-
-        // spawns the bootstrap. we want the bootstrapping to execute on the
-        // target core instead of the master core.
-        thread.spawn(future::lazy(move |_| {
-            let fut = installer(port_qs);
-            debug!("spawned pipeline {}.", fut.name());
-            current_thread::spawn(fut);
-        }))?;
-
-        info!("installed pipeline for {:?}.", core_id);
-
-        Ok(self)
-    }
-
-    /// Installs a periodic pipeline to a core.
-    ///
-    /// `core` is the logical id that identifies the core. The `installer` is a
-    /// closure that takes in a hashmap of [`PortQueues`] and returns a
-    /// [`Pipeline`] that will be run periodically every `dur` interval.
-    ///
-    /// # Remarks
-    ///
-    /// All the ports the core is assigned to will be available to this
-    /// pipeline. However they should only be used to transmit packets. This
-    /// variant is for pipelines that generate new packets periodically.
-    /// A new packet batch can be created with [`batch::poll_fn`] and ingested
-    /// into the pipeline.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(config)?
-    ///     .add_periodic_pipeline_to_core(1, install, Duration::from_millis(10))?
-    ///     .execute()
-    /// ```
-    ///
-    /// [`PortQueues`]: crate::PortQueue
-    /// [`Pipeline`]: crate::batch::Pipeline
-    /// [`batch::poll_fn`]: crate::batch::poll_fn
-    pub fn add_periodic_pipeline_to_core<T: Pipeline + 'static, F>(
-        &mut self,
-        core: usize,
-        installer: F,
-        dur: Duration,
-    ) -> Result<&mut Self>
-    where
-        F: FnOnce(HashMap<String, PortQueue>) -> T + Send + Sync + 'static,
-    {
-        let core_id = CoreId::new(core);
-        let thread = &self.get_core(core_id)?.thread;
-        let port_qs = self.get_port_qs(core_id)?;
-
-        // spawns the bootstrap. we want the bootstrapping to execute on the
-        // target core instead of the master core so the periodic task is
-        // associated with the correct timer instance.
-        thread.spawn(future::lazy(move |_| {
-            let mut pipeline = installer(port_qs);
-            debug!("spawned periodic pipeline {}.", pipeline.name());
-            let fut = Interval::new_interval(dur).for_each(move |_| {
-                pipeline.run_once();
-                future::ready(())
-            });
-            current_thread::spawn(fut);
-        }))?;
-
-        info!("installed periodic pipeline for {:?}.", core_id);
-
-        Ok(self)
-    }
-
-    /// Installs a periodic task to a core.
-    ///
-    /// `core` is the logical id that identifies the core. `task` is the
-    /// closure to execute. The task will rerun every `dur` interval.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// Runtime::build(config)?
-    ///     .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
-    ///     .execute()
-    /// ```
-    pub fn add_periodic_task_to_core<F>(
-        &mut self,
-        core: usize,
-        mut task: F,
-        dur: Duration,
-    ) -> Result<&mut Self>
-    where
-        F: FnMut() + Send + Sync + 'static,
-    {
-        let core_id = CoreId::new(core);
-        let thread = &self.get_core(core_id)?.thread;
-
-        // spawns the bootstrap. we want the bootstrapping to execute on the
-        // target core instead of the master core so the periodic task is
-        // associated with the correct timer instance.
-        thread.spawn(future::lazy(move |_| {
-            let fut = Interval::new_interval(dur).for_each(move |_| {
-                task();
-                future::ready(())
-            });
-            debug!("spawned periodic task.");
-            current_thread::spawn(fut);
-        }))?;
-
-        info!("installed periodic task for {:?}.", core_id);
-
-        Ok(self)
-    }
-
-    /// Blocks the main thread until a timeout expires.
-    ///
-    /// This mode is useful for running integration tests. The timeout
-    /// duration can be set in `RuntimeSettings`.
-    fn wait_for_timeout(&mut self, timeout: Duration) {
-        let MasterExecutor {
-            ref timer,
-            ref mut thread,
-            ..
-        } = self.core_map.master_core;
-
-        let when = Instant::now() + timeout;
-        let delay = timer.delay(when);
-
-        debug!("waiting for {:?}...", timeout);
-        let _timer = timer::set_default(&timer);
-        thread.block_on(delay);
-        info!("timed out after {:?}.", timeout);
-    }
-
-    /// Blocks the main thread until receives a signal to terminate.
-    fn wait_for_signal(&mut self) -> Result<()> {
-        let sighup = unix::signal(SignalKind::hangup())?.map(|_| UnixSignal::SIGHUP);
-        let sigint = unix::signal(SignalKind::interrupt())?.map(|_| UnixSignal::SIGINT);
-        let sigterm = unix::signal(SignalKind::terminate())?.map(|_| UnixSignal::SIGTERM);
-
-        // combines the streams together
-        let stream = stream::select(stream::select(sighup, sigint), sigterm);
-
-        // passes each signal through the `on_signal` closure, and discard
-        // any that shouldn't stop the execution.
-        let f = self.on_signal.clone();
-        let mut stream = stream.filter(|&signal| future::ready(f(signal)));
-
-        let MasterExecutor {
-            ref reactor,
-            ref timer,
-            ref mut thread,
-            ..
-        } = self.core_map.master_core;
-
-        // sets the reactor so we receive the signals and runs the future
-        // on the master core. the execution stops on the first signal that
-        // wasn't filtered out.
-        debug!("waiting for a Unix signal...");
-        let _guard = driver::set_default(&reactor);
-        let _timer = timer::set_default(&timer);
-        let _ = thread.block_on(stream.next());
-        info!("signaled to stop.");
-
+        let port = self.ports.get(port)?;
+        port.spawn_rx_loops(f, &self.lcores)?;
         Ok(())
     }
 
-    /// Installs the KNI TX pipelines.
-    fn add_kni_tx_pipelines(&mut self) -> Result<()> {
-        let mut map = HashMap::new();
-        for port in self.ports.iter_mut() {
-            // selects a core if we need to run a tx pipeline for this port. the
-            // selection is randomly choosing the first core we find. if the port
-            // has more than one core assigned, this will be different from the
-            // core that's running the rx pipeline.
-            let core_id = *port.queues().keys().next().unwrap();
-
-            // if the port is kni enabled, then we will take ownership of the
-            // tx handle.
-            if let Some(kni) = port.kni() {
-                map.insert(core_id, kni.take_tx()?);
-            }
-        }
-
-        // spawns all the pipelines.
-        for (core_id, kni_tx) in map.into_iter() {
-            let thread = &self.get_core(core_id)?.thread;
-            thread.spawn(kni_tx.into_pipeline())?;
-
-            info!("installed kni tx pipeline on {:?}.", core_id);
-        }
-
-        Ok(())
-    }
-
-    /// Starts all the ports to receive packets.
-    fn start_ports(&mut self) -> Result<()> {
-        for port in self.ports.iter_mut() {
-            port.start()?;
-        }
-
-        Ok(())
-    }
-
-    /// Unparks all the cores to start task execution.
-    fn unpark_cores(&mut self) {
-        for core in self.core_map.cores.values() {
-            if let Some(unpark) = &core.unpark {
-                unpark.unpark();
-            }
-        }
-    }
-
-    /// Shuts down all the cores to stop task execution.
-    #[allow(clippy::cognitive_complexity)]
-    fn shutdown_cores(&mut self) {
-        for (core_id, core) in &mut self.core_map.cores {
-            if let Some(trigger) = core.shutdown.take() {
-                debug!("shutting down {:?}.", core_id);
-                trigger.shutdown();
-                debug!("sent {:?} shutdown trigger.", core_id);
-                let handle = core.join.take().unwrap();
-                let _ = handle.join();
-                info!("terminated {:?}.", core_id);
-            }
-        }
-    }
-
-    /// Stops all the ports.
-    fn stop_ports(&mut self) {
-        for port in self.ports.iter_mut() {
-            port.stop();
-        }
-    }
-
-    /// Executes the pipeline(s) until a stop signal is received.
-    pub fn execute(&mut self) -> Result<()> {
-        self.add_kni_tx_pipelines()?;
-        self.start_ports()?;
-        self.unpark_cores();
-
-        // runs the app until main loop finishes.
-        match self.config.duration {
-            None => self.wait_for_signal()?,
-            Some(d) => self.wait_for_timeout(d),
-        };
-
-        self.shutdown_cores();
-        self.stop_ports();
-        info!("runtime terminated.");
-
-        Ok(())
+    /// Starts the runtime execution.
+    pub fn execute(self) -> Result<RuntimeGuard> {
+        Ok(RuntimeGuard { runtime: self })
     }
 }
 
-impl<'a> fmt::Debug for Runtime {
+impl fmt::Debug for Runtime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("runtime")
-            .field("runtime configuration", &format!("{:?}", self.config))
+        f.debug_struct("Runtime")
+            .field("mempool", &self.mempool)
             .finish()
     }
 }
 
-impl Drop for Runtime {
+/// The RAII guard to stop and cleanup the runtime resources on drop.
+pub struct RuntimeGuard {
+    runtime: Runtime,
+}
+
+impl Drop for RuntimeGuard {
     fn drop(&mut self) {
-        // the default rust drop order is self before fields, which is the wrong
-        // order for what EAL needs. To control the order, we manually drop the
-        // fields first.
+        info!("shutting down runtime.");
+
+        for port in self.runtime.ports.iter_mut() {
+            port.stop();
+        }
+
         unsafe {
-            ManuallyDrop::drop(&mut self.ports);
-            ManuallyDrop::drop(&mut self.mempools);
+            #[cfg(feature = "pcap-dump")]
+            ManuallyDrop::drop(&mut self.runtime.pcap_dump);
+            ManuallyDrop::drop(&mut self.runtime.ports);
+            ManuallyDrop::drop(&mut self.runtime.lcores);
+            ManuallyDrop::drop(&mut self.runtime.mempool);
         }
 
-        if self.config.num_knis() > 0 {
-            debug!("freeing KNI subsystem.");
-            dpdk::kni_close();
-        }
+        debug!("freeing EAL ...");
+        let _ = dpdk::eal_cleanup();
+        info!("runtime shutdown.");
+    }
+}
 
-        debug!("freeing EAL.");
-        dpdk::eal_cleanup().unwrap();
+impl fmt::Debug for RuntimeGuard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "RuntimeGuard")
     }
 }

@@ -67,13 +67,8 @@ pub(crate) struct SocketId(raw::c_int);
 
 impl SocketId {
     /// A socket ID representing any NUMA socket.
+    #[allow(dead_code)]
     pub(crate) const ANY: Self = SocketId(-1);
-
-    /// Returns the ID of the socket the current core is on.
-    #[inline]
-    pub(crate) fn current() -> SocketId {
-        unsafe { SocketId(cffi::rte_socket_id() as raw::c_int) }
-    }
 }
 
 impl fmt::Debug for SocketId {
@@ -152,6 +147,7 @@ pub(crate) struct LcoreId(raw::c_uint);
 
 impl LcoreId {
     /// Any lcore to indicate that no thread affinity is set.
+    #[cfg(test)]
     pub(crate) const ANY: Self = LcoreId(raw::c_uint::MAX);
 
     /// Returns the ID of the current execution unit or `LcoreId::ANY` when

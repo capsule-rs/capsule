@@ -23,7 +23,7 @@ use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::{Ethernet, Mbuf, Packet, Postmark, Tcp4, Tcp6};
-use capsule::rt2::{self, Outbox, Runtime};
+use capsule::runtime::{self, Outbox, Runtime};
 use colored::Colorize;
 use once_cell::sync::Lazy;
 use signal_hook::consts;
@@ -184,7 +184,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
 
     let cap1 = runtime.ports().get("cap1")?.outbox()?;

@@ -16,12 +16,11 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::BufferError;
+use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet};
-use crate::{ensure, Mbuf, SizeOf};
-use anyhow::Result;
+use crate::packets::{Internal, Mbuf, Packet, SizeOf};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -293,7 +292,7 @@ impl Packet for Ethernet {
         // header will cause a panic.
         ensure!(
             packet.mbuf().data_len() >= packet.header_len(),
-            BufferError::OutOfBuffer(packet.header_len(), packet.mbuf().data_len())
+            anyhow!("header size exceeds remaining buffer size.")
         );
 
         Ok(packet)

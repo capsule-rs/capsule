@@ -24,11 +24,11 @@ mod srh;
 pub use self::fragment::*;
 pub use self::srh::*;
 
+use crate::ensure;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{EtherTypes, Ethernet, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -467,8 +467,8 @@ impl Default for Ipv6Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_ipv6_header() {

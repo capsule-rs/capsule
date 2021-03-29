@@ -20,8 +20,6 @@ pub(crate) mod dpdk;
 #[cfg(feature = "pcap-dump")]
 pub(crate) mod pcap;
 
-pub(crate) use capsule_ffi::*;
-
 use crate::warn;
 use anyhow::Result;
 use std::error::Error;

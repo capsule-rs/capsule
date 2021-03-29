@@ -21,7 +21,7 @@ use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
 use capsule::packets::{EtherTypes, Ethernet, Mbuf, Packet, Postmark, Tcp, Tcp4, Tcp6};
-use capsule::rt2::{self, Runtime};
+use capsule::runtime::{self, Runtime};
 use colored::Colorize;
 use signal_hook::consts;
 use signal_hook::flag;
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
     runtime.set_port_pipeline("cap0", dump_pkt)?;
     runtime.set_port_pipeline("cap1", dump_pkt)?;

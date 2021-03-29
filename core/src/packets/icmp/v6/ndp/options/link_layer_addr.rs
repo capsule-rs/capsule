@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::Internal;
-use crate::{ensure, Mbuf, SizeOf};
+use crate::packets::{Internal, Mbuf, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
