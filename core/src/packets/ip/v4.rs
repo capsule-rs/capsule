@@ -18,11 +18,12 @@
 
 //! Internet Protocol v4.
 
+use crate::ensure;
 use crate::packets::checksum::{self, PseudoHeader};
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
@@ -612,8 +613,8 @@ impl Default for Ipv4Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_ipv4_header() {
@@ -630,8 +631,8 @@ mod tests {
         assert_eq!(5, ipv4.ihl());
         assert_eq!(38, ipv4.total_length());
         assert_eq!(43849, ipv4.identification());
-        assert_eq!(true, ipv4.dont_fragment());
-        assert_eq!(false, ipv4.more_fragments());
+        assert!(ipv4.dont_fragment());
+        assert!(!ipv4.more_fragments());
         assert_eq!(0, ipv4.fragment_offset());
         assert_eq!(0, ipv4.dscp());
         assert_eq!(0, ipv4.ecn());
@@ -660,18 +661,18 @@ mod tests {
         ipv4.set_ihl(ipv4.ihl());
 
         // Flags
-        assert_eq!(true, ipv4.dont_fragment());
-        assert_eq!(false, ipv4.more_fragments());
+        assert!(ipv4.dont_fragment());
+        assert!(!ipv4.more_fragments());
 
         ipv4.unset_dont_fragment();
-        assert_eq!(false, ipv4.dont_fragment());
+        assert!(!ipv4.dont_fragment());
         ipv4.set_dont_fragment();
-        assert_eq!(true, ipv4.dont_fragment());
+        assert!(ipv4.dont_fragment());
 
         ipv4.set_more_fragments();
-        assert_eq!(true, ipv4.more_fragments());
+        assert!(ipv4.more_fragments());
         ipv4.unset_more_fragments();
-        assert_eq!(false, ipv4.more_fragments());
+        assert!(!ipv4.more_fragments());
 
         ipv4.set_fragment_offset(5);
         assert_eq!(5, ipv4.fragment_offset());

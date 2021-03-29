@@ -16,12 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::IpAddr;
@@ -329,10 +329,10 @@ struct FragmentHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, IPV6_TCP_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_fragment_header() {

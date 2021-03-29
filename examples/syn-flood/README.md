@@ -19,13 +19,13 @@ The example is located in the `examples/syn-flood` sub-directory. To run the app
 To observe the `SYN` flood traffic, in the vagrant VM, run `tcpdump` to capture packets sent to the destination IP address and port,
 
 ```bash
-vagrant$ sudo tcpdump -i eth3 -nn host 10.100.1.254 and port 80
+vagrant$ sudo tcpdump -i eth3 -nn host 192.168.56.129 and port 80
 
 tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
 listening on eth3, link-type EN10MB (Ethernet), capture size 262144 bytes
-18:59:27.140269 IP 136.178.185.105.0 > 10.100.1.254.80: Flags [S], seq 1, win 10, length 0
-18:59:27.140275 IP 225.67.11.246.0 > 10.100.1.254.80: Flags [S], seq 1, win 10, length 0
-18:59:27.140279 IP 12.164.180.121.0 > 10.100.1.254.80: Flags [S], seq 1, win 10, length 0
+18:59:27.140269 IP 136.178.185.105.0 > 192.168.56.129.80: Flags [S], seq 1, win 10, length 0
+18:59:27.140275 IP 225.67.11.246.0 > 192.168.56.129.80: Flags [S], seq 1, win 10, length 0
+18:59:27.140279 IP 12.164.180.121.0 > 192.168.56.129.80: Flags [S], seq 1, win 10, length 0
 ...
 ```
 
@@ -33,14 +33,14 @@ listening on eth3, link-type EN10MB (Ethernet), capture size 262144 bytes
 
 `cap0` is configured to transmit on lcore `0` with queue depth set at `2048`.
 
-The example spawns a separate worker task on lcore `1` that will at 50ms interval generate a batch of 128 TCP SYN packets and send them through `cap0`. Each generated TCP SYN will have a random source IP address. The destination is set to `10.100.1.254` on port `80`, which is the address of the `eth3` interface on the host. (On a side note, the 50ms delay is necessary because emulated `virtio` driver is too slow on tx. Without a delay, the mempool is exhausted.)
+The example spawns a separate worker task on lcore `1` that will at 50ms interval generate a batch of 128 TCP SYN packets and send them through `cap0`. Each generated TCP SYN will have a random source IP address. The destination is set to `192.168.56.129` on port `80`, which is the address of the `eth3` interface on the host. (On a side note, the 50ms delay is necessary because emulated `virtio` driver is too slow on tx. Without a delay, the mempool is exhausted.)
 
 ```bash
 vagrant$ ip addr show dev eth3
 
 5: eth3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
-    link/ether 02:00:00:ff:ff:ff brd ff:ff:ff:ff:ff:ff
-    inet 10.100.1.254/24 brd 10.100.1.255 scope global eth3
+    link/ether 02:00:c0:a8:38:81 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.56.129/24 brd 192.168.56.255 scope global eth3
        valid_lft forever preferred_lft forever
 ```
 

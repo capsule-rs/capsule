@@ -19,11 +19,13 @@
 use anyhow::Result;
 use bimap::BiMap;
 use capsule::net::MacAddr;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
-use capsule::packets::{Ethernet, Mbuf, Packet, Postmark, Tcp4, Tcp6};
-use capsule::rt2::{self, Outbox, Runtime};
+use capsule::packets::tcp::{Tcp4, Tcp6};
+use capsule::packets::{Mbuf, Packet, Postmark};
+use capsule::runtime::{self, Outbox, Runtime};
 use colored::Colorize;
 use once_cell::sync::Lazy;
 use signal_hook::consts;
@@ -64,8 +66,8 @@ fn get_v4_port(mac: MacAddr, ip: Ipv6Addr, port: u16) -> u16 {
 }
 
 fn nat_6to4(packet: Mbuf, cap1: &Outbox) -> Result<Postmark> {
-    const SRC_IP: Ipv4Addr = Ipv4Addr::new(10, 100, 1, 11);
-    const DST_MAC: MacAddr = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
+    const SRC_IP: Ipv4Addr = Ipv4Addr::new(192, 168, 56, 11);
+    const DST_MAC: MacAddr = MacAddr::new(0x02, 0x00, 0xc0, 0xa8, 0x38, 0x81);
 
     let ethernet = packet.parse::<Ethernet>()?;
     let v6 = ethernet.parse::<Ipv6>()?;
@@ -184,7 +186,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
 
     let cap1 = runtime.ports().get("cap1")?.outbox()?;

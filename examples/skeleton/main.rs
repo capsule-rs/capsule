@@ -17,7 +17,7 @@
 */
 
 use anyhow::Result;
-use capsule::rt2::{self, Runtime};
+use capsule::runtime::{self, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     debug!(?config);
 
     let runtime = Runtime::from_config(config)?;

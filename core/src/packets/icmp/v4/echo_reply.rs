@@ -18,8 +18,7 @@
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -219,9 +218,9 @@ struct EchoReplyBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Ethernet;
-    use crate::Mbuf;
+    use crate::packets::Mbuf;
 
     #[test]
     fn size_of_echo_reply_body() {

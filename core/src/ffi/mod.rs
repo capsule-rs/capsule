@@ -20,8 +20,6 @@ pub(crate) mod dpdk;
 #[cfg(feature = "pcap-dump")]
 pub(crate) mod pcap;
 
-pub(crate) use capsule_ffi::*;
-
 use crate::warn;
 use anyhow::Result;
 use std::error::Error;
@@ -163,14 +161,12 @@ impl<T> DerefMut for EasyPtr<T> {
     }
 }
 
-// delete later?
 impl<T> From<NonNull<T>> for EasyPtr<T> {
     fn from(ptr: NonNull<T>) -> Self {
         EasyPtr(ptr)
     }
 }
 
-// delete later?
 impl<T> From<EasyPtr<T>> for NonNull<T> {
     fn from(ptr: EasyPtr<T>) -> Self {
         ptr.0

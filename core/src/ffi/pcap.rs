@@ -20,7 +20,6 @@ use super::{AsStr, EasyPtr, ToCString, ToResult};
 use crate::ffi::dpdk::MbufPtr;
 use anyhow::Result;
 use capsule_ffi as cffi;
-use libc;
 use std::ops::DerefMut;
 use std::os::raw;
 use std::ptr;
@@ -104,6 +103,26 @@ pub(crate) fn close(handle: &mut PcapPtr) {
     }
 }
 
+/// An error generated in `libpcap`.
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub(crate) struct PcapError(String);
+
+impl PcapError {
+    /// Returns the `PcapError` with the given error message.
+    #[inline]
+    fn new(msg: &str) -> Self {
+        PcapError(msg.into())
+    }
+
+    /// Returns the `PcapError` pertaining to the last `libpcap` error.
+    #[inline]
+    fn get_error(handle: &mut PcapPtr) -> Self {
+        let msg = unsafe { cffi::pcap_geterr(handle.deref_mut()) };
+        PcapError::new((msg as *const raw::c_char).as_str())
+    }
+}
+
 /// Opens a saved capture file for reading.
 #[cfg(test)]
 pub(crate) fn open_offline<S: Into<String>>(filename: S) -> Result<PcapPtr> {
@@ -132,25 +151,5 @@ pub(crate) fn next(handle: &mut PcapPtr) -> Result<&[u8]> {
             )),
             _ => Err(PcapError::get_error(handle).into()),
         }
-    }
-}
-
-/// An error generated in `libpcap`.
-#[derive(Debug, Error)]
-#[error("{0}")]
-pub(crate) struct PcapError(String);
-
-impl PcapError {
-    /// Returns the `PcapError` with the given error message.
-    #[inline]
-    fn new(msg: &str) -> Self {
-        PcapError(msg.into())
-    }
-
-    /// Returns the `PcapError` pertaining to the last `libpcap` error.
-    #[inline]
-    fn get_error(handle: &mut PcapPtr) -> Self {
-        let msg = unsafe { cffi::pcap_geterr(handle.deref_mut()) };
-        PcapError::new((msg as *const raw::c_char).as_str())
     }
 }

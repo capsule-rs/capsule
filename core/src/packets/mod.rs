@@ -20,17 +20,18 @@
 
 pub mod arp;
 pub mod checksum;
-mod ethernet;
+pub mod ethernet;
 pub mod icmp;
 pub mod ip;
-mod tcp;
+mod mbuf;
+mod size_of;
+pub mod tcp;
 pub mod types;
-mod udp;
+pub mod udp;
 
-pub use self::ethernet::*;
-pub use self::tcp::*;
-pub use self::udp::*;
-pub use crate::dpdk::Mbuf;
+pub use self::mbuf::*;
+pub use self::size_of::*;
+pub use capsule_macros::SizeOf;
 
 use anyhow::{Context, Result};
 use std::fmt;
@@ -354,7 +355,9 @@ pub enum Postmark {
 mod tests {
     use super::*;
     use crate::net::MacAddr;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
+    use crate::packets::udp::Udp4;
     use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
     #[capsule::test]

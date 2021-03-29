@@ -29,11 +29,11 @@ pub use self::redirect::*;
 pub use self::time_exceeded::*;
 pub use capsule_macros::Icmpv4Packet;
 
+use crate::ensure;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::types::u16be;
-use crate::packets::{checksum, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{checksum, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -446,10 +446,10 @@ pub trait Icmpv4Packet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, IPV4_UDP_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_icmpv4_header() {

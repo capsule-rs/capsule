@@ -90,7 +90,7 @@ impl Port {
         self.outbox
             .as_ref()
             .map(|s| Outbox(self.name.clone(), s.clone()))
-            .ok_or(PortError::TxNotEnabled.into())
+            .ok_or_else(|| PortError::TxNotEnabled.into())
     }
 
     /// Spawns the port receiving loop.
@@ -102,7 +102,7 @@ impl Port {
         let shutdown = self.shutdown.as_ref().unwrap();
 
         // can't run loop without assigned rx cores.
-        ensure!(self.rx_lcores.len() > 0, PortError::RxNotEnabled);
+        ensure!(!self.rx_lcores.is_empty(), PortError::RxNotEnabled);
         // pipeline already set if the trigger is waited on.
         ensure!(!shutdown.is_waited(), PortError::PipelineSet);
 
@@ -292,29 +292,23 @@ async fn tx_loop(
     let txq = PortTxQueue { port_id, queue_id };
     let mut ptrs = Vec::with_capacity(batch_size);
 
-    loop {
-        if let Ok(ptr) = receiver.recv().await {
-            ptrs.push(ptr);
+    while let Ok(ptr) = receiver.recv().await {
+        ptrs.push(ptr);
 
-            // try to batch the packets up to batch size.
-            for _ in 1..batch_size {
-                match receiver.try_recv() {
-                    Ok(ptr) => ptrs.push(ptr),
-                    // no more packets to batch, ready to transmit.
-                    Err(_) => break,
-                }
+        // try to batch the packets up to batch size.
+        for _ in 1..batch_size {
+            match receiver.try_recv() {
+                Ok(ptr) => ptrs.push(ptr),
+                // no more packets to batch, ready to transmit.
+                Err(_) => break,
             }
-
-            txq.transmit(&mut ptrs);
-
-            // cooperatively moves to the back of the execution queue,
-            // making room for other tasks before transmitting again.
-            future::yield_now().await;
-        } else {
-            // this branch can only be reached if the channel is closed,
-            // indicating the tx loop should exit.
-            break;
         }
+
+        txq.transmit(&mut ptrs);
+
+        // cooperatively moves to the back of the execution queue,
+        // making room for other tasks before transmitting again.
+        future::yield_now().await;
     }
 
     debug!(port = ?port_name, lcore = ?LcoreId::current(), "tx loop exited.");

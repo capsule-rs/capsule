@@ -72,6 +72,9 @@ impl Drop for CaptureFile {
 /// The pcap dump manager.
 pub(crate) struct PcapDump {
     output_dir: String,
+    // we need the extra level of indirection because we need stable
+    // pointers to pass to ffi code.
+    #[allow(clippy::vec_box)]
     captures: Vec<Box<CaptureFile>>,
 }
 
@@ -164,7 +167,7 @@ unsafe extern "C" fn rx_callback_fn(
 ) -> u16 {
     let capture = Box::leak(Box::from_raw(user_param as *mut CaptureFile));
     let mbufs = slice::from_raw_parts_mut(pkts as *mut MbufPtr, num_pkts as usize);
-    dump_mbufs(&mut capture.dumper, &mbufs);
+    dump_mbufs(&mut capture.dumper, mbufs);
     num_pkts
 }
 
@@ -177,7 +180,7 @@ unsafe extern "C" fn tx_callback_fn(
 ) -> u16 {
     let capture = Box::leak(Box::from_raw(user_param as *mut CaptureFile));
     let mbufs = slice::from_raw_parts_mut(pkts as *mut MbufPtr, num_pkts as usize);
-    dump_mbufs(&mut capture.dumper, &mbufs);
+    dump_mbufs(&mut capture.dumper, mbufs);
     num_pkts
 }
 

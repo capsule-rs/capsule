@@ -156,7 +156,7 @@ mod tests {
 
     #[capsule::test]
     fn get_current_lcore_id_from_non_eal() {
-        let lcore_id = thread::spawn(|| LcoreId::current()).join().expect("panic!");
+        let lcore_id = thread::spawn(LcoreId::current).join().expect("panic!");
 
         assert_eq!(LcoreId::ANY, lcore_id);
     }

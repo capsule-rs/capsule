@@ -16,9 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::packets::ethernet::Ethernet;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, SegmentRouting};
-use crate::packets::{Ethernet, Packet, Tcp, Tcp4, Tcp6, Udp4, Udp6};
+use crate::packets::tcp::{Tcp, Tcp4, Tcp6};
+use crate::packets::udp::{Udp4, Udp6};
+use crate::packets::Packet;
 
 /// [`Packet`] extension trait.
 ///

@@ -17,10 +17,11 @@
 */
 
 use anyhow::Result;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Mbuf, Packet, Postmark};
-use capsule::rt2::{self, Outbox, Runtime};
+use capsule::packets::{Mbuf, Packet, Postmark};
+use capsule::runtime::{self, Outbox, Runtime};
 use signal_hook::consts;
 use signal_hook::flag;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -63,7 +64,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
 
     let outbox = runtime.ports().get("cap0")?.outbox()?;

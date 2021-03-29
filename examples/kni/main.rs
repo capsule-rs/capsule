@@ -17,11 +17,13 @@
 */
 
 use anyhow::Result;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v6::Icmpv6;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
-use capsule::packets::{Ethernet, Mbuf, Packet, Postmark, Udp6};
-use capsule::rt2::{self, Outbox, Runtime};
+use capsule::packets::udp::Udp6;
+use capsule::packets::{Mbuf, Packet, Postmark};
+use capsule::runtime::{self, Outbox, Runtime};
 use colored::Colorize;
 use signal_hook::consts;
 use signal_hook::flag;
@@ -75,7 +77,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
 
     let kni0 = runtime.ports().get("kni0")?.outbox()?;

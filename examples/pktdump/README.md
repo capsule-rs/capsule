@@ -18,4 +18,4 @@ The parse functions showcase the packet type system. Both IPv4 and IPv6 packet t
 
 Packets are dropped at the end of `dump_pkt`.
 
-`ctrl-c` terminates the application.
+The application waits for 5 seconds then self terminates.

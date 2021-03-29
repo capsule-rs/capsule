@@ -19,9 +19,11 @@
 use anyhow::Result;
 use async_io::Timer;
 use capsule::net::MacAddr;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Mbuf, Packet, Tcp4};
-use capsule::rt2::{self, Outbox, Runtime};
+use capsule::packets::tcp::Tcp4;
+use capsule::packets::{Mbuf, Packet};
+use capsule::runtime::{self, Outbox, Runtime};
 use futures_lite::stream::StreamExt;
 use signal_hook::consts;
 use signal_hook::flag;
@@ -33,8 +35,8 @@ use tracing::{error, info, Level};
 use tracing_subscriber::fmt;
 
 async fn syn_flood(src_mac: MacAddr, cap0: Outbox, term: Arc<AtomicBool>) {
-    let dst_ip = Ipv4Addr::new(10, 100, 1, 254);
-    let dst_mac = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
+    let dst_ip = Ipv4Addr::new(192, 168, 56, 129);
+    let dst_mac = MacAddr::new(0x02, 0x00, 0xc0, 0xa8, 0x38, 0x81);
 
     // 50ms delay between batches.
     let mut timer = Timer::interval(Duration::from_millis(50));
@@ -79,7 +81,7 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = rt2::load_config()?;
+    let config = runtime::load_config()?;
     let runtime = Runtime::from_config(config)?;
 
     let term = Arc::new(AtomicBool::new(false));

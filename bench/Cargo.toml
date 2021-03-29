@@ -11,18 +11,13 @@ Benchmarks for Capsule.
 
 [dev-dependencies]
 anyhow = "1.0"
-capsule = { version = "0.1", path = "../core", features = ["testils"] }
+capsule = { version = "0.2", path = "../core", features = ["testils"] }
 criterion = "0.3"
 proptest = "1.0"
 
 [[bench]]
 name = "packets"
 path = "packets.rs"
-harness = false
-
-[[bench]]
-name = "combinators"
-path = "combinators.rs"
 harness = false
 
 [[bench]]

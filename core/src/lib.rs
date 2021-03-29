@@ -82,8 +82,7 @@
 //!
 //! ## Feature flags
 //!
-//! - `default`: Enables metrics by default.
-//! - `metrics`: Enables automatic [`metrics`] collection.
+//! - `default`: None of the features are enabled.
 //! - `pcap-dump`: Enables capturing port traffic to `pcap` files.
 //! - `testils`: Enables utilities for unit testing and benchmarking.
 //! - `full`: Enables all features.
@@ -94,7 +93,6 @@
 //! - [nat64]: IPv6 to IPv4 NAT gateway example.
 //! - [ping4d]: Ping4 daemon example.
 //! - [pktdump]: Packet dump example.
-//! - [signals]: Linux signal handling example.
 //! - [skeleton]: Base skeleton example.
 //! - [syn-flood]: TCP SYN flood example.
 //!
@@ -109,40 +107,25 @@
 //! [rr]: https://rr-project.org/
 //! [README]: https://github.com/capsule-rs/capsule/blob/master/README.md
 //! [sandbox repo]: https://github.com/capsule-rs/sandbox
-//! [`metrics`]: crate::metrics
 //! [kni]: https://github.com/capsule-rs/capsule/tree/master/examples/kni
 //! [nat64]: https://github.com/capsule-rs/capsule/tree/master/examples/nat64
 //! [ping4d]: https://github.com/capsule-rs/capsule/tree/master/examples/ping4d
 //! [pktdump]: https://github.com/capsule-rs/capsule/tree/master/examples/pktdump
-//! [signals]: https://github.com/capsule-rs/capsule/tree/master/examples/signals
 //! [skeleton]: https://github.com/capsule-rs/capsule/tree/master/examples/skeleton
 //! [syn-flood]: https://github.com/capsule-rs/capsule/tree/master/examples/syn-flood
 
 // alias for the macros
 extern crate self as capsule;
 
-pub mod batch;
-pub mod config;
-mod dpdk;
 pub(crate) mod ffi;
 mod macros;
-#[cfg(feature = "metrics")]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "default", feature = "metrics"))))]
-pub mod metrics;
 pub mod net;
 pub mod packets;
-#[cfg(feature = "pcap-dump")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pcap-dump")))]
-mod pcap;
-pub mod rt2;
-mod runtime;
+pub mod runtime;
 #[cfg(any(test, feature = "testils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub mod testils;
 
-pub use self::dpdk::{KniRx, KniTxQueue, Mbuf, PortQueue, SizeOf};
-pub use self::runtime::{Runtime, UnixSignal};
-pub use capsule_macros::SizeOf;
 #[cfg(any(test, feature = "testils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub use capsule_macros::{bench, test};
