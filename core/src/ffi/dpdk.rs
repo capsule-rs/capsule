@@ -125,6 +125,7 @@ pub(crate) fn pktmbuf_pool_create<S: Into<String>>(
 }
 
 /// Looks up a mempool by the name.
+#[cfg(test)]
 pub(crate) fn mempool_lookup<S: Into<String>>(name: S) -> Result<MempoolPtr> {
     let name: String = name.into();
 
@@ -407,6 +408,57 @@ pub(crate) fn eth_rx_queue_setup(
     }
 }
 
+/// Removes an RX or TX packet callback from a given port and queue.
+#[allow(dead_code)]
+pub(crate) enum RxTxCallbackGuard {
+    Rx(PortId, PortRxQueueId, *const cffi::rte_eth_rxtx_callback),
+    Tx(PortId, PortTxQueueId, *const cffi::rte_eth_rxtx_callback),
+}
+
+impl Drop for RxTxCallbackGuard {
+    fn drop(&mut self) {
+        if let Err(error) = match self {
+            RxTxCallbackGuard::Rx(port_id, queue_id, ptr) => {
+                debug!(port = ?port_id, rxq = ?queue_id, "remove rx callback.");
+                unsafe {
+                    cffi::rte_eth_remove_rx_callback(port_id.0, queue_id.0, *ptr)
+                        .into_result(DpdkError::from_errno)
+                }
+            }
+            RxTxCallbackGuard::Tx(port_id, queue_id, ptr) => {
+                debug!(port = ?port_id, txq = ?queue_id, "remove tx callback.");
+                unsafe {
+                    cffi::rte_eth_remove_tx_callback(port_id.0, queue_id.0, *ptr)
+                        .into_result(DpdkError::from_errno)
+                }
+            }
+        } {
+            error!(?error);
+        }
+    }
+}
+
+/// Adds a callback to be called on packet RX on a given port and queue.
+#[allow(dead_code)]
+pub(crate) fn eth_add_rx_callback<T>(
+    port_id: PortId,
+    queue_id: PortRxQueueId,
+    callback: cffi::rte_rx_callback_fn,
+    user_param: &mut T,
+) -> Result<RxTxCallbackGuard> {
+    let ptr = unsafe {
+        cffi::rte_eth_add_rx_callback(
+            port_id.0,
+            queue_id.0,
+            callback,
+            user_param as *mut T as *mut raw::c_void,
+        )
+        .into_result(|_| DpdkError::new())?
+    };
+
+    Ok(RxTxCallbackGuard::Rx(port_id, queue_id, ptr))
+}
+
 /// Retrieves a burst of input packets from a receive queue of a device.
 pub(crate) fn eth_rx_burst(port_id: PortId, queue_id: PortRxQueueId, rx_pkts: &mut Vec<MbufPtr>) {
     let nb_pkts = rx_pkts.capacity();
@@ -458,6 +510,27 @@ pub(crate) fn eth_tx_queue_setup(
         .into_result(DpdkError::from_errno)
         .map(|_| ())
     }
+}
+
+/// Adds a callback to be called on packet TX on a given port and queue.
+#[allow(dead_code)]
+pub(crate) fn eth_add_tx_callback<T>(
+    port_id: PortId,
+    queue_id: PortTxQueueId,
+    callback: cffi::rte_tx_callback_fn,
+    user_param: &mut T,
+) -> Result<RxTxCallbackGuard> {
+    let ptr = unsafe {
+        cffi::rte_eth_add_tx_callback(
+            port_id.0,
+            queue_id.0,
+            callback,
+            user_param as *mut T as *mut raw::c_void,
+        )
+        .into_result(|_| DpdkError::new())?
+    };
+
+    Ok(RxTxCallbackGuard::Tx(port_id, queue_id, ptr))
 }
 
 /// Sends a burst of output packets on a transmit queue of a device.

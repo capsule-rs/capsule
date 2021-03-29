@@ -21,6 +21,9 @@
 mod config;
 mod lcore;
 mod mempool;
+#[cfg(feature = "pcap-dump")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pcap-dump")))]
+mod pcap_dump;
 mod port;
 
 pub use self::config::*;
@@ -89,6 +92,8 @@ pub struct Runtime {
     mempool: ManuallyDrop<Mempool>,
     lcores: ManuallyDrop<LcoreMap>,
     ports: ManuallyDrop<PortMap>,
+    #[cfg(feature = "pcap-dump")]
+    pcap_dump: ManuallyDrop<self::pcap_dump::PcapDump>,
 }
 
 impl Runtime {
@@ -155,13 +160,19 @@ impl Runtime {
             port.start()?;
             ports.push(port);
         }
+        let ports: PortMap = ports.into();
+
+        #[cfg(feature = "pcap-dump")]
+        let pcap_dump = self::pcap_dump::enable_pcap_dump(&config.data_dir(), &ports, &lcores)?;
 
         info!("runtime ready.");
 
         Ok(Runtime {
             mempool: ManuallyDrop::new(mempool),
             lcores: ManuallyDrop::new(lcores),
-            ports: ManuallyDrop::new(ports.into()),
+            ports: ManuallyDrop::new(ports),
+            #[cfg(feature = "pcap-dump")]
+            pcap_dump: ManuallyDrop::new(pcap_dump),
         })
     }
 
@@ -203,6 +214,8 @@ impl Drop for RuntimeGuard {
         }
 
         unsafe {
+            #[cfg(feature = "pcap-dump")]
+            ManuallyDrop::drop(&mut self.runtime.pcap_dump);
             ManuallyDrop::drop(&mut self.runtime.ports);
             ManuallyDrop::drop(&mut self.runtime.lcores);
             ManuallyDrop::drop(&mut self.runtime.mempool);

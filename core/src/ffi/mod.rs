@@ -17,6 +17,8 @@
 */
 
 pub(crate) mod dpdk;
+#[cfg(feature = "pcap-dump")]
+pub(crate) mod pcap;
 
 pub(crate) use capsule_ffi::*;
 
