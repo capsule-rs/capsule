@@ -86,6 +86,12 @@ pub struct RuntimeConfig {
     /// execution.
     pub worker_cores: Vec<usize>,
 
+    /// The root data directory the application writes to.
+    ///
+    /// If unset, the default is `/var/capsule/{app_name}`.
+    #[serde(default)]
+    pub data_dir: Option<String>,
+
     /// Per mempool settings. On a system with multiple sockets, aka NUMA
     /// nodes, one mempool will be allocated for each socket the apllication
     /// uses.
@@ -192,6 +198,18 @@ impl RuntimeConfig {
         }
 
         eal_args
+    }
+
+    /// Returns the data directory.
+    #[allow(dead_code)]
+    pub(crate) fn data_dir(&self) -> String {
+        self.data_dir.clone().unwrap_or_else(|| {
+            let base_dir = "/var/capsule";
+            match &self.app_group {
+                Some(group) => format!("{}/{}/{}", base_dir, group, self.app_name),
+                None => format!("{}/{}", base_dir, self.app_name),
+            }
+        })
     }
 }
 
@@ -367,7 +385,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_defaults() {
+    fn config_defaults() -> Result<()> {
         const CONFIG: &str = r#"
             app_name = "myapp"
             main_core = 0
@@ -377,10 +395,11 @@ mod tests {
                 device = "0000:00:01.0"
         "#;
 
-        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
+        let config: RuntimeConfig = toml::from_str(CONFIG)?;
 
         assert_eq!(false, config.secondary);
         assert_eq!(None, config.app_group);
+        assert_eq!(None, config.data_dir);
         assert_eq!(None, config.dpdk_args);
         assert_eq!(default_capacity(), config.mempool.capacity);
         assert_eq!(default_cache_size(), config.mempool.cache_size);
@@ -391,10 +410,14 @@ mod tests {
         assert_eq!(default_port_txqs(), config.ports[0].txqs);
         assert_eq!(default_promiscuous_mode(), config.ports[0].promiscuous);
         assert_eq!(default_multicast_mode(), config.ports[0].multicast);
+
+        assert_eq!("/var/capsule/myapp", &config.data_dir());
+
+        Ok(())
     }
 
     #[test]
-    fn config_to_eal_args() {
+    fn config_to_eal_args() -> Result<()> {
         const CONFIG: &str = r#"
             app_name = "myapp"
             secondary = false
@@ -421,7 +444,7 @@ mod tests {
                 txqs = 32
         "#;
 
-        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
+        let config: RuntimeConfig = toml::from_str(CONFIG)?;
 
         assert_eq!(
             &[
@@ -443,6 +466,8 @@ mod tests {
                 "eal:8"
             ],
             config.to_eal_args().as_slice(),
-        )
+        );
+
+        Ok(())
     }
 }
