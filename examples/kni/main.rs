@@ -17,10 +17,12 @@
 */
 
 use anyhow::Result;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v6::Icmpv6;
 use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
-use capsule::packets::{Ethernet, Mbuf, Packet, Postmark, Udp6};
+use capsule::packets::udp::Udp6;
+use capsule::packets::{Mbuf, Packet, Postmark};
 use capsule::runtime::{self, Outbox, Runtime};
 use colored::Colorize;
 use signal_hook::consts;

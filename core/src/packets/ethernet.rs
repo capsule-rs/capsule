@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! Ethernet Protocol.
+
 use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::types::u16be;

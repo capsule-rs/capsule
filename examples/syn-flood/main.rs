@@ -19,8 +19,10 @@
 use anyhow::Result;
 use async_io::Timer;
 use capsule::net::MacAddr;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Mbuf, Packet, Tcp4};
+use capsule::packets::tcp::Tcp4;
+use capsule::packets::{Mbuf, Packet};
 use capsule::runtime::{self, Outbox, Runtime};
 use futures_lite::stream::StreamExt;
 use signal_hook::consts;

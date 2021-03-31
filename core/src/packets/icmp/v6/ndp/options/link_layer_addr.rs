@@ -190,9 +190,10 @@ impl Default for LinkLayerAddressFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet};
+    use crate::packets::Packet;
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
     #[test]

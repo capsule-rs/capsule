@@ -20,9 +20,10 @@
 
 use crate::ensure;
 use crate::packets::checksum::{self, PseudoHeader};
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};

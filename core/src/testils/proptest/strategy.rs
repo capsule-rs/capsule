@@ -19,10 +19,13 @@
 //! Proptest strategies.
 
 use crate::net::MacAddr;
+use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{EtherType, EtherTypes, Ethernet, Mbuf, Packet, Tcp, Udp};
+use crate::packets::tcp::Tcp;
+use crate::packets::udp::Udp;
+use crate::packets::{Mbuf, Packet};
 use crate::testils::Rvg;
 use proptest::arbitrary::{any, Arbitrary};
 use proptest::collection::vec;

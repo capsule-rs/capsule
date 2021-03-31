@@ -551,8 +551,8 @@ pub trait NdpOption<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
     #[capsule::test]

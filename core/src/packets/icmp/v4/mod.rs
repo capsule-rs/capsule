@@ -446,8 +446,9 @@ pub trait Icmpv4Packet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Ethernet, Mbuf};
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, IPV4_UDP_PACKET};
 
     #[test]

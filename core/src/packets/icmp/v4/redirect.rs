@@ -215,8 +215,9 @@ impl Default for RedirectBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::{Ethernet, Mbuf};
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::IPV4_TCP_PACKET;
 
     #[test]

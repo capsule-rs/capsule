@@ -498,9 +498,10 @@ pub trait Icmpv6Packet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::RouterAdvertisement;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Mbuf};
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
 
     #[test]

@@ -26,9 +26,10 @@ pub use self::srh::*;
 
 use crate::ensure;
 use crate::packets::checksum::PseudoHeader;
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};

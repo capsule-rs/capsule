@@ -17,9 +17,10 @@
 */
 
 use anyhow::Result;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Mbuf, Packet, Postmark};
+use capsule::packets::{Mbuf, Packet, Postmark};
 use capsule::runtime::{self, Outbox, Runtime};
 use signal_hook::consts;
 use signal_hook::flag;

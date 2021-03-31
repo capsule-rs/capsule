@@ -218,8 +218,9 @@ struct EchoRequestBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Mbuf};
+    use crate::packets::Mbuf;
 
     #[test]
     fn size_of_echo_request_body() {

@@ -16,6 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! User Datagram Protocol.
+
 use crate::ensure;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::Ipv6;
@@ -386,7 +388,8 @@ struct UdpHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::{Ethernet, Mbuf};
+    use crate::packets::ethernet::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use std::net::{Ipv4Addr, Ipv6Addr};
 

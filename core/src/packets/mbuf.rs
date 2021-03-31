@@ -16,8 +16,8 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use super::{Internal, Packet, SizeOf};
 use crate::ffi::dpdk::{self, MbufPtr};
+use crate::packets::{Internal, Packet, SizeOf};
 use crate::runtime::Mempool;
 use crate::{ensure, trace};
 use anyhow::Result;
