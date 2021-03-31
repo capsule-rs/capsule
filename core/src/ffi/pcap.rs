@@ -20,7 +20,6 @@ use super::{AsStr, EasyPtr, ToCString, ToResult};
 use crate::ffi::dpdk::MbufPtr;
 use anyhow::Result;
 use capsule_ffi as cffi;
-use libc;
 use std::ops::DerefMut;
 use std::os::raw;
 use std::ptr;

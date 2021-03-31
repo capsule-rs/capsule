@@ -365,7 +365,7 @@ impl Mbuf {
     /// free the raw pointer after use. Otherwise the buffer is leaked.
     #[inline]
     pub(crate) fn into_easyptr(self) -> MbufPtr {
-        let ptr = self.inner.ptr().clone();
+        let ptr = *self.inner.ptr();
         mem::forget(self);
         ptr.into()
     }

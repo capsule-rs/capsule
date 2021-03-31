@@ -72,6 +72,9 @@ impl Drop for CaptureFile {
 /// The pcap dump manager.
 pub(crate) struct PcapDump {
     output_dir: String,
+    // we need the extra level of indirection because we need stable
+    // pointers to pass to ffi code.
+    #[allow(clippy::vec_box)]
     captures: Vec<Box<CaptureFile>>,
 }
 

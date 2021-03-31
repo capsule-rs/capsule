@@ -123,7 +123,7 @@ impl RuntimeConfig {
             }
         });
 
-        cores.sort();
+        cores.sort_unstable();
         cores.dedup();
         cores
     }

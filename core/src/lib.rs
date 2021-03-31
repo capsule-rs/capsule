@@ -82,7 +82,7 @@
 //!
 //! ## Feature flags
 //!
-//! - `default`: Enables metrics by default.
+//! - `default`: None of the features are enabled.
 //! - `pcap-dump`: Enables capturing port traffic to `pcap` files.
 //! - `testils`: Enables utilities for unit testing and benchmarking.
 //! - `full`: Enables all features.
@@ -107,7 +107,6 @@
 //! [rr]: https://rr-project.org/
 //! [README]: https://github.com/capsule-rs/capsule/blob/master/README.md
 //! [sandbox repo]: https://github.com/capsule-rs/sandbox
-//! [`metrics`]: crate::metrics
 //! [kni]: https://github.com/capsule-rs/capsule/tree/master/examples/kni
 //! [nat64]: https://github.com/capsule-rs/capsule/tree/master/examples/nat64
 //! [ping4d]: https://github.com/capsule-rs/capsule/tree/master/examples/ping4d

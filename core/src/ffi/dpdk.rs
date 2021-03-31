@@ -132,6 +132,7 @@ pub(crate) fn mempool_lookup<S: Into<String>>(name: S) -> Result<MempoolPtr> {
 }
 
 /// Returns the number of elements which have been allocated from the mempool.
+#[allow(dead_code)]
 pub(crate) fn mempool_in_use_count(mp: &MempoolPtr) -> usize {
     unsafe { cffi::rte_mempool_in_use_count(mp.deref()) as usize }
 }
@@ -197,14 +198,14 @@ pub(crate) fn get_next_lcore(
 
     match unsafe { cffi::rte_get_next_lcore(i, skip_master, wrap) } {
         cffi::RTE_MAX_LCORE => None,
-        id @ _ => Some(LcoreId(id)),
+        id => Some(LcoreId(id)),
     }
 }
 
 /// The function passed to `rte_eal_remote_launch`.
 unsafe extern "C" fn lcore_fn<F>(arg: *mut raw::c_void) -> raw::c_int
 where
-    F: FnOnce() -> () + Send + 'static,
+    F: FnOnce() + Send + 'static,
 {
     let f = Box::from_raw(arg as *mut F);
 
@@ -221,7 +222,7 @@ where
 /// Launches a function on another lcore.
 pub(crate) fn eal_remote_launch<F>(worker_id: LcoreId, f: F) -> Result<()>
 where
-    F: FnOnce() -> () + Send + 'static,
+    F: FnOnce() + Send + 'static,
 {
     let ptr = Box::into_raw(Box::new(f)) as *mut raw::c_void;
 
@@ -299,11 +300,10 @@ pub(crate) fn eth_dev_adjust_nb_rx_tx_desc(
 
 /// Returns the value of promiscuous mode for a device.
 pub(crate) fn eth_promiscuous_get(port_id: PortId) -> bool {
-    match unsafe { cffi::rte_eth_promiscuous_get(port_id.0).into_result(DpdkError::from_errno) } {
-        Ok(1) => true,
-        // assuming port_id is valid, we treat error as mode disabled.
-        _ => false,
-    }
+    let mode =
+        unsafe { cffi::rte_eth_promiscuous_get(port_id.0).into_result(DpdkError::from_errno) };
+    // assuming port_id is valid, treats Ok(0) and Err(_) both as disabled.
+    matches!(mode, Ok(1))
 }
 
 /// Enables receipt in promiscuous mode for a device.
@@ -326,11 +326,10 @@ pub(crate) fn eth_promiscuous_disable(port_id: PortId) -> Result<()> {
 
 /// Returns the value of allmulticast mode for a device.
 pub(crate) fn eth_allmulticast_get(port_id: PortId) -> bool {
-    match unsafe { cffi::rte_eth_allmulticast_get(port_id.0).into_result(DpdkError::from_errno) } {
-        Ok(1) => true,
-        // assuming port_id is valid, we treat error as mode disabled.
-        _ => false,
-    }
+    let mode =
+        unsafe { cffi::rte_eth_allmulticast_get(port_id.0).into_result(DpdkError::from_errno) };
+    // assuming port_id is valid, treats Ok(0) and Err(_) both as disabled.
+    matches!(mode, Ok(1))
 }
 
 /// Enables the receipt of any multicast frame by a device.
