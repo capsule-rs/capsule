@@ -79,7 +79,7 @@ const RTE_CORE_LIBS: &[&str] = &[
     "rte_rawdev",
     "rte_rawdev_dpaa2_cmdif",
     "rte_rawdev_dpaa2_qdma",
-    "rte_rawdev_ioat",
+    // "rte_rawdev_ioat",
     "rte_rawdev_ntb",
     "rte_rawdev_octeontx2_dma",
     "rte_rawdev_skeleton",
@@ -151,7 +151,7 @@ static RTE_PMD_LIBS: &[&str] = &[
     "rte_pmd_qat",
     "rte_pmd_qede",
     "rte_pmd_ring",
-    "rte_pmd_sfc",
+    // "rte_pmd_sfc",
     "rte_pmd_skeleton_event",
     "rte_pmd_softnic",
     "rte_pmd_sw_event",
@@ -166,12 +166,22 @@ static RTE_PMD_LIBS: &[&str] = &[
 
 #[cfg(not(feature = "rustdoc"))]
 const RTE_DEPS_LIBS: &[&str] = &["numa", "pcap"];
-
+#[cfg(not(feature = "rustdoc"))]
+fn march_flag() -> &'static str {
+    let target = std::env::var("TARGET").unwrap();
+    if target.starts_with("x86_64") {
+        "-march=corei7-avx"
+    } else if target.starts_with("aarch") {
+        "-march=armv8-a"
+    } else {
+        "-march=native"
+    }
+}
 #[cfg(not(feature = "rustdoc"))]
 fn bind(path: &Path) {
     cc::Build::new()
         .file("src/shim.c")
-        .flag("-march=corei7-avx")
+        .flag(march_flag())
         .compile("rte_shim");
 
     bindgen::Builder::default()
@@ -190,7 +200,7 @@ fn bind(path: &Path) {
         .derive_partialeq(true)
         .default_enum_style(bindgen::EnumVariation::ModuleConsts)
         .clang_arg("-finline-functions")
-        .clang_arg("-march=corei7-avx")
+        .clang_arg(march_flag())
         .rustfmt_bindings(true)
         .generate()
         .expect("Unable to generate bindings")
