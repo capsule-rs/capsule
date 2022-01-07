@@ -21,7 +21,7 @@
 use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Mbuf, Packet, SizeOf};
+use crate::packets::{Datalink, Internal, Mbuf, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -328,6 +328,18 @@ impl Packet for Ethernet {
     #[inline]
     fn deparse(self) -> Self::Envelope {
         self.envelope
+    }
+}
+
+impl Datalink for Ethernet {
+    #[inline]
+    fn protocol_type(&self) -> EtherType {
+        self.ether_type()
+    }
+
+    #[inline]
+    fn set_protocol_type(&mut self, ether_type: EtherType) {
+        self.set_ether_type(ether_type)
     }
 }
 

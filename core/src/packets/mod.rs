@@ -33,6 +33,7 @@ pub use self::mbuf::*;
 pub use self::size_of::*;
 pub use capsule_macros::SizeOf;
 
+use crate::packets::ethernet::EtherType;
 use anyhow::{Context, Result};
 use std::fmt;
 use std::marker::PhantomData;
@@ -299,6 +300,29 @@ pub trait Packet {
         self.reconcile();
         self.envelope_mut().reconcile_all();
     }
+}
+
+/// A trait datalink layer protocol can implement.
+/// 
+/// A datalink protocol must implement this trait if it needs to encapsulate
+/// network protocols like IP or ARP. Otherwise, it should not implement this
+/// trait.
+pub trait Datalink: Packet {
+    /// Gets the encapsulated packet type.
+    /// 
+    /// Returns the ethernet protocol type codes because ethernet is the most 
+    /// ubiquitous datalink protocol. Other datalink like InfiniBand adopted
+    /// the ethernet type codes. When implementing a datalink with its own
+    /// type codes, a translation from ether type is needed.
+    fn protocol_type(&self) -> EtherType;
+
+    /// Sets the protocol type of the encapsulated packet.
+    /// 
+    /// Uses the ethernet protocol type codes because ethernet is the most 
+    /// ubiquitous datalink protocol. Other datalink like InfiniBand adopted
+    /// the ethernet type codes. When implementing a datalink with its own
+    /// type codes, a translation from ether type is needed.
+    fn set_protocol_type(&mut self, ether_type: EtherType);
 }
 
 /// Immutable smart pointer to a struct.

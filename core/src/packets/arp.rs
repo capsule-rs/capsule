@@ -20,9 +20,9 @@
 
 use crate::ensure;
 use crate::net::MacAddr;
-use crate::packets::ethernet::{EtherTypes, Ethernet};
+use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet, SizeOf};
+use crate::packets::{Datalink, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::Ipv4Addr;
@@ -84,13 +84,13 @@ use std::ptr::NonNull;
 ///      defined by *P Length*.
 ///
 /// [IETF RFC 826]: https://tools.ietf.org/html/rfc826
-pub struct Arp<H: HardwareAddr, P: ProtocolAddr> {
-    envelope: Ethernet,
+pub struct Arp<E: Datalink, H: HardwareAddr, P: ProtocolAddr> {
+    envelope: E,
     header: NonNull<ArpHeader<H, P>>,
     offset: usize,
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> Arp<E, H, P> {
     #[inline]
     fn header(&self) -> &ArpHeader<H, P> {
         unsafe { self.header.as_ref() }
@@ -114,14 +114,20 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
     }
 
     /// Returns the protocol type.
+    /// 
+    /// [IANA] assigned Protocol type numbers share the same space as 
+    /// [`EtherTypes`].
+    /// 
+    /// [IANA]: https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
+    /// [`EtherTypes`]: crate::packets::ethernet::EtherTypes
     #[inline]
-    pub fn protocol_type(&self) -> ProtocolType {
-        ProtocolType::new(self.header().protocol_type.into())
+    pub fn protocol_type(&self) -> EtherType {
+        EtherType::new(self.header().protocol_type.into())
     }
 
     /// Sets the protocol type.
     #[inline]
-    fn set_protocol_type(&mut self, protocol_type: ProtocolType) {
+    fn set_protocol_type(&mut self, protocol_type: EtherType) {
         self.header_mut().protocol_type = protocol_type.0.into()
     }
 
@@ -210,7 +216,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
     }
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<H, P> {
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<E, H, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("arp")
             .field("hardware_type", &format!("{}", self.hardware_type()))
@@ -241,9 +247,8 @@ impl<H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<H, P> {
     }
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
-    /// The preceding type for ARP must be `Ethernet`.
-    type Envelope = Ethernet;
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> Packet for Arp<E, H, P> {
+    type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -274,7 +279,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         }
     }
 
-    /// Parses the Ethernet payload as an ARP packet.
+    /// Parses the payload as an ARP packet.
     ///
     /// # Errors
     ///
@@ -292,7 +297,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
     #[inline]
     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
-            envelope.ether_type() == EtherTypes::Arp,
+            envelope.protocol_type() == EtherTypes::Arp,
             anyhow!("not an ARP packet.")
         );
 
@@ -362,7 +367,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         mbuf.extend(offset, ArpHeader::<H, P>::size_of())?;
         let header = mbuf.write_data(offset, &ArpHeader::<H, P>::default())?;
 
-        envelope.set_ether_type(EtherTypes::Arp);
+        envelope.set_protocol_type(EtherTypes::Arp);
 
         let mut packet = Arp {
             envelope,
@@ -418,49 +423,6 @@ impl fmt::Display for HardwareType {
             "{}",
             match *self {
                 HardwareTypes::Ethernet => "Ethernet".to_string(),
-                _ => {
-                    let t = self.0;
-                    format!("0x{:04x}", t)
-                }
-            }
-        )
-    }
-}
-
-/// [IANA] assigned protocol type.
-///
-/// See [`ProtocolTypes`] for which are current supported.
-///
-/// [IANA]: https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
-/// [`ProtocolTypes`]: crate::packets::arp::ProtocolTypes
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[repr(C, packed)]
-pub struct ProtocolType(u16);
-
-impl ProtocolType {
-    /// Creates a new protocol type.
-    pub fn new(value: u16) -> Self {
-        ProtocolType(value)
-    }
-}
-
-/// Supported protocol types.
-#[allow(non_snake_case)]
-#[allow(non_upper_case_globals)]
-pub mod ProtocolTypes {
-    use super::ProtocolType;
-
-    /// Internet protocol version 4.
-    pub const Ipv4: ProtocolType = ProtocolType(0x0800);
-}
-
-impl fmt::Display for ProtocolType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                ProtocolTypes::Ipv4 => "IPv4".to_string(),
                 _ => {
                     let t = self.0;
                     format!("0x{:04x}", t)
@@ -547,7 +509,7 @@ impl HardwareAddr for MacAddr {
 /// A trait implemented by ARP protocol address types.
 pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
     /// Returns the associated protocol type of the given address.
-    fn addr_type() -> ProtocolType;
+    fn addr_type() -> EtherType;
 
     /// Returns the default value.
     ///
@@ -557,8 +519,8 @@ pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
 }
 
 impl ProtocolAddr for Ipv4Addr {
-    fn addr_type() -> ProtocolType {
-        ProtocolTypes::Ipv4
+    fn addr_type() -> EtherType {
+        EtherTypes::Ipv4
     }
 
     fn default() -> Self {
@@ -566,8 +528,8 @@ impl ProtocolAddr for Ipv4Addr {
     }
 }
 
-/// A type alias for an IPv4 ARP packet.
-pub type Arp4 = Arp<MacAddr, Ipv4Addr>;
+/// A type alias for an Ethernet IPv4 ARP packet.
+pub type Arp4 = Arp<Ethernet, MacAddr, Ipv4Addr>;
 
 /// ARP header.
 #[allow(missing_debug_implementations)]
@@ -635,7 +597,7 @@ mod tests {
         let arp4 = ethernet.parse::<Arp4>().unwrap();
 
         assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
-        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
+        assert_eq!(EtherTypes::Ipv4, arp4.protocol_type());
         assert_eq!(6, arp4.hardware_addr_len());
         assert_eq!(4, arp4.protocol_addr_len());
         assert_eq!(OperationCodes::Request, arp4.operation_code());
@@ -655,7 +617,7 @@ mod tests {
 
         // make sure types are set properly
         assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
-        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
+        assert_eq!(EtherTypes::Ipv4, arp4.protocol_type());
         assert_eq!(6, arp4.hardware_addr_len());
         assert_eq!(4, arp4.protocol_addr_len());
 

@@ -273,7 +273,9 @@ mod tests {
         assert_eq!("TCP", ProtocolNumbers::Tcp.to_string());
         assert_eq!("UDP", ProtocolNumbers::Udp.to_string());
         assert_eq!("IPv6 Route", ProtocolNumbers::Ipv6Route.to_string());
+        assert_eq!("IPv6 Frag", ProtocolNumbers::Ipv6Frag.to_string());
         assert_eq!("ICMPv6", ProtocolNumbers::Icmpv6.to_string());
+        assert_eq!("ICMPv4", ProtocolNumbers::Icmpv4.to_string());
         assert_eq!("0x00", ProtocolNumber::new(0).to_string());
     }
 }
