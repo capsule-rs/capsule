@@ -19,7 +19,7 @@
 use anyhow::Result;
 use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
-use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v4::Ip4;
 use capsule::packets::{Mbuf, Packet, Postmark};
 use capsule::runtime::{self, Outbox, Runtime};
 use signal_hook::consts;
@@ -37,14 +37,14 @@ fn reply_echo(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     reply.set_src(ethernet.dst());
     reply.set_dst(ethernet.src());
 
-    let ipv4 = ethernet.peek::<Ipv4>()?;
-    let mut reply = reply.push::<Ipv4>()?;
-    reply.set_src(ipv4.dst());
-    reply.set_dst(ipv4.src());
+    let ip4 = ethernet.peek::<Ip4>()?;
+    let mut reply = reply.push::<Ip4>()?;
+    reply.set_src(ip4.dst());
+    reply.set_dst(ip4.src());
     reply.set_ttl(255);
 
-    let request = ipv4.peek::<EchoRequest>()?;
-    let mut reply = reply.push::<EchoReply>()?;
+    let request = ip4.peek::<EchoRequest<Ip4>>()?;
+    let mut reply = reply.push::<EchoReply<Ip4>>()?;
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;

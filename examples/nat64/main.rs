@@ -20,8 +20,8 @@ use anyhow::Result;
 use bimap::BiMap;
 use capsule::net::MacAddr;
 use capsule::packets::ethernet::Ethernet;
-use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
+use capsule::packets::ip::v4::Ip4;
+use capsule::packets::ip::v6::{Ip6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::tcp::{Tcp4, Tcp6};
 use capsule::packets::{Mbuf, Packet, Postmark};
@@ -49,7 +49,7 @@ fn map_6to4(addr: Ipv6Addr) -> Ipv4Addr {
 }
 
 /// Looks up the assigned port for an IPv6 source.
-fn get_v4_port(mac: MacAddr, ip: Ipv6Addr, port: u16) -> u16 {
+fn get_ip4_port(mac: MacAddr, ip: Ipv6Addr, port: u16) -> u16 {
     static NEXT_PORT: AtomicU16 = AtomicU16::new(1025);
 
     let key = (ip, port);
@@ -70,32 +70,32 @@ fn nat_6to4(packet: Mbuf, cap1: &Outbox) -> Result<Postmark> {
     const DST_MAC: MacAddr = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
 
     let ethernet = packet.parse::<Ethernet>()?;
-    let v6 = ethernet.parse::<Ipv6>()?;
+    let ip6 = ethernet.parse::<Ip6>()?;
 
-    if v6.next_header() == ProtocolNumbers::Tcp {
-        let dscp = v6.dscp();
-        let ecn = v6.ecn();
-        let ttl = v6.hop_limit() - 1;
-        let protocol = v6.next_header();
-        let src_ip = v6.src();
-        let dst_ip = map_6to4(v6.dst());
-        let src_mac = v6.envelope().src();
+    if ip6.next_header() == ProtocolNumbers::Tcp {
+        let dscp = ip6.dscp();
+        let ecn = ip6.ecn();
+        let ttl = ip6.hop_limit() - 1;
+        let protocol = ip6.next_header();
+        let src_ip = ip6.src();
+        let dst_ip = map_6to4(ip6.dst());
+        let src_mac = ip6.envelope().src();
 
-        let mut ethernet = v6.remove()?;
+        let mut ethernet = ip6.remove()?;
         ethernet.swap_addresses();
         ethernet.set_dst(DST_MAC);
 
-        let mut v4 = ethernet.push::<Ipv4>()?;
-        v4.set_dscp(dscp);
-        v4.set_ecn(ecn);
-        v4.set_ttl(ttl);
-        v4.set_protocol(protocol);
-        v4.set_src(SRC_IP);
-        v4.set_dst(dst_ip);
+        let mut ip4 = ethernet.push::<Ip4>()?;
+        ip4.set_dscp(dscp);
+        ip4.set_ecn(ecn);
+        ip4.set_ttl(ttl);
+        ip4.set_protocol(protocol);
+        ip4.set_src(SRC_IP);
+        ip4.set_dst(dst_ip);
 
-        let mut tcp = v4.parse::<Tcp4>()?;
+        let mut tcp = ip4.parse::<Tcp4>()?;
         let port = tcp.src_port();
-        tcp.set_src_port(get_v4_port(src_mac, src_ip, port));
+        tcp.set_src_port(get_ip4_port(src_mac, src_ip, port));
         tcp.reconcile_all();
 
         let fmt = format!("{:?}", tcp.envelope()).magenta();
@@ -106,7 +106,7 @@ fn nat_6to4(packet: Mbuf, cap1: &Outbox) -> Result<Postmark> {
         let _ = cap1.push(tcp);
         Ok(Postmark::Emit)
     } else {
-        Ok(Postmark::Drop(v6.reset()))
+        Ok(Postmark::Drop(ip6.reset()))
     }
 }
 
@@ -127,7 +127,7 @@ fn map_4to6(addr: Ipv4Addr) -> Ipv6Addr {
 }
 
 /// Looks up the IPv6 destination
-fn get_v6_dst(port: u16) -> Option<(MacAddr, Ipv6Addr, u16)> {
+fn get_ip6_dst(port: u16) -> Option<(MacAddr, Ipv6Addr, u16)> {
     PORTS
         .lock()
         .unwrap()
@@ -137,31 +137,32 @@ fn get_v6_dst(port: u16) -> Option<(MacAddr, Ipv6Addr, u16)> {
 
 fn nat_4to6(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     let ethernet = packet.parse::<Ethernet>()?;
-    let v4 = ethernet.parse::<Ipv4>()?;
+    let ip4 = ethernet.parse::<Ip4>()?;
 
-    if v4.protocol() == ProtocolNumbers::Tcp && v4.fragment_offset() == 0 && !v4.more_fragments() {
-        let tcp = v4.peek::<Tcp4>()?;
+    if ip4.protocol() == ProtocolNumbers::Tcp && ip4.fragment_offset() == 0 && !ip4.more_fragments()
+    {
+        let tcp = ip4.peek::<Tcp4>()?;
 
-        if let Some((dst_mac, dst_ip, port)) = get_v6_dst(tcp.dst_port()) {
-            let dscp = v4.dscp();
-            let ecn = v4.ecn();
-            let next_header = v4.protocol();
-            let hop_limit = v4.ttl() - 1;
-            let src_ip = map_4to6(v4.src());
+        if let Some((dst_mac, dst_ip, port)) = get_ip6_dst(tcp.dst_port()) {
+            let dscp = ip4.dscp();
+            let ecn = ip4.ecn();
+            let next_header = ip4.protocol();
+            let hop_limit = ip4.ttl() - 1;
+            let src_ip = map_4to6(ip4.src());
 
-            let mut ethernet = v4.remove()?;
+            let mut ethernet = ip4.remove()?;
             ethernet.swap_addresses();
             ethernet.set_dst(dst_mac);
 
-            let mut v6 = ethernet.push::<Ipv6>()?;
-            v6.set_dscp(dscp);
-            v6.set_ecn(ecn);
-            v6.set_next_header(next_header);
-            v6.set_hop_limit(hop_limit);
-            v6.set_src(src_ip);
-            v6.set_dst(dst_ip);
+            let mut ip6 = ethernet.push::<Ip6>()?;
+            ip6.set_dscp(dscp);
+            ip6.set_ecn(ecn);
+            ip6.set_next_header(next_header);
+            ip6.set_hop_limit(hop_limit);
+            ip6.set_src(src_ip);
+            ip6.set_dst(dst_ip);
 
-            let mut tcp = v6.parse::<Tcp6>()?;
+            let mut tcp = ip6.parse::<Tcp6>()?;
             tcp.set_dst_port(port);
             tcp.reconcile_all();
 
@@ -173,10 +174,10 @@ fn nat_4to6(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
             let _ = cap0.push(tcp);
             Ok(Postmark::Emit)
         } else {
-            Ok(Postmark::Drop(v4.reset()))
+            Ok(Postmark::Drop(ip4.reset()))
         }
     } else {
-        Ok(Postmark::Drop(v4.reset()))
+        Ok(Postmark::Drop(ip4.reset()))
     }
 }
 

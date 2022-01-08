@@ -86,7 +86,7 @@ mod tests {
     #[capsule::test]
     fn gen_ip4_packet() {
         let mut gen = Rvg::new();
-        let packet = gen.generate(&ip4_udp());
+        let packet = gen.generate(&udp4());
         let ip4 = packet.into_ip4();
         assert_eq!(ProtocolNumbers::Udp, ip4.protocol());
     }

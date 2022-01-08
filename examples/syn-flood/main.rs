@@ -20,7 +20,7 @@ use anyhow::Result;
 use async_io::Timer;
 use capsule::net::MacAddr;
 use capsule::packets::ethernet::Ethernet;
-use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v4::Ip4;
 use capsule::packets::tcp::Tcp4;
 use capsule::packets::{Mbuf, Packet};
 use capsule::runtime::{self, Outbox, Runtime};
@@ -53,11 +53,11 @@ async fn syn_flood(src_mac: MacAddr, cap0: Outbox, term: Arc<AtomicBool>) {
                     ethernet.set_src(src_mac);
                     ethernet.set_dst(dst_mac);
 
-                    let mut v4 = ethernet.push::<Ipv4>()?;
-                    v4.set_src(rand::random::<u32>().into());
-                    v4.set_dst(dst_ip);
+                    let mut ip4 = ethernet.push::<Ip4>()?;
+                    ip4.set_src(rand::random::<u32>().into());
+                    ip4.set_dst(dst_ip);
 
-                    let mut tcp = v4.push::<Tcp4>()?;
+                    let mut tcp = ip4.push::<Tcp4>()?;
                     tcp.set_syn();
                     tcp.set_seq_no(1);
                     tcp.set_window(10);

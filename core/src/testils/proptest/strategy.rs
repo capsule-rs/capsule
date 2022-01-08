@@ -407,13 +407,13 @@ fn udp<E: Debug + IpPacket>(
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv4` and `next_header` is always
 /// `ProtocolNumbers::Tcp`.
-pub fn ip4_tcp() -> impl Strategy<Value = Mbuf> {
-    ip4_tcp_with(fieldmap! {})
+pub fn tcp4() -> impl Strategy<Value = Mbuf> {
+    tcp4_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv4 TCP packets.
 ///
-/// Similar to `ip4_tcp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `tcp4`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -421,8 +421,8 @@ pub fn ip4_tcp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn ip4_tcp_packet() {
-///     proptest!(|(packet in ip4_tcp_with(fieldmap! {
+/// fn tcp4_packet() {
+///     proptest!(|(packet in tcp4_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
 ///         field::tcp_dst_port => 80
 ///     }))| {
@@ -434,7 +434,7 @@ pub fn ip4_tcp() -> impl Strategy<Value = Mbuf> {
 ///     });
 /// }
 /// ```
-pub fn ip4_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+pub fn tcp4_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
     let envelope = ip4(ProtocolNumbers::Tcp, &map);
     tcp(envelope, &map)
 }
@@ -445,13 +445,13 @@ pub fn ip4_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv4` and `next_header` is always
 /// `ProtocolNumbers::Udp`.
-pub fn ip4_udp() -> impl Strategy<Value = Mbuf> {
-    ip4_udp_with(fieldmap! {})
+pub fn udp4() -> impl Strategy<Value = Mbuf> {
+    udp4_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv4 UDP packets.
 ///
-/// Similar to `ip4_udp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `udp4`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -459,8 +459,8 @@ pub fn ip4_udp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn ip4_udp_packet() {
-///     proptest!(|(packet in ip4_udp_with(fieldmap! {
+/// fn udp4_packet() {
+///     proptest!(|(packet in udp4_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
 ///         field::udp_dst_port => 53,
 ///     }))| {
@@ -472,7 +472,7 @@ pub fn ip4_udp() -> impl Strategy<Value = Mbuf> {
 ///     });
 /// }
 /// ```
-pub fn ip4_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+pub fn udp4_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
     let envelope = ip4(ProtocolNumbers::Udp, &map);
     udp(envelope, &map)
 }
@@ -483,13 +483,13 @@ pub fn ip4_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv6` and `next_header` is always
 /// `ProtocolNumbers::Tcp`.
-pub fn ip6_tcp() -> impl Strategy<Value = Mbuf> {
-    ip6_tcp_with(fieldmap! {})
+pub fn tcp6() -> impl Strategy<Value = Mbuf> {
+    tcp6_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv6 TCP packets.
 ///
-/// Similar to `ip6_tcp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `tcp6`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -497,8 +497,8 @@ pub fn ip6_tcp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn ip6_tcp_packet() {
-///     proptest!(|(packet in ip6_tcp_with(fieldmap! {
+/// fn tcp6_packet() {
+///     proptest!(|(packet in tcp6_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
 ///         field::tcp_dst_port => 80,
 ///     }))| {
@@ -510,7 +510,7 @@ pub fn ip6_tcp() -> impl Strategy<Value = Mbuf> {
 ///     });
 /// }
 /// ```
-pub fn ip6_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+pub fn tcp6_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
     let envelope = ip6(ProtocolNumbers::Tcp, &map);
     tcp(envelope, &map)
 }
@@ -521,13 +521,13 @@ pub fn ip6_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv6` and `next_header` is always
 /// `ProtocolNumbers::Udp`.
-pub fn ip6_udp() -> impl Strategy<Value = Mbuf> {
-    ip6_udp_with(fieldmap! {})
+pub fn udp6() -> impl Strategy<Value = Mbuf> {
+    udp6_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv6 UDP packets.
 ///
-/// Similar to `ip6_udp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `udp6`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -535,8 +535,8 @@ pub fn ip6_udp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn ip6_udp_packet() {
-///     proptest!(|(packet in ip6_udp_with(fieldmap! {
+/// fn udp6_packet() {
+///     proptest!(|(packet in udp6_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
 ///         field::udp_dst_port => 53,
 ///     }))| {
@@ -548,7 +548,7 @@ pub fn ip6_udp() -> impl Strategy<Value = Mbuf> {
 ///     });
 /// }
 /// ```
-pub fn ip6_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+pub fn udp6_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
     let envelope = ip6(ProtocolNumbers::Udp, &map);
     udp(envelope, &map)
 }
