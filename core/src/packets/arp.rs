@@ -114,10 +114,10 @@ impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> Arp<E, H, P> {
     }
 
     /// Returns the protocol type.
-    /// 
-    /// [IANA] assigned Protocol type numbers share the same space as 
+    ///
+    /// [IANA] assigned Protocol type numbers share the same space as
     /// [`EtherTypes`].
-    /// 
+    ///
     /// [IANA]: https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
     /// [`EtherTypes`]: crate::packets::ethernet::EtherTypes
     #[inline]

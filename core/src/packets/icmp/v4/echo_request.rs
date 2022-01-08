@@ -17,6 +17,7 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
+use crate::packets::ip::v4::Ipv4Packet;
 use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -47,12 +48,12 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Icmpv4Packet)]
-pub struct EchoRequest {
-    icmp: Icmpv4,
+pub struct EchoRequest<E: Ipv4Packet> {
+    icmp: Icmpv4<E>,
     body: NonNull<EchoRequestBody>,
 }
 
-impl EchoRequest {
+impl<E: Ipv4Packet> EchoRequest<E> {
     #[inline]
     fn body(&self) -> &EchoRequestBody {
         unsafe { self.body.as_ref() }
@@ -128,7 +129,7 @@ impl EchoRequest {
     }
 }
 
-impl fmt::Debug for EchoRequest {
+impl<E: Ipv4Packet> fmt::Debug for EchoRequest<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EchoRequest")
             .field("type", &format!("{}", self.msg_type()))
@@ -143,24 +144,26 @@ impl fmt::Debug for EchoRequest {
     }
 }
 
-impl Icmpv4Message for EchoRequest {
+impl<E: Ipv4Packet> Icmpv4Message for EchoRequest<E> {
+    type Envelope = E;
+
     #[inline]
     fn msg_type() -> Icmpv4Type {
         Icmpv4Types::EchoRequest
     }
 
     #[inline]
-    fn icmp(&self) -> &Icmpv4 {
+    fn icmp(&self) -> &Icmpv4<Self::Envelope> {
         &self.icmp
     }
 
     #[inline]
-    fn icmp_mut(&mut self) -> &mut Icmpv4 {
+    fn icmp_mut(&mut self) -> &mut Icmpv4<Self::Envelope> {
         &mut self.icmp
     }
 
     #[inline]
-    fn into_icmp(self) -> Icmpv4 {
+    fn into_icmp(self) -> Icmpv4<Self::Envelope> {
         self.icmp
     }
 
@@ -179,7 +182,7 @@ impl Icmpv4Message for EchoRequest {
     /// Returns an error if the payload does not have sufficient data for
     /// the echo request message body.
     #[inline]
-    fn try_parse(icmp: Icmpv4, _internal: Internal) -> Result<Self> {
+    fn try_parse(icmp: Icmpv4<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let mbuf = icmp.mbuf();
         let offset = icmp.payload_offset();
         let body = mbuf.read_data(offset)?;
@@ -194,7 +197,7 @@ impl Icmpv4Message for EchoRequest {
     ///
     /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mut icmp: Icmpv4, _internal: Internal) -> Result<Self> {
+    fn try_push(mut icmp: Icmpv4<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let offset = icmp.payload_offset();
         let mbuf = icmp.mbuf_mut();
 
@@ -220,7 +223,7 @@ struct EchoRequestBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ipv4;
+    use crate::packets::ip::v4::Ip4;
     use crate::packets::Mbuf;
 
     #[test]
@@ -232,8 +235,8 @@ mod tests {
     fn push_and_set_echo_request() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv4 = ethernet.push::<Ipv4>().unwrap();
-        let mut echo = ipv4.push::<EchoRequest>().unwrap();
+        let ip4 = ethernet.push::<Ip4>().unwrap();
+        let mut echo = ip4.push::<EchoRequest<Ip4>>().unwrap();
 
         assert_eq!(4, echo.header_len());
         assert_eq!(EchoRequestBody::size_of(), echo.payload_len());

@@ -303,22 +303,22 @@ pub trait Packet {
 }
 
 /// A trait datalink layer protocol can implement.
-/// 
+///
 /// A datalink protocol must implement this trait if it needs to encapsulate
 /// network protocols like IP or ARP. Otherwise, it should not implement this
 /// trait.
 pub trait Datalink: Packet {
     /// Gets the encapsulated packet type.
-    /// 
-    /// Returns the ethernet protocol type codes because ethernet is the most 
+    ///
+    /// Returns the ethernet protocol type codes because ethernet is the most
     /// ubiquitous datalink protocol. Other datalink like InfiniBand adopted
     /// the ethernet type codes. When implementing a datalink with its own
     /// type codes, a translation from ether type is needed.
     fn protocol_type(&self) -> EtherType;
 
     /// Sets the protocol type of the encapsulated packet.
-    /// 
-    /// Uses the ethernet protocol type codes because ethernet is the most 
+    ///
+    /// Uses the ethernet protocol type codes because ethernet is the most
     /// ubiquitous datalink protocol. Other datalink like InfiniBand adopted
     /// the ethernet type codes. When implementing a datalink with its own
     /// type codes, a translation from ether type is needed.
@@ -380,7 +380,7 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ipv4;
+    use crate::packets::ip::v4::Ip4;
     use crate::packets::udp::Udp4;
     use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
@@ -390,8 +390,8 @@ mod tests {
         let len = packet.data_len();
 
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = ipv4.parse::<Udp4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let udp = ip4.parse::<Udp4>().unwrap();
         let reset = udp.reset();
 
         assert_eq!(len, reset.data_len());
@@ -403,39 +403,40 @@ mod tests {
 
         let ethernet = packet.peek::<Ethernet>().unwrap();
         assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
-        let v4 = ethernet.peek::<Ipv4>().unwrap();
-        assert_eq!(255, v4.ttl());
-        let udp = v4.peek::<Udp4>().unwrap();
+        let ip4 = ethernet.peek::<Ip4>().unwrap();
+        assert_eq!(255, ip4.ttl());
+        let udp = ip4.peek::<Udp4>().unwrap();
         assert_eq!(39376, udp.src_port());
     }
 
     #[capsule::test]
-    fn peek_back_via_envelope() {
+    fn parse_and_deparse_packet() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let v4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = v4.parse::<Udp4>().unwrap();
-        let mut v4_2 = udp.deparse();
-        v4_2.set_ttl(25);
-        let udp_2 = v4_2.parse::<Udp4>().unwrap();
-        let v4_4 = udp_2.envelope();
-        assert_eq!(v4_4.ttl(), 25);
+        let mut ip4 = ethernet.parse::<Ip4>().unwrap();
+        ip4.set_ttl(25);
+
+        let udp = ip4.parse::<Udp4>().unwrap();
+        assert_eq!(udp.envelope().ttl(), 25);
+
+        let ip4_2 = udp.deparse();
+        assert_eq!(ip4_2.ttl(), 25);
     }
 
     #[capsule::test]
     fn remove_header_and_payload() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let v4 = ethernet.parse::<Ipv4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
 
-        let mut udp = v4.parse::<Udp4>().unwrap();
+        let mut udp = ip4.parse::<Udp4>().unwrap();
         assert!(udp.payload_len() > 0);
 
         let _ = udp.remove_payload();
         assert_eq!(0, udp.payload_len());
 
-        let v4 = udp.remove().unwrap();
-        assert_eq!(0, v4.payload_len());
+        let ip4 = udp.remove().unwrap();
+        assert_eq!(0, ip4.payload_len());
     }
 
     /// Demonstrates that `Packet::peek` behaves as an immutable borrow on
@@ -456,9 +457,9 @@ mod tests {
     fn cannot_mutate_packet_while_peeking_into_payload() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.peek::<Ipv4>().unwrap();
+        let ip4 = ethernet.peek::<Ip4>().unwrap();
         ethernet.set_src(MacAddr::UNSPECIFIED);
-        assert!(ipv4.payload_len() > 0);
+        assert!(ip4.payload_len() > 0);
     }
 
     /// Demonstrates that `Packet::peek` returns an immutable packet wrapper.

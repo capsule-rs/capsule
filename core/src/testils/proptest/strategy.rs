@@ -20,7 +20,7 @@
 
 use crate::net::MacAddr;
 use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
-use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v4::Ip4;
 use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::tcp::Tcp;
@@ -219,7 +219,7 @@ fn ethernet(ether_type: EtherType, map: &StrategyMap) -> impl Strategy<Value = E
     })
 }
 
-fn ipv4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv4> {
+fn ipv4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip4> {
     (
         ethernet(EtherTypes::Ipv4, map),
         map.ipv4_addr(&field::ipv4_src),
@@ -245,7 +245,7 @@ fn ipv4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip
                 fragment_offset,
                 ttl,
             )| {
-                let mut packet = packet.push::<Ipv4>().unwrap();
+                let mut packet = packet.push::<Ip4>().unwrap();
                 packet.set_src(src);
                 packet.set_dst(dst);
                 packet.set_dscp(dscp);

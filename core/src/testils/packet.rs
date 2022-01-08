@@ -17,7 +17,7 @@
 */
 
 use crate::packets::ethernet::Ethernet;
-use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v4::Ip4;
 use crate::packets::ip::v6::{Ipv6, SegmentRouting};
 use crate::packets::tcp::{Tcp, Tcp4, Tcp6};
 use crate::packets::udp::{Udp4, Udp6};
@@ -37,8 +37,8 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into an IPv4 packet.
-    fn into_v4(self) -> Ipv4 {
-        self.into_eth().parse::<Ipv4>().unwrap()
+    fn into_v4(self) -> Ip4 {
+        self.into_eth().parse::<Ip4>().unwrap()
     }
 
     /// Converts the packet into a TCP packet inside IPv4.

@@ -19,7 +19,7 @@
 //! User Datagram Protocol.
 
 use crate::ensure;
-use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v4::Ip4;
 use crate::packets::ip::v6::Ipv6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::u16be;
@@ -369,8 +369,8 @@ impl<E: IpPacket> Packet for Udp<E> {
     }
 }
 
-/// A type alias for an IPv4 UDP packet.
-pub type Udp4 = Udp<Ipv4>;
+/// A type alias for an Ethernet IPv4 UDP packet.
+pub type Udp4 = Udp<Ip4>;
 
 /// A type alias for an IPv6 UDP packet.
 pub type Udp6 = Udp<Ipv6>;
@@ -389,6 +389,7 @@ struct UdpHeader {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
+    use crate::packets::ip::v4::Ip4;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
     use std::net::{Ipv4Addr, Ipv6Addr};
@@ -402,8 +403,8 @@ mod tests {
     fn parse_udp_packet() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = ipv4.parse::<Udp4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let udp = ip4.parse::<Udp4>().unwrap();
 
         assert_eq!(39376, udp.src_port());
         assert_eq!(1087, udp.dst_port());
@@ -416,17 +417,17 @@ mod tests {
     fn parse_non_udp_packet() {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
 
-        assert!(ipv4.parse::<Udp4>().is_err());
+        assert!(ip4.parse::<Udp4>().is_err());
     }
 
     #[capsule::test]
     fn udp_flow_v4() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let udp = ipv4.parse::<Udp4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let udp = ip4.parse::<Udp4>().unwrap();
         let flow = udp.flow();
 
         assert_eq!("139.133.217.110", flow.src_ip().to_string());
@@ -440,8 +441,8 @@ mod tests {
     fn set_src_dst_ip() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut udp = ipv4.parse::<Udp4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let mut udp = ip4.parse::<Udp4>().unwrap();
 
         let old_checksum = udp.checksum();
         let new_ip = Ipv4Addr::new(10, 0, 0, 0);
@@ -463,8 +464,8 @@ mod tests {
     fn compute_checksum() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let mut udp = ipv4.parse::<Udp4>().unwrap();
+        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let mut udp = ip4.parse::<Udp4>().unwrap();
 
         let expected = udp.checksum();
         // no payload change but force a checksum recompute anyway
@@ -476,8 +477,8 @@ mod tests {
     fn push_udp_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv4 = ethernet.push::<Ipv4>().unwrap();
-        let udp = ipv4.push::<Udp4>().unwrap();
+        let ip4 = ethernet.push::<Ip4>().unwrap();
+        let udp = ip4.push::<Udp4>().unwrap();
 
         assert_eq!(UdpHeader::size_of(), udp.len());
 
