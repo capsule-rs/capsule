@@ -17,8 +17,8 @@
 */
 
 use crate::packets::ethernet::Ethernet;
-use crate::packets::ip::v4::Ip4;
-use crate::packets::ip::v6::{Ip6, SegmentRouting};
+use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v6::{Ipv6, SegmentRouting};
 use crate::packets::tcp::{Tcp, Tcp4, Tcp6};
 use crate::packets::udp::{Udp4, Udp6};
 use crate::packets::Packet;
@@ -37,8 +37,8 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into an IPv4 packet.
-    fn into_ip4(self) -> Ip4 {
-        self.into_eth().parse::<Ip4>().unwrap()
+    fn into_ip4(self) -> Ipv4 {
+        self.into_eth().parse::<Ipv4>().unwrap()
     }
 
     /// Converts the packet into a TCP packet inside IPv4.
@@ -52,8 +52,8 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into an IPv6 packet.
-    fn into_ip6(self) -> Ip6 {
-        self.into_eth().parse::<Ip6>().unwrap()
+    fn into_ip6(self) -> Ipv6 {
+        self.into_eth().parse::<Ipv6>().unwrap()
     }
 
     /// Converts the packet into a TCP packet inside IPv6.
@@ -67,13 +67,13 @@ pub trait PacketExt: Packet + Sized {
     }
 
     /// Converts the packet into an IPv6 packet with a SRH extension.
-    fn into_sr(self) -> SegmentRouting<Ip6> {
-        self.into_ip6().parse::<SegmentRouting<Ip6>>().unwrap()
+    fn into_sr(self) -> SegmentRouting<Ipv6> {
+        self.into_ip6().parse::<SegmentRouting<Ipv6>>().unwrap()
     }
 
     /// Converts the packet into a TCP packet inside IPv6 with a SRH extension.
-    fn into_sr_tcp(self) -> Tcp<SegmentRouting<Ip6>> {
-        self.into_sr().parse::<Tcp<SegmentRouting<Ip6>>>().unwrap()
+    fn into_sr_tcp(self) -> Tcp<SegmentRouting<Ipv6>> {
+        self.into_sr().parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap()
     }
 }
 

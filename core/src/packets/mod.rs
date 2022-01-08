@@ -380,7 +380,7 @@ mod tests {
     use super::*;
     use crate::net::MacAddr;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ip4;
+    use crate::packets::ip::v4::Ipv4;
     use crate::packets::udp::Udp4;
     use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
@@ -390,7 +390,7 @@ mod tests {
         let len = packet.data_len();
 
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ip4.parse::<Udp4>().unwrap();
         let reset = udp.reset();
 
@@ -403,7 +403,7 @@ mod tests {
 
         let ethernet = packet.peek::<Ethernet>().unwrap();
         assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
-        let ip4 = ethernet.peek::<Ip4>().unwrap();
+        let ip4 = ethernet.peek::<Ipv4>().unwrap();
         assert_eq!(255, ip4.ttl());
         let udp = ip4.peek::<Udp4>().unwrap();
         assert_eq!(39376, udp.src_port());
@@ -413,7 +413,7 @@ mod tests {
     fn parse_and_deparse_packet() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ip4 = ethernet.parse::<Ip4>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
         ip4.set_ttl(25);
 
         let udp = ip4.parse::<Udp4>().unwrap();
@@ -427,7 +427,7 @@ mod tests {
     fn remove_header_and_payload() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
         let mut udp = ip4.parse::<Udp4>().unwrap();
         assert!(udp.payload_len() > 0);
@@ -445,11 +445,11 @@ mod tests {
     /// borrow through peek.
     ///
     /// ```
-    /// |         let ipv4 = ethernet.peek::<Ipv4>().unwrap();
+    /// |         let ip4 = ethernet.peek::<Ipv4>().unwrap();
     /// |                    -------- immutable borrow occurs here
     /// |         ethernet.set_src(MacAddr::UNSPECIFIED);
     /// |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
-    /// |         assert!(ipv4.payload_len() > 0);
+    /// |         assert!(ip4.payload_len() > 0);
     /// |                 ---- immutable borrow later used here
     /// ```
     #[test]
@@ -457,7 +457,7 @@ mod tests {
     fn cannot_mutate_packet_while_peeking_into_payload() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.peek::<Ip4>().unwrap();
+        let ip4 = ethernet.peek::<Ipv4>().unwrap();
         ethernet.set_src(MacAddr::UNSPECIFIED);
         assert!(ip4.payload_len() > 0);
     }

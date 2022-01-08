@@ -143,7 +143,7 @@ const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 /// [IETF RFC 791]: https://tools.ietf.org/html/rfc791#section-3.1
 /// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
 /// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
-pub struct Ipv4<E: Datalink> {
+pub struct Ipv4<E: Datalink = Ethernet> {
     envelope: E,
     header: NonNull<Ipv4Header>,
     offset: usize,
@@ -579,9 +579,6 @@ impl<E: Datalink> Ipv4Packet for Ipv4<E> {}
 /// Used as a trait bound for packets succeding Ipv4.
 pub trait Ipv4Packet: IpPacket {}
 
-/// A type alias for an Ethernet IPv4 packet.
-pub type Ip4 = Ipv4<Ethernet>;
-
 /// IPv4 header.
 ///
 /// The header only include the fixed portion of the IPv4 header.
@@ -634,7 +631,7 @@ mod tests {
     fn parse_ipv4_packet() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
         assert_eq!(4, ip4.version());
         assert_eq!(5, ip4.ihl());
@@ -657,14 +654,14 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
-        assert!(ethernet.parse::<Ip4>().is_err());
+        assert!(ethernet.parse::<Ipv4>().is_err());
     }
 
     #[capsule::test]
     fn parse_ipv4_setter_checks() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ip4 = ethernet.parse::<Ip4>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 
         // Fields
         ip4.set_ihl(ip4.ihl());
@@ -699,7 +696,7 @@ mod tests {
     fn push_ipv4_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip4 = ethernet.push::<Ip4>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
 
         assert_eq!(4, ip4.version());
         assert_eq!(Ipv4Header::size_of(), ip4.len());
@@ -715,7 +712,7 @@ mod tests {
         let _ = packet.extend(0, 2000);
 
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let mut ip4 = ethernet.push::<Ip4>().unwrap();
+        let mut ip4 = ethernet.push::<Ipv4>().unwrap();
 
         // can't truncate to less than minimum MTU.
         assert!(ip4.truncate(60).is_err());
@@ -729,7 +726,7 @@ mod tests {
     fn compute_checksum() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ip4 = ethernet.parse::<Ip4>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 
         let expected = ip4.checksum();
         // no payload change but force a checksum recompute anyway

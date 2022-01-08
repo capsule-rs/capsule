@@ -449,7 +449,7 @@ pub trait Icmpv4Packet {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ip4;
+    use crate::packets::ip::v4::Ipv4;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV4_PACKET, IPV4_UDP_PACKET};
 
@@ -462,8 +462,8 @@ mod tests {
     fn parse_icmpv4_packet() {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
-        let icmp4 = ip4.parse::<Icmpv4<Ip4>>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let icmp4 = ip4.parse::<Icmpv4<Ipv4>>().unwrap();
 
         // parses the generic header
         assert_eq!(Icmpv4Types::EchoRequest, icmp4.msg_type());
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(0x2a5c, icmp4.checksum());
 
         // downcasts to specific message
-        let echo = icmp4.downcast::<EchoRequest<Ip4>>().unwrap();
+        let echo = icmp4.downcast::<EchoRequest<Ipv4>>().unwrap();
         assert_eq!(Icmpv4Types::EchoRequest, echo.msg_type());
         assert_eq!(0, echo.code());
         assert_eq!(0x2a5c, echo.checksum());
@@ -480,34 +480,34 @@ mod tests {
 
         // also can one-step parse
         let ip4 = echo.deparse();
-        assert!(ip4.parse::<EchoRequest<Ip4>>().is_ok());
+        assert!(ip4.parse::<EchoRequest<Ipv4>>().is_ok());
     }
 
     #[capsule::test]
     fn parse_wrong_icmpv4_type() {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
-        let icmp4 = ip4.parse::<Icmpv4<Ip4>>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let icmp4 = ip4.parse::<Icmpv4<Ipv4>>().unwrap();
 
-        assert!(icmp4.downcast::<EchoReply<Ip4>>().is_err());
+        assert!(icmp4.downcast::<EchoReply<Ipv4>>().is_err());
     }
 
     #[capsule::test]
     fn parse_non_icmpv4_packet() {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
-        assert!(ip4.parse::<Icmpv4<Ip4>>().is_err());
+        assert!(ip4.parse::<Icmpv4<Ipv4>>().is_err());
     }
 
     #[capsule::test]
     fn compute_checksum() {
         let packet = Mbuf::from_bytes(&ICMPV4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
-        let mut icmp4 = ip4.parse::<Icmpv4<Ip4>>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let mut icmp4 = ip4.parse::<Icmpv4<Ipv4>>().unwrap();
 
         let expected = icmp4.checksum();
         // no payload change but force a checksum recompute anyway
@@ -519,8 +519,8 @@ mod tests {
     fn push_icmpv4_header_without_body() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip4 = ethernet.push::<Ip4>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
 
-        assert!(ip4.push::<Icmpv4<Ip4>>().is_err());
+        assert!(ip4.push::<Icmpv4<Ipv4>>().is_err());
     }
 }

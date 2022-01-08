@@ -164,7 +164,7 @@ struct TimeExceededBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ip6;
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::IPV6_TCP_PACKET;
 
@@ -177,10 +177,10 @@ mod tests {
     fn push_and_set_time_exceeded() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
         let tcp_len = ip6.payload_len();
 
-        let mut exceeded = ip6.push::<TimeExceeded<Ip6>>().unwrap();
+        let mut exceeded = ip6.push::<TimeExceeded<Ipv6>>().unwrap();
 
         assert_eq!(4, exceeded.header_len());
         assert_eq!(
@@ -203,12 +203,12 @@ mod tests {
         // starts with a buffer larger than min MTU.
         let packet = Mbuf::from_bytes(&[42; 1600]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
 
         // the max packet len is MTU + Ethernet header
         let max_len = IPV6_MIN_MTU + 14;
 
-        let mut exceeded = ip6.push::<TimeExceeded<Ip6>>().unwrap();
+        let mut exceeded = ip6.push::<TimeExceeded<Ipv6>>().unwrap();
         assert!(exceeded.mbuf().data_len() > max_len);
 
         exceeded.reconcile_all();

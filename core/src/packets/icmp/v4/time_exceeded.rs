@@ -183,7 +183,7 @@ struct TimeExceededBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ip4;
+    use crate::packets::ip::v4::Ipv4;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::IPV4_TCP_PACKET;
 
@@ -196,10 +196,10 @@ mod tests {
     fn push_and_set_time_exceeded() {
         let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip4 = ethernet.parse::<Ip4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp_len = ip4.payload_len();
 
-        let mut exceeded = ip4.push::<TimeExceeded<Ip4>>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded<Ipv4>>().unwrap();
 
         assert_eq!(4, exceeded.header_len());
         assert_eq!(
@@ -222,8 +222,8 @@ mod tests {
         // starts with a buffer with a message body larger than min MTU.
         let packet = Mbuf::from_bytes(&[42; 100]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip4 = ethernet.push::<Ip4>().unwrap();
-        let mut exceeded = ip4.push::<TimeExceeded<Ip4>>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded<Ipv4>>().unwrap();
         assert!(exceeded.data_len() > IPV4_MIN_MTU);
 
         exceeded.reconcile_all();
@@ -235,8 +235,8 @@ mod tests {
         // starts with a buffer with a message body smaller than min MTU.
         let packet = Mbuf::from_bytes(&[42; 50]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip4 = ethernet.push::<Ip4>().unwrap();
-        let mut exceeded = ip4.push::<TimeExceeded<Ip4>>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded<Ipv4>>().unwrap();
         assert!(exceeded.data_len() < IPV4_MIN_MTU);
 
         exceeded.reconcile_all();

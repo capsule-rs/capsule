@@ -186,7 +186,7 @@ impl Default for NeighborSolicitationBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ip6;
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -198,8 +198,8 @@ mod tests {
     fn push_and_set_neighbor_solicitation() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip6 = ethernet.push::<Ip6>().unwrap();
-        let mut solicit = ip6.push::<NeighborSolicitation<Ip6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut solicit = ip6.push::<NeighborSolicitation<Ipv6>>().unwrap();
 
         assert_eq!(4, solicit.header_len());
         assert_eq!(NeighborSolicitationBody::size_of(), solicit.payload_len());

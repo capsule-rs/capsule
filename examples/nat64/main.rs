@@ -20,8 +20,8 @@ use anyhow::Result;
 use bimap::BiMap;
 use capsule::net::MacAddr;
 use capsule::packets::ethernet::Ethernet;
-use capsule::packets::ip::v4::Ip4;
-use capsule::packets::ip::v6::{Ip6, Ipv6Packet};
+use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v6::{Ipv6, Ipv6Packet};
 use capsule::packets::ip::ProtocolNumbers;
 use capsule::packets::tcp::{Tcp4, Tcp6};
 use capsule::packets::{Mbuf, Packet, Postmark};
@@ -70,7 +70,7 @@ fn nat_6to4(packet: Mbuf, cap1: &Outbox) -> Result<Postmark> {
     const DST_MAC: MacAddr = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
 
     let ethernet = packet.parse::<Ethernet>()?;
-    let ip6 = ethernet.parse::<Ip6>()?;
+    let ip6 = ethernet.parse::<Ipv6>()?;
 
     if ip6.next_header() == ProtocolNumbers::Tcp {
         let dscp = ip6.dscp();
@@ -85,7 +85,7 @@ fn nat_6to4(packet: Mbuf, cap1: &Outbox) -> Result<Postmark> {
         ethernet.swap_addresses();
         ethernet.set_dst(DST_MAC);
 
-        let mut ip4 = ethernet.push::<Ip4>()?;
+        let mut ip4 = ethernet.push::<Ipv4>()?;
         ip4.set_dscp(dscp);
         ip4.set_ecn(ecn);
         ip4.set_ttl(ttl);
@@ -137,7 +137,7 @@ fn get_ip6_dst(port: u16) -> Option<(MacAddr, Ipv6Addr, u16)> {
 
 fn nat_4to6(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     let ethernet = packet.parse::<Ethernet>()?;
-    let ip4 = ethernet.parse::<Ip4>()?;
+    let ip4 = ethernet.parse::<Ipv4>()?;
 
     if ip4.protocol() == ProtocolNumbers::Tcp && ip4.fragment_offset() == 0 && !ip4.more_fragments()
     {
@@ -154,7 +154,7 @@ fn nat_4to6(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
             ethernet.swap_addresses();
             ethernet.set_dst(dst_mac);
 
-            let mut ip6 = ethernet.push::<Ip6>()?;
+            let mut ip6 = ethernet.push::<Ipv6>()?;
             ip6.set_dscp(dscp);
             ip6.set_ecn(ecn);
             ip6.set_next_header(next_header);

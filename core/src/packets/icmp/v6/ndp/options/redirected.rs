@@ -234,7 +234,7 @@ mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::{NdpPacket, Redirect};
-    use crate::packets::ip::v6::Ip6;
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Packet;
 
     #[test]
@@ -249,8 +249,8 @@ mod tests {
 
         let packet = Mbuf::from_bytes(&data).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip6 = ethernet.push::<Ip6>().unwrap();
-        let mut redirect = ip6.push::<Redirect<Ip6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut redirect = ip6.push::<Redirect<Ipv6>>().unwrap();
         let mut options = redirect.options_mut();
         let mut header = options.prepend::<RedirectedHeader<'_>>().unwrap();
 

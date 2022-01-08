@@ -172,7 +172,7 @@ mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
-    use crate::packets::ip::v6::Ip6;
+    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Packet;
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
@@ -185,8 +185,8 @@ mod tests {
     fn parse_mtu() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip6 = ethernet.parse::<Ip6>().unwrap();
-        let mut advert = ip6.parse::<RouterAdvertisement<Ip6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
@@ -209,8 +209,8 @@ mod tests {
     fn push_and_set_mtu() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip6 = ethernet.push::<Ip6>().unwrap();
-        let mut advert = ip6.push::<RouterAdvertisement<Ip6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ip6.push::<RouterAdvertisement<Ipv6>>().unwrap();
         let mut options = advert.options_mut();
         let mut mtu = options.append::<Mtu<'_>>().unwrap();
 

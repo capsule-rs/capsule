@@ -18,8 +18,8 @@
 
 use anyhow::{anyhow, Result};
 use capsule::packets::ethernet::{EtherTypes, Ethernet};
-use capsule::packets::ip::v4::Ip4;
-use capsule::packets::ip::v6::Ip6;
+use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v6::Ipv6;
 use capsule::packets::ip::IpPacket;
 use capsule::packets::tcp::{Tcp, Tcp4, Tcp6};
 use capsule::packets::{Mbuf, Packet, Postmark};
@@ -48,7 +48,7 @@ fn dump_pkt(packet: Mbuf) -> Result<Postmark> {
 }
 
 fn dump_ip4(ethernet: &Ethernet) -> Result<()> {
-    let ip4 = ethernet.peek::<Ip4>()?;
+    let ip4 = ethernet.peek::<Ipv4>()?;
     let fmt = format!("{:?}", ip4).yellow();
     info!("{}", fmt);
 
@@ -59,7 +59,7 @@ fn dump_ip4(ethernet: &Ethernet) -> Result<()> {
 }
 
 fn dump_ip6(ethernet: &Ethernet) -> Result<()> {
-    let ip6 = ethernet.peek::<Ip6>()?;
+    let ip6 = ethernet.peek::<Ipv6>()?;
     let fmt = format!("{:?}", ip6).cyan();
     info!("{}", fmt);
 

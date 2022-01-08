@@ -96,7 +96,7 @@ const FLOW: u32be = u32be(u32::to_be(0xfffff));
 /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
 /// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
 /// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
-pub struct Ipv6<E: Datalink> {
+pub struct Ipv6<E: Datalink = Ethernet> {
     envelope: E,
     header: NonNull<Ipv6Header>,
     offset: usize,
@@ -438,9 +438,6 @@ pub trait Ipv6Packet: IpPacket {
     fn set_next_header(&mut self, next_header: ProtocolNumber);
 }
 
-/// A type alias for an Ethernet IPv6 packet.
-pub type Ip6 = Ipv6<Ethernet>;
-
 /// IPv6 header.
 #[derive(Clone, Copy, Debug, SizeOf)]
 #[repr(C)]
@@ -482,7 +479,7 @@ mod tests {
     fn parse_ipv6_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
 
         assert_eq!(6, ip6.version());
         assert_eq!(0, ip6.dscp());
@@ -500,14 +497,14 @@ mod tests {
         let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
-        assert!(ethernet.parse::<Ip6>().is_err());
+        assert!(ethernet.parse::<Ipv6>().is_err());
     }
 
     #[capsule::test]
     fn parse_ipv6_setter_checks() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ip6 = ethernet.parse::<Ip6>().unwrap();
+        let mut ip6 = ethernet.parse::<Ipv6>().unwrap();
 
         assert_eq!(6, ip6.version());
         assert_eq!(0, ip6.dscp());
@@ -525,7 +522,7 @@ mod tests {
     fn push_ipv6_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
 
         assert_eq!(6, ip6.version());
         assert_eq!(Ipv6Header::size_of(), ip6.len());
@@ -541,7 +538,7 @@ mod tests {
         let _ = packet.extend(0, 1800);
 
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let mut ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut ip6 = ethernet.push::<Ipv6>().unwrap();
 
         // can't truncate to less than minimum MTU.
         assert!(ip6.truncate(1200).is_err());

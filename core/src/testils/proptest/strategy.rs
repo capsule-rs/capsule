@@ -20,8 +20,8 @@
 
 use crate::net::MacAddr;
 use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
-use crate::packets::ip::v4::Ip4;
-use crate::packets::ip::v6::{Ip6, Ipv6Packet, SegmentRouting};
+use crate::packets::ip::v4::Ipv4;
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::tcp::Tcp;
 use crate::packets::udp::Udp;
@@ -219,7 +219,7 @@ fn ethernet(ether_type: EtherType, map: &StrategyMap) -> impl Strategy<Value = E
     })
 }
 
-fn ip4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip4> {
+fn ip4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv4> {
     (
         ethernet(EtherTypes::Ipv4, map),
         map.ipv4_addr(&field::ipv4_src),
@@ -245,7 +245,7 @@ fn ip4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip4
                 fragment_offset,
                 ttl,
             )| {
-                let mut packet = packet.push::<Ip4>().unwrap();
+                let mut packet = packet.push::<Ipv4>().unwrap();
                 packet.set_src(src);
                 packet.set_dst(dst);
                 packet.set_dscp(dscp);
@@ -265,7 +265,7 @@ fn ip4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip4
         )
 }
 
-fn ip6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip6> {
+fn ip6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv6> {
     (
         ethernet(EtherTypes::Ipv6, map),
         map.ipv6_addr(&field::ipv6_src),
@@ -277,7 +277,7 @@ fn ip6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = 
     )
         .prop_map(
             move |(packet, src, dst, dscp, ecn, flow_label, hop_limit)| {
-                let mut packet = packet.push::<Ip6>().unwrap();
+                let mut packet = packet.push::<Ipv6>().unwrap();
                 packet.set_src(src);
                 packet.set_dst(dst);
                 packet.set_ecn(ecn);
@@ -427,7 +427,7 @@ pub fn tcp4() -> impl Strategy<Value = Mbuf> {
 ///         field::tcp_dst_port => 80
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let ip4 = packet.parse::<Ip4>().unwrap();
+///         let ip4 = packet.parse::<Ipv4>().unwrap();
 ///         assert_eq!("127.0.0.1".parse(), ip4.src());
 ///         let tcp = ip4.parse::<Tcp4>().unwrap();
 ///         assert_eq!(80, tcp.dst_port());
@@ -465,7 +465,7 @@ pub fn udp4() -> impl Strategy<Value = Mbuf> {
 ///         field::udp_dst_port => 53,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let ip4 = packet.parse::<Ip4>().unwrap();
+///         let ip4 = packet.parse::<Ipv4>().unwrap();
 ///         prop_assert_eq!("127.0.0.1".parse(), ip4.src());
 ///         let udp = ip4.parse::<Udp4>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
@@ -503,7 +503,7 @@ pub fn tcp6() -> impl Strategy<Value = Mbuf> {
 ///         field::tcp_dst_port => 80,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let ip6 = packet.parse::<Ip6>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
 ///         prop_assert_eq!("::1".parse(), ip6.src());
 ///         let tcp = ip6.parse::<Tcp6>().unwrap();
 ///         prop_assert_eq!(80, tcp.dst_port());
@@ -541,7 +541,7 @@ pub fn udp6() -> impl Strategy<Value = Mbuf> {
 ///         field::udp_dst_port => 53,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let ip6 = packet.parse::<Ip6>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
 ///         prop_assert_eq!("::1".parse(), ip6.src());
 ///         let udp = ip6.parse::<Udp6>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
@@ -580,11 +580,11 @@ pub fn sr_tcp() -> impl Strategy<Value = Mbuf> {
 ///         field::tcp_dst_port => 80,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let ip6 = packet.parse::<Ip6>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
 ///         prop_assert_eq!("::1".parse(), ip6.src());
-///         let sr = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
+///         let sr = ip6.parse::<SegmentRouting<Ipv6>>().unwrap();
 ///         prop_assert_eq!(2, sr.segments().len());
-///         let tcp = sr.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
+///         let tcp = sr.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
 ///         prop_assert_eq!(80, tcp.dst_port());
 ///     });
 /// }

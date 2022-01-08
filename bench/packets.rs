@@ -19,8 +19,8 @@
 use anyhow::Result;
 use capsule::fieldmap;
 use capsule::packets::ethernet::Ethernet;
-use capsule::packets::ip::v4::Ip4;
-use capsule::packets::ip::v6::{Ip6, SegmentRouting};
+use capsule::packets::ip::v4::Ipv4;
+use capsule::packets::ip::v6::{Ipv6, SegmentRouting};
 use capsule::packets::udp::Udp4;
 use capsule::packets::{Mbuf, Packet};
 use capsule::testils::criterion::BencherExt;
@@ -32,11 +32,11 @@ use std::net::Ipv6Addr;
 
 const BATCH_SIZE: usize = 500;
 
-fn single_parse_udp(ip4: Ip4) -> Udp4 {
+fn single_parse_udp(ip4: Ipv4) -> Udp4 {
     ip4.parse::<Udp4>().unwrap()
 }
 
-fn single_peek_udp(ip4: Ip4) -> Ip4 {
+fn single_peek_udp(ip4: Ipv4) -> Ipv4 {
     ip4.peek::<Udp4>().unwrap();
     ip4
 }
@@ -66,13 +66,13 @@ fn single_peek_vs_parse(c: &mut Criterion) {
 
 fn multi_parse_udp(mbuf: Mbuf) -> Udp4 {
     let ethernet = mbuf.parse::<Ethernet>().unwrap();
-    let ip4 = ethernet.parse::<Ip4>().unwrap();
+    let ip4 = ethernet.parse::<Ipv4>().unwrap();
     ip4.parse::<Udp4>().unwrap()
 }
 
 fn multi_peek_udp(mbuf: Mbuf) -> Mbuf {
     let ethernet = mbuf.peek::<Ethernet>().unwrap();
-    let ip4 = ethernet.peek::<Ip4>().unwrap();
+    let ip4 = ethernet.peek::<Ipv4>().unwrap();
     ip4.peek::<Udp4>().unwrap();
     mbuf
 }
@@ -94,8 +94,8 @@ fn multi_peek_vs_parse(c: &mut Criterion) {
     group.finish()
 }
 
-fn single_parse_sr(ip6: Ip6) -> SegmentRouting<Ip6> {
-    ip6.parse::<SegmentRouting<Ip6>>().unwrap()
+fn single_parse_sr(ip6: Ipv6) -> SegmentRouting<Ipv6> {
+    ip6.parse::<SegmentRouting<Ipv6>>().unwrap()
 }
 
 #[capsule::bench(mempool_capacity = 511)]
@@ -135,10 +135,10 @@ fn single_parse_sr_segments_sizes(c: &mut Criterion) {
     group.finish()
 }
 
-fn multi_parse_sr(mbuf: Mbuf) -> SegmentRouting<Ip6> {
+fn multi_parse_sr(mbuf: Mbuf) -> SegmentRouting<Ipv6> {
     let ethernet = mbuf.parse::<Ethernet>().unwrap();
-    let ip6 = ethernet.parse::<Ip6>().unwrap();
-    ip6.parse::<SegmentRouting<Ip6>>().unwrap()
+    let ip6 = ethernet.parse::<Ipv6>().unwrap();
+    ip6.parse::<SegmentRouting<Ipv6>>().unwrap()
 }
 
 #[capsule::bench(mempool_capacity = 511)]
@@ -177,7 +177,7 @@ fn reset(c: &mut Criterion) {
 
 fn multi_push_udp(mbuf: Mbuf) -> Udp4 {
     let ethernet = mbuf.push::<Ethernet>().unwrap();
-    let ip4 = ethernet.push::<Ip4>().unwrap();
+    let ip4 = ethernet.push::<Ipv4>().unwrap();
     ip4.push::<Udp4>().unwrap()
 }
 
@@ -189,7 +189,7 @@ fn multi_push(c: &mut Criterion) {
     });
 }
 
-fn single_push_udp(ip4: Ip4) -> Udp4 {
+fn single_push_udp(ip4: Ipv4) -> Udp4 {
     ip4.push::<Udp4>().unwrap()
 }
 
@@ -204,7 +204,7 @@ fn single_push(c: &mut Criterion) {
     });
 }
 
-fn single_remove_udp(udp: Udp4) -> Ip4 {
+fn single_remove_udp(udp: Udp4) -> Ipv4 {
     udp.remove().unwrap()
 }
 
@@ -230,7 +230,7 @@ fn multi_remove(c: &mut Criterion) {
     });
 }
 
-fn set_sr_segments(mut args: (SegmentRouting<Ip6>, Vec<Ipv6Addr>)) -> Result<()> {
+fn set_sr_segments(mut args: (SegmentRouting<Ipv6>, Vec<Ipv6Addr>)) -> Result<()> {
     args.0.set_segments(&args.1)
 }
 
