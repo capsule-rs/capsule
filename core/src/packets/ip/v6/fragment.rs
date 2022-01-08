@@ -330,7 +330,7 @@ struct FragmentHeader {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, IPV6_TCP_PACKET};
 
@@ -343,8 +343,8 @@ mod tests {
     fn parse_fragment_packet() {
         let packet = Mbuf::from_bytes(&IPV6_FRAGMENT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let frag = ipv6.parse::<Fragment<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let frag = ip6.parse::<Fragment<Ip6>>().unwrap();
 
         assert_eq!(ProtocolNumbers::Udp, frag.next_header());
         assert_eq!(543, frag.fragment_offset());
@@ -356,17 +356,17 @@ mod tests {
     fn parse_non_fragment_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
 
-        assert!(ipv6.parse::<Fragment<Ipv6>>().is_err());
+        assert!(ip6.parse::<Fragment<Ip6>>().is_err());
     }
 
     #[capsule::test]
     fn push_and_set_fragment_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut frag = ipv6.push::<Fragment<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut frag = ip6.push::<Fragment<Ip6>>().unwrap();
 
         assert_eq!(FragmentHeader::size_of(), frag.len());
         assert_eq!(ProtocolNumbers::Ipv6Frag, frag.envelope().next_header());
@@ -393,11 +393,11 @@ mod tests {
     fn insert_fragment_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
 
-        let next_header = ipv6.next_header();
-        let payload_len = ipv6.payload_len();
-        let frag = ipv6.push::<Fragment<Ipv6>>().unwrap();
+        let next_header = ip6.next_header();
+        let payload_len = ip6.payload_len();
+        let frag = ip6.push::<Fragment<Ip6>>().unwrap();
 
         assert_eq!(ProtocolNumbers::Ipv6Frag, frag.envelope().next_header());
         assert_eq!(next_header, frag.next_header());
@@ -408,14 +408,14 @@ mod tests {
     fn remove_fragment_packet() {
         let packet = Mbuf::from_bytes(&IPV6_FRAGMENT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let frag = ipv6.parse::<Fragment<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let frag = ip6.parse::<Fragment<Ip6>>().unwrap();
 
         let next_header = frag.next_header();
         let payload_len = frag.payload_len();
-        let ipv6 = frag.remove().unwrap();
+        let ip6 = frag.remove().unwrap();
 
-        assert_eq!(next_header, ipv6.next_header());
-        assert_eq!(payload_len, ipv6.payload_len());
+        assert_eq!(next_header, ip6.next_header());
+        assert_eq!(payload_len, ip6.payload_len());
     }
 }

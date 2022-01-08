@@ -524,7 +524,7 @@ impl Default for SegmentRoutingHeader {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::tcp::{Tcp, Tcp6};
     use crate::packets::Mbuf;
@@ -539,8 +539,8 @@ mod tests {
     fn parse_segment_routing_packet() {
         let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let srh = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
 
         assert_eq!(ProtocolNumbers::Tcp, srh.next_header());
         assert_eq!(6, srh.hdr_ext_len());
@@ -560,17 +560,17 @@ mod tests {
     fn parse_non_segment_routing_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
 
-        assert!(ipv6.parse::<SegmentRouting<Ipv6>>().is_err());
+        assert!(ip6.parse::<SegmentRouting<Ip6>>().is_err());
     }
 
     #[capsule::test]
     fn set_segments() {
         let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let mut srh = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
 
         let segment1: Ipv6Addr = "::1".parse().unwrap();
 
@@ -597,7 +597,7 @@ mod tests {
         assert!(srh.set_segments(&[]).is_err());
 
         // make sure rest of the packet still valid
-        let tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let tcp = srh.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
         assert_eq!(3464, tcp.src_port())
     }
 
@@ -605,8 +605,8 @@ mod tests {
     fn compute_checksum() {
         let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let mut srh = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
 
         let segment1: Ipv6Addr = "::1".parse().unwrap();
         let segment2: Ipv6Addr = "::2".parse().unwrap();
@@ -619,7 +619,7 @@ mod tests {
         assert_eq!(4, srh.segments().len());
         srh.set_segments_left(3);
 
-        let mut tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let mut tcp = srh.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
 
         // Should pass as we're using the hard-coded (and wrong) initial
         // checksum, as it's 0 given above.
@@ -639,7 +639,7 @@ mod tests {
         assert_eq!(1, srh_ret.segments().len());
         srh_ret.set_segments_left(0);
 
-        let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let mut tcp_ret = srh_ret.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
         tcp_ret.reconcile_all();
         assert_eq!(expected, tcp_ret.checksum());
 
@@ -647,7 +647,7 @@ mod tests {
         // is still the same segment.
         let mut srh_fin = tcp_ret.deparse();
         srh_fin.set_segments_left(0);
-        let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let mut tcp_fin = srh_fin.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
         tcp_fin.reconcile_all();
         assert_eq!(expected, tcp_fin.checksum());
     }
@@ -656,9 +656,9 @@ mod tests {
     fn insert_segment_routing_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let ipv6_payload_len = ipv6.payload_len();
-        let srh = ipv6.push::<SegmentRouting<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let ip6_payload_len = ip6.payload_len();
+        let srh = ip6.push::<SegmentRouting<Ip6>>().unwrap();
 
         assert_eq!(2, srh.hdr_ext_len());
         assert_eq!(1, srh.segments().len());
@@ -669,32 +669,32 @@ mod tests {
         assert_eq!(ProtocolNumbers::Ipv6Route, srh.envelope().next_header());
 
         // ipv6 payload is srh payload after push
-        assert_eq!(ipv6_payload_len, srh.payload_len());
+        assert_eq!(ip6_payload_len, srh.payload_len());
         // make sure rest of the packet still valid
-        let tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let tcp = srh.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
         assert_eq!(36869, tcp.src_port());
 
         let mut srh = tcp.deparse();
         let srh_packet_len = srh.len();
         srh.reconcile_all();
-        let ipv6 = srh.deparse();
-        assert_ne!(srh_packet_len, ipv6_payload_len as usize);
-        assert_eq!(srh_packet_len, ipv6.payload_length() as usize)
+        let ip6 = srh.deparse();
+        assert_ne!(srh_packet_len, ip6_payload_len as usize);
+        assert_eq!(srh_packet_len, ip6.payload_length() as usize)
     }
 
     #[capsule::test]
     fn remove_segment_routing_packet() {
         let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
-        let ipv6 = srh.remove().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let srh = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
+        let ip6 = srh.remove().unwrap();
 
         // make sure next header is fixed
-        assert_eq!(ProtocolNumbers::Tcp, ipv6.next_header());
+        assert_eq!(ProtocolNumbers::Tcp, ip6.next_header());
 
         // make sure rest of the packet still valid
-        let tcp = ipv6.parse::<Tcp6>().unwrap();
+        let tcp = ip6.parse::<Tcp6>().unwrap();
         assert_eq!(3464, tcp.src_port());
     }
 }

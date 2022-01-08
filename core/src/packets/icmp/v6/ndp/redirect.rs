@@ -242,7 +242,7 @@ impl Default for RedirectBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -254,8 +254,8 @@ mod tests {
     fn push_and_set_redirect() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ipv6.push::<Redirect<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut redirect = ip6.push::<Redirect<Ip6>>().unwrap();
 
         assert_eq!(4, redirect.header_len());
         assert_eq!(RedirectBody::size_of(), redirect.payload_len());
@@ -276,8 +276,8 @@ mod tests {
         // starts with a buffer larger than min MTU.
         let packet = Mbuf::from_bytes(&[42; 1600]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ipv6.push::<Redirect<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut redirect = ip6.push::<Redirect<Ip6>>().unwrap();
         let mut options = redirect.options_mut();
         let _ = options.prepend::<RedirectedHeader<'_>>().unwrap();
 

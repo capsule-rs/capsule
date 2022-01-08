@@ -20,7 +20,7 @@
 
 use crate::ensure;
 use crate::packets::ip::v4::Ip4;
-use crate::packets::ip::v6::Ipv6;
+use crate::packets::ip::v6::Ip6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::{u16be, u32be};
 use crate::packets::{checksum, Internal, Packet, SizeOf};
@@ -626,8 +626,8 @@ impl<E: IpPacket> Packet for Tcp<E> {
 /// A type alias for an Ethernet IPv4 TCP packet.
 pub type Tcp4 = Tcp<Ip4>;
 
-/// A type alias for an IPv6 TCP packet.
-pub type Tcp6 = Tcp<Ipv6>;
+/// A type alias for an Ethernet IPv6 TCP packet.
+pub type Tcp6 = Tcp<Ip6>;
 
 /// TCP header.
 ///
@@ -732,9 +732,9 @@ mod tests {
     fn tcp_flow_v6() {
         let packet = Mbuf::from_bytes(&SR_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let srh = ipv6.parse::<SegmentRouting<Ipv6>>().unwrap();
-        let tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let srh = ip6.parse::<SegmentRouting<Ip6>>().unwrap();
+        let tcp = srh.parse::<Tcp<SegmentRouting<Ip6>>>().unwrap();
         let flow = tcp.flow();
 
         assert_eq!("2001:db8:85a3::1", flow.src_ip().to_string());

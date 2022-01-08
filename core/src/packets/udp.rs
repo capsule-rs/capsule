@@ -20,7 +20,7 @@
 
 use crate::ensure;
 use crate::packets::ip::v4::Ip4;
-use crate::packets::ip::v6::Ipv6;
+use crate::packets::ip::v6::Ip6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::u16be;
 use crate::packets::{checksum, Internal, Packet, SizeOf};
@@ -372,8 +372,8 @@ impl<E: IpPacket> Packet for Udp<E> {
 /// A type alias for an Ethernet IPv4 UDP packet.
 pub type Udp4 = Udp<Ip4>;
 
-/// A type alias for an IPv6 UDP packet.
-pub type Udp6 = Udp<Ipv6>;
+/// A type alias for an Ethernet IPv6 UDP packet.
+pub type Udp6 = Udp<Ip6>;
 
 /// UDP header.
 #[derive(Clone, Copy, Debug, Default, SizeOf)]

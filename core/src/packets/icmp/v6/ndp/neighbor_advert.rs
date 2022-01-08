@@ -271,7 +271,7 @@ impl Default for NeighborAdvertisementBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -283,8 +283,8 @@ mod tests {
     fn push_and_set_neighbor_advertisement() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut advert = ipv6.push::<NeighborAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut advert = ip6.push::<NeighborAdvertisement<Ip6>>().unwrap();
 
         assert_eq!(4, advert.header_len());
         assert_eq!(NeighborAdvertisementBody::size_of(), advert.payload_len());

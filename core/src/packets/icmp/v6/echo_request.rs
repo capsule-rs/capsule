@@ -219,7 +219,7 @@ struct EchoRequestBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -231,8 +231,8 @@ mod tests {
     fn push_and_set_echo_request() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut echo = ipv6.push::<EchoRequest<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
+        let mut echo = ip6.push::<EchoRequest<Ip6>>().unwrap();
 
         assert_eq!(4, echo.header_len());
         assert_eq!(EchoRequestBody::size_of(), echo.payload_len());

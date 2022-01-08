@@ -500,7 +500,7 @@ mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::RouterAdvertisement;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
 
@@ -513,16 +513,16 @@ mod tests {
     fn parse_icmpv6_packet() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let icmp6 = ip6.parse::<Icmpv6<Ip6>>().unwrap();
 
         // parses the generic header
-        assert_eq!(Icmpv6Types::RouterAdvertisement, icmpv6.msg_type());
-        assert_eq!(0, icmpv6.code());
-        assert_eq!(0xf50c, icmpv6.checksum());
+        assert_eq!(Icmpv6Types::RouterAdvertisement, icmp6.msg_type());
+        assert_eq!(0, icmp6.code());
+        assert_eq!(0xf50c, icmp6.checksum());
 
         // downcasts to specific message
-        let advert = icmpv6.downcast::<RouterAdvertisement<Ipv6>>().unwrap();
+        let advert = icmp6.downcast::<RouterAdvertisement<Ip6>>().unwrap();
         assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
         assert_eq!(0, advert.code());
         assert_eq!(0xf50c, advert.checksum());
@@ -534,48 +534,48 @@ mod tests {
         assert_eq!(0, advert.retrans_timer());
 
         // also can one-step parse
-        let ipv6 = advert.deparse();
-        assert!(ipv6.parse::<RouterAdvertisement<Ipv6>>().is_ok());
+        let ip6 = advert.deparse();
+        assert!(ip6.parse::<RouterAdvertisement<Ip6>>().is_ok());
     }
 
     #[capsule::test]
     fn parse_wrong_icmpv6_type() {
         let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let icmp6 = ip6.parse::<Icmpv6<Ip6>>().unwrap();
 
-        assert!(icmpv6.downcast::<EchoReply<Ipv6>>().is_err());
+        assert!(icmp6.downcast::<EchoReply<Ip6>>().is_err());
     }
 
     #[capsule::test]
     fn parse_non_icmpv6_packet() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
 
-        assert!(ipv6.parse::<Icmpv6<Ipv6>>().is_err());
+        assert!(ip6.parse::<Icmpv6<Ip6>>().is_err());
     }
 
     #[capsule::test]
     fn compute_checksum() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let mut icmp6 = ip6.parse::<Icmpv6<Ip6>>().unwrap();
 
-        let expected = icmpv6.checksum();
+        let expected = icmp6.checksum();
         // no payload change but force a checksum recompute anyway
-        icmpv6.reconcile_all();
-        assert_eq!(expected, icmpv6.checksum());
+        icmp6.reconcile_all();
+        assert_eq!(expected, icmp6.checksum());
     }
 
     #[capsule::test]
     fn push_icmpv6_header_without_body() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
 
-        assert!(ipv6.push::<Icmpv6<Ipv6>>().is_err());
+        assert!(ip6.push::<Icmpv6<Ip6>>().is_err());
     }
 }

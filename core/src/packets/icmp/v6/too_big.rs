@@ -189,7 +189,7 @@ struct PacketTooBigBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
+    use crate::packets::ip::v6::Ip6;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::IPV6_TCP_PACKET;
 
@@ -202,10 +202,10 @@ mod tests {
     fn push_and_set_packet_too_big() {
         let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let tcp_len = ipv6.payload_len();
+        let ip6 = ethernet.parse::<Ip6>().unwrap();
+        let tcp_len = ip6.payload_len();
 
-        let mut too_big = ipv6.push::<PacketTooBig<Ipv6>>().unwrap();
+        let mut too_big = ip6.push::<PacketTooBig<Ip6>>().unwrap();
 
         assert_eq!(4, too_big.header_len());
         assert_eq!(PacketTooBigBody::size_of() + tcp_len, too_big.payload_len());
@@ -225,12 +225,12 @@ mod tests {
         // starts with a buffer.
         let packet = Mbuf::from_bytes(&[42; 1600]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let ip6 = ethernet.push::<Ip6>().unwrap();
 
         // the max packet len is MTU + Ethernet header
         let max_len = IPV6_MIN_MTU + 14;
 
-        let mut too_big = ipv6.push::<PacketTooBig<Ipv6>>().unwrap();
+        let mut too_big = ip6.push::<PacketTooBig<Ip6>>().unwrap();
         assert!(too_big.mbuf().data_len() > max_len);
 
         too_big.reconcile_all();
