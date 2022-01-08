@@ -226,10 +226,10 @@ jobs:
           sudo sysctl -w vm.nr_hugepages=1024
           cat /proc/meminfo | grep Huge
 
-      - name: cargo-run-ping4d-with-address-sanitizer
+      - name: cargo-run-pktdump-with-address-sanitizer
         run: |
           docker run --rm --privileged --network=host \
-            -w /home/capsule/examples/ping4d \
+            -w /home/capsule/examples/pktdump \
             -v /dev/hugepages:/dev/hugepages \
             -v `pwd`:/home/capsule \
             --env RUSTFLAGS="-Z sanitizer=address" \
@@ -238,7 +238,7 @@ jobs:
             getcapsule/sandbox \
             /bin/bash -c "rustup install nightly && rustup default nightly \
             && rustup component add rust-src \
-            && cargo run --target x86_64-unknown-linux-gnu -Zbuild-std -- -f ping4d.toml"
+            && cargo run --target x86_64-unknown-linux-gnu -Zbuild-std -- -f pktdump.toml"
 
   test:
     runs-on: ubuntu-18.04
