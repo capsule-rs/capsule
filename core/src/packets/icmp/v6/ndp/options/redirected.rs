@@ -70,7 +70,7 @@ use std::ptr::NonNull;
 /// ```
 /// let ethernet = orig_ipv6.deparse();
 /// let ipv6 = ethernet.push::<Ipv6>()?;
-/// let mut redirect = ipv6.push::<Redirect<Ipv6>>()?;
+/// let mut redirect = ipv6.push::<Redirect>()?;
 /// let mut options = redirect.options_mut();
 /// let _ = options.prepend::<RedirectedHeader<'_>>();
 /// redirect.reconcile();
@@ -249,8 +249,8 @@ mod tests {
 
         let packet = Mbuf::from_bytes(&data).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ipv6.push::<Redirect<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut redirect = ip6.push::<Redirect>().unwrap();
         let mut options = redirect.options_mut();
         let mut header = options.prepend::<RedirectedHeader<'_>>().unwrap();
 

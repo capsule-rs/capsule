@@ -63,7 +63,7 @@ pub trait NdpPacket: Packet {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut iter = advert.options_iter();
     ///
     /// while let Some(option) = iter.next()? {
@@ -220,7 +220,7 @@ impl<'a> ImmutableNdpOption<'a> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut iter = advert.options();
     ///
     /// while let Some(option) = iter.next()? {
@@ -342,7 +342,7 @@ impl<'a> MutableNdpOption<'a> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut iter = advert.options_mut().iter();
     ///
     /// while let Some(option) = iter.next()? {
@@ -416,7 +416,7 @@ impl NdpOptions<'_> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut options = advert.options_mut();
     /// let mut iter = options.iter();
     ///
@@ -437,7 +437,7 @@ impl NdpOptions<'_> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut options = advert.options_mut();
     /// let mut source = options.prepend::<LinkLayerAddress<'_>>()?;
     /// source.set_option_type_source();
@@ -452,7 +452,7 @@ impl NdpOptions<'_> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut options = advert.options_mut();
     /// let mut source = options.append::<LinkLayerAddress<'_>>()?;
     /// source.set_option_type_source();
@@ -471,7 +471,7 @@ impl NdpOptions<'_> {
     /// # Example
     ///
     /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    /// let advert = ipv6.parse::<RouterAdvertisement>()?;
     /// let mut options = advert.options_mut();
     /// let _ = options.retain(|option| option.option_type() == NdpOptionTypes::PrefixInformation);
     /// ```
@@ -559,8 +559,8 @@ mod tests {
     fn iterate_immutable_ndp_options() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ip6.parse::<RouterAdvertisement>().unwrap();
 
         let mut prefix = false;
         let mut mtu = false;
@@ -588,8 +588,8 @@ mod tests {
     fn invalid_ndp_option_length() {
         let packet = Mbuf::from_bytes(&INVALID_OPTION_LENGTH).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ip6.parse::<RouterAdvertisement>().unwrap();
 
         assert!(advert.options_iter().next().is_err());
     }
@@ -598,8 +598,8 @@ mod tests {
     fn downcast_immutable_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.peek::<Ethernet>().unwrap();
-        let ipv6 = ethernet.peek::<Ipv6>().unwrap();
-        let advert = ipv6.peek::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.peek::<Ipv6>().unwrap();
+        let advert = ip6.peek::<RouterAdvertisement>().unwrap();
 
         let mut iter = advert.options_iter();
 
@@ -616,8 +616,8 @@ mod tests {
     fn iterate_mutable_ndp_options() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
 
         let mut prefix = false;
         let mut mtu = false;
@@ -646,8 +646,8 @@ mod tests {
     fn downcast_mutable_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
@@ -664,8 +664,8 @@ mod tests {
     fn modify_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
@@ -683,8 +683,8 @@ mod tests {
     fn prepend_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut target = options.prepend::<LinkLayerAddress<'_>>().unwrap();
         target.set_option_type_target();
@@ -699,8 +699,8 @@ mod tests {
     fn append_ndp_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut target = options.append::<LinkLayerAddress<'_>>().unwrap();
         target.set_option_type_target();
@@ -723,8 +723,8 @@ mod tests {
     fn retain_ndp_options() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let _ = options.retain(|option| option.downcast::<Mtu<'_>>().is_ok());
 
@@ -754,8 +754,8 @@ mod tests {
 
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
 
         let mut iter = advert.options_iter();
         advert.set_code(0);
@@ -775,8 +775,8 @@ mod tests {
     fn cannot_mutate_immutable_option() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut iter = advert.options_iter();
 
         let mut option = iter.next().unwrap().unwrap();
@@ -802,8 +802,8 @@ mod tests {
     fn cannot_mutate_options_while_iterating_options() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
 
         let mut options = advert.options_mut();
         let mut iter = options.iter();

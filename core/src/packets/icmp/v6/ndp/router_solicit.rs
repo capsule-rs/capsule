@@ -18,7 +18,7 @@
 
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
-use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet};
 use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -49,7 +49,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.1
 #[derive(Icmpv6Packet)]
-pub struct RouterSolicitation<E: Ipv6Packet> {
+pub struct RouterSolicitation<E: Ipv6Packet = Ipv6> {
     icmp: Icmpv6<E>,
     body: NonNull<RouterSolicitationBody>,
 }
@@ -144,7 +144,6 @@ struct RouterSolicitationBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -156,8 +155,8 @@ mod tests {
     fn push_and_set_router_solicitation() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut solicit = ipv6.push::<RouterSolicitation<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut solicit = ip6.push::<RouterSolicitation>().unwrap();
 
         assert_eq!(4, solicit.header_len());
         assert_eq!(RouterSolicitationBody::size_of(), solicit.payload_len());

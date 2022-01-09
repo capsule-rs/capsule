@@ -39,31 +39,31 @@ fn dump_pkt(packet: Mbuf) -> Result<Postmark> {
     info!("{}", fmt);
 
     match ethernet.ether_type() {
-        EtherTypes::Ipv4 => dump_v4(&ethernet),
-        EtherTypes::Ipv6 => dump_v6(&ethernet),
+        EtherTypes::Ipv4 => dump_ip4(&ethernet),
+        EtherTypes::Ipv6 => dump_ip6(&ethernet),
         _ => Err(anyhow!("not v4 or v6.")),
     }?;
 
     Ok(Postmark::Drop(ethernet.reset()))
 }
 
-fn dump_v4(ethernet: &Ethernet) -> Result<()> {
-    let v4 = ethernet.peek::<Ipv4>()?;
-    let fmt = format!("{:?}", v4).yellow();
+fn dump_ip4(ethernet: &Ethernet) -> Result<()> {
+    let ip4 = ethernet.peek::<Ipv4>()?;
+    let fmt = format!("{:?}", ip4).yellow();
     info!("{}", fmt);
 
-    let tcp = v4.peek::<Tcp4>()?;
+    let tcp = ip4.peek::<Tcp4>()?;
     dump_tcp(&tcp);
 
     Ok(())
 }
 
-fn dump_v6(ethernet: &Ethernet) -> Result<()> {
-    let v6 = ethernet.peek::<Ipv6>()?;
-    let fmt = format!("{:?}", v6).cyan();
+fn dump_ip6(ethernet: &Ethernet) -> Result<()> {
+    let ip6 = ethernet.peek::<Ipv6>()?;
+    let fmt = format!("{:?}", ip6).cyan();
     info!("{}", fmt);
 
-    let tcp = v6.peek::<Tcp6>()?;
+    let tcp = ip6.peek::<Tcp6>()?;
     dump_tcp(&tcp);
 
     Ok(())

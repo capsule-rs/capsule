@@ -21,7 +21,7 @@
 use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Mbuf, Packet, SizeOf};
+use crate::packets::{Datalink, Internal, Mbuf, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -331,6 +331,18 @@ impl Packet for Ethernet {
     }
 }
 
+impl Datalink for Ethernet {
+    #[inline]
+    fn protocol_type(&self) -> EtherType {
+        self.ether_type()
+    }
+
+    #[inline]
+    fn set_protocol_type(&mut self, ether_type: EtherType) {
+        self.set_ether_type(ether_type)
+    }
+}
+
 /// The protocol identifier of the Ethernet frame payload.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[repr(C, packed)]
@@ -479,7 +491,7 @@ impl SizeOf for EthernetHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
+    use crate::testils::byte_arrays::{UDP4_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
 
     #[test]
     fn size_of_ethernet_header() {
@@ -496,7 +508,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ethernet_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
@@ -530,7 +542,7 @@ mod tests {
 
     #[capsule::test]
     fn swap_addresses() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
         ethernet.swap_addresses();
 

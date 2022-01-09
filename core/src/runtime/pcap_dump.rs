@@ -188,15 +188,15 @@ unsafe extern "C" fn tx_callback_fn(
 mod tests {
     use super::*;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
+    use crate::testils::byte_arrays::{TCP4_PACKET, UDP4_PACKET};
 
     #[capsule::test]
     fn dump_mbufs_to_file() -> Result<()> {
         let filename = "file.pcap";
         let mut capture = CaptureFile::new(filename)?;
 
-        let tcp = Mbuf::from_bytes(&IPV4_TCP_PACKET)?;
-        let udp = Mbuf::from_bytes(&IPV4_UDP_PACKET)?;
+        let tcp = Mbuf::from_bytes(&TCP4_PACKET)?;
+        let udp = Mbuf::from_bytes(&UDP4_PACKET)?;
 
         dump_mbufs(
             &mut capture.dumper,
@@ -208,9 +208,9 @@ mod tests {
         // reads the packets from file and assert they are the same.
         let mut h2 = pcap::open_offline(filename)?;
         let packet = pcap::next(&mut h2)?;
-        assert_eq!(&IPV4_TCP_PACKET, packet);
+        assert_eq!(&TCP4_PACKET, packet);
         let packet = pcap::next(&mut h2)?;
-        assert_eq!(&IPV4_UDP_PACKET, packet);
+        assert_eq!(&UDP4_PACKET, packet);
 
         pcap::close(&mut h2);
 

@@ -64,7 +64,7 @@ pub const VLAN_QINQ_PACKET: [u8; 68] = [
 
 /// An ARP packet.
 #[rustfmt::skip]
-pub const ARP4_PACKET: [u8; 42] = [
+pub const ARP_PACKET: [u8; 42] = [
 // Ethernet header
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
@@ -90,7 +90,7 @@ pub const ARP4_PACKET: [u8; 42] = [
 
 /// An IPv4 TCP packet.
 #[rustfmt::skip]
-pub const IPV4_TCP_PACKET: [u8; 58] = [
+pub const TCP4_PACKET: [u8; 58] = [
 // Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
@@ -124,7 +124,7 @@ pub const IPV4_TCP_PACKET: [u8; 58] = [
 
 /// An IPv4 UDP packet.
 #[rustfmt::skip]
-pub const IPV4_UDP_PACKET: [u8; 52] = [
+pub const UDP4_PACKET: [u8; 52] = [
 // Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
@@ -152,7 +152,7 @@ pub const IPV4_UDP_PACKET: [u8; 52] = [
 
 /// An IPv6 TCP packet.
 #[rustfmt::skip]
-pub const IPV6_TCP_PACKET: [u8; 78] = [
+pub const TCP6_PACKET: [u8; 78] = [
 // Ethernet header
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
