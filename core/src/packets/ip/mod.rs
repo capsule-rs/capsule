@@ -79,6 +79,9 @@ pub mod ProtocolNumbers {
 
     /// Internet Control Message Protocol for IPv6.
     pub const Icmpv6: ProtocolNumber = ProtocolNumber(0x3A);
+
+    /// Generic Routing Encapsulation.
+    pub const Gre: ProtocolNumber = ProtocolNumber(0x2F);
 }
 
 impl fmt::Display for ProtocolNumber {
@@ -95,6 +98,7 @@ impl fmt::Display for ProtocolNumber {
                 ProtocolNumbers::Ipv6Frag => "IPv6 Frag".to_string(),
                 ProtocolNumbers::Icmpv4 => "ICMPv4".to_string(),
                 ProtocolNumbers::Icmpv6 => "ICMPv6".to_string(),
+                ProtocolNumbers::Gre => "GRE".to_string(),
                 _ => format!("0x{:02x}", self.0),
             }
         )
@@ -287,6 +291,7 @@ mod tests {
         assert_eq!("IPv6 Frag", ProtocolNumbers::Ipv6Frag.to_string());
         assert_eq!("ICMPv4", ProtocolNumbers::Icmpv4.to_string());
         assert_eq!("ICMPv6", ProtocolNumbers::Icmpv6.to_string());
+        assert_eq!("GRE", ProtocolNumbers::Gre.to_string());
         assert_eq!("0x00", ProtocolNumber::new(0).to_string());
     }
 }

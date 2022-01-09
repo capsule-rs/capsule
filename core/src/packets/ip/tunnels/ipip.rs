@@ -31,6 +31,7 @@ use std::marker::PhantomData;
 /// IP in IP tunnel connects two separate IPv4 networks. an outer IP header
 /// is inserted before the datagram's existing IP header, as follows:
 ///
+/// ```
 ///                                     +---------------------------+
 ///                                     |                           |
 ///                                     |      Outer IP Header      |
@@ -46,19 +47,20 @@ use std::marker::PhantomData;
 /// |                           |       |                           |
 /// |                           |       |                           |
 /// +---------------------------+       +---------------------------+
+/// ```
 ///
 /// This tunnel only supports unicast packets.
 ///
 /// [IPv4]: Ipv4
 /// [IETF RFC 2003]: https://datatracker.ietf.org/doc/html/rfc2003
 #[derive(Debug)]
-pub struct IpIp<E: Datalink = Ethernet> {
-    _phantom: PhantomData<E>,
+pub struct IpIp<D: Datalink = Ethernet> {
+    _phantom: PhantomData<D>,
 }
 
-impl<E: Datalink> Tunnel for IpIp<E> {
-    type Payload = Ipv4<E>;
-    type Delivery = Ipv4<E>;
+impl<D: Datalink> Tunnel for IpIp<D> {
+    type Payload = Ipv4<D>;
+    type Delivery = Ipv4<D>;
 
     /// Encapsulates the existing IPv4 packet by prepending an outer IPv4
     /// packet.
@@ -137,7 +139,9 @@ mod tests {
         assert_eq!(5, delivery.dscp());
         assert_eq!(1, delivery.ecn());
         assert!(delivery.dont_fragment());
-        assert_eq!(payload_len + 20, delivery.len());
+
+        // check payload matches original packet length
+        assert_eq!(payload_len, delivery.payload_len());
     }
 
     #[capsule::test]

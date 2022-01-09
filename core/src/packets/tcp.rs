@@ -470,7 +470,7 @@ impl<E: IpPacket> Tcp<E> {
                 .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Tcp)
                 .sum();
-            let checksum = checksum::compute(pseudo_header_sum, data);
+            let checksum = checksum::ones_complement(pseudo_header_sum, data);
             self.set_checksum(checksum);
         } else {
             // we are reading till the end of buffer, should never run out

@@ -21,6 +21,7 @@
 pub mod arp;
 pub mod checksum;
 pub mod ethernet;
+pub mod gre;
 pub mod icmp;
 pub mod ip;
 mod mbuf;

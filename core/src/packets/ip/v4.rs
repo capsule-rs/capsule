@@ -325,7 +325,7 @@ impl<E: Datalink> Ipv4<E> {
 
         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.header_len()) {
             let data = unsafe { data.as_ref() };
-            let checksum = checksum::compute(0, data);
+            let checksum = checksum::ones_complement(0, data);
             self.set_checksum(checksum);
         } else {
             // we are reading the entire header, should never run out

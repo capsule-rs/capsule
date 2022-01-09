@@ -33,6 +33,7 @@ use std::marker::PhantomData;
 /// and routers that need to interoperate with IPv4 hosts and utilize IPv4
 /// routing infrastructures.
 ///
+/// ```
 ///                                              +-------------+
 ///                                              |    IPv4     |
 ///                                              |   Header    |
@@ -48,18 +49,19 @@ use std::marker::PhantomData;
 ///              ~    Data     ~                 ~    Data     ~
 ///              |             |                 |             |
 ///              +-------------+                 +-------------+
+/// ```
 ///
 /// [IPv6]: Ipv6
 /// [IPv4]: Ipv4
 /// [IETF RFC 4213]: https://datatracker.ietf.org/doc/html/rfc4213
 #[derive(Debug)]
-pub struct Ip6in4<E: Datalink = Ethernet> {
-    _phantom: PhantomData<E>,
+pub struct Ip6in4<D: Datalink = Ethernet> {
+    _phantom: PhantomData<D>,
 }
 
-impl<E: Datalink> Tunnel for Ip6in4<E> {
-    type Payload = Ipv6<E>;
-    type Delivery = Ipv4<E>;
+impl<D: Datalink> Tunnel for Ip6in4<D> {
+    type Payload = Ipv6<D>;
+    type Delivery = Ipv4<D>;
 
     /// Encapsulates the existing IPv6 packet by prepending an outer IPv4
     /// packet.
@@ -131,7 +133,9 @@ mod tests {
         let delivery = ip6.encap::<Ip6in4>().unwrap();
         assert_eq!(5, delivery.dscp());
         assert_eq!(1, delivery.ecn());
-        assert_eq!(payload_len + 20, delivery.len());
+
+        // check payload matches original packet length
+        assert_eq!(payload_len, delivery.payload_len());
     }
 
     #[capsule::test]

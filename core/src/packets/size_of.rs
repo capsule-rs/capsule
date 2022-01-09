@@ -17,6 +17,7 @@
 */
 
 use crate::net::MacAddr;
+use crate::packets::types::{u16be, u32be};
 use std::mem;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -51,6 +52,18 @@ impl SizeOf for () {
 impl SizeOf for u8 {
     fn size_of() -> usize {
         mem::size_of::<u8>()
+    }
+}
+
+impl SizeOf for u16be {
+    fn size_of() -> usize {
+        mem::size_of::<u16be>()
+    }
+}
+
+impl SizeOf for u32be {
+    fn size_of() -> usize {
+        mem::size_of::<u32be>()
     }
 }
 
