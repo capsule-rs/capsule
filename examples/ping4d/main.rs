@@ -43,8 +43,8 @@ fn reply_echo(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     reply.set_dst(ip4.src());
     reply.set_ttl(255);
 
-    let request = ip4.peek::<EchoRequest<Ipv4>>()?;
-    let mut reply = reply.push::<EchoReply<Ipv4>>()?;
+    let request = ip4.peek::<EchoRequest>()?;
+    let mut reply = reply.push::<EchoReply>()?;
     reply.set_identifier(request.identifier());
     reply.set_seq_no(request.seq_no());
     reply.set_data(request.data())?;

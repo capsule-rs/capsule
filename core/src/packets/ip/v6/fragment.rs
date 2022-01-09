@@ -332,7 +332,7 @@ mod tests {
     use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, IPV6_TCP_PACKET};
+    use crate::testils::byte_arrays::{IPV6_FRAGMENT_PACKET, TCP6_PACKET};
 
     #[test]
     fn size_of_fragment_header() {
@@ -354,7 +354,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_fragment_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -391,7 +391,7 @@ mod tests {
 
     #[capsule::test]
     fn insert_fragment_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
 

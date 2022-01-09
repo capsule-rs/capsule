@@ -17,7 +17,7 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
-use crate::packets::ip::v4::Ipv4Packet;
+use crate::packets::ip::v4::{Ipv4, Ipv4Packet};
 use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -48,7 +48,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Icmpv4Packet)]
-pub struct EchoRequest<E: Ipv4Packet> {
+pub struct EchoRequest<E: Ipv4Packet = Ipv4> {
     icmp: Icmpv4<E>,
     body: NonNull<EchoRequestBody>,
 }
@@ -223,7 +223,6 @@ struct EchoRequestBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ipv4;
     use crate::packets::Mbuf;
 
     #[test]
@@ -236,7 +235,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip4 = ethernet.push::<Ipv4>().unwrap();
-        let mut echo = ip4.push::<EchoRequest<Ipv4>>().unwrap();
+        let mut echo = ip4.push::<EchoRequest>().unwrap();
 
         assert_eq!(4, echo.header_len());
         assert_eq!(EchoRequestBody::size_of(), echo.payload_len());

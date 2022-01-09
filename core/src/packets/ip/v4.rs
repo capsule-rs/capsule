@@ -620,7 +620,7 @@ mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
+    use crate::testils::byte_arrays::{TCP6_PACKET, UDP4_PACKET};
 
     #[test]
     fn size_of_ipv4_header() {
@@ -629,7 +629,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv4_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -651,7 +651,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_ipv4_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert!(ethernet.parse::<Ipv4>().is_err());
@@ -659,7 +659,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv4_setter_checks() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -724,7 +724,7 @@ mod tests {
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 

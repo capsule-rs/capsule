@@ -390,7 +390,7 @@ mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
+    use crate::testils::byte_arrays::{TCP4_PACKET, UDP4_PACKET};
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
@@ -400,7 +400,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_udp_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ip4.parse::<Udp4>().unwrap();
@@ -414,7 +414,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_udp_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -423,7 +423,7 @@ mod tests {
 
     #[capsule::test]
     fn udp_flow_v4() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let udp = ip4.parse::<Udp4>().unwrap();
@@ -438,7 +438,7 @@ mod tests {
 
     #[capsule::test]
     fn set_src_dst_ip() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ip4.parse::<Udp4>().unwrap();
@@ -461,7 +461,7 @@ mod tests {
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let mut udp = ip4.parse::<Udp4>().unwrap();

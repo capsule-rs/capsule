@@ -33,7 +33,7 @@ pub use self::unreachable::*;
 pub use capsule_macros::Icmpv6Packet;
 
 use crate::ensure;
-use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet};
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::types::u16be;
 use crate::packets::{checksum, Internal, Packet, SizeOf};
@@ -70,14 +70,14 @@ use std::ptr::NonNull;
 ///
 /// ```
 /// if ipv6.next_header() == NextHeaders::Icmpv6 {
-///     let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>().unwrap();
+///     let icmpv6 = ipv6.parse::<Icmpv6>().unwrap();
 ///     println!("{}", icmpv6.msg_type());
 /// }
 /// ```
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443
 /// [`Icmpv6Message`]: Icmpv6Message
-pub struct Icmpv6<E: Ipv6Packet> {
+pub struct Icmpv6<E: Ipv6Packet = Ipv6> {
     envelope: E,
     header: NonNull<Icmpv6Header>,
     offset: usize,
@@ -377,8 +377,8 @@ pub struct Icmpv6Header {
 /// # Example
 ///
 /// ```
-/// let icmpv6 = ipv6.parse::<Icmpv6<Ipv6>>()?;
-/// let reply = icmpv6.downcast::<EchoReply<Ipv6>>()?;
+/// let icmpv6 = ipv6.parse::<Icmpv6>()?;
+/// let reply = icmpv6.downcast::<EchoReply>()?;
 /// ```
 ///
 /// [ICMPv6]: Icmpv6
@@ -500,9 +500,8 @@ mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::RouterAdvertisement;
-    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
+    use crate::testils::byte_arrays::{ICMPV6_PACKET, ROUTER_ADVERT_PACKET, TCP6_PACKET};
 
     #[test]
     fn size_of_icmpv6_header() {
@@ -514,7 +513,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
-        let icmp6 = ip6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let icmp6 = ip6.parse::<Icmpv6>().unwrap();
 
         // parses the generic header
         assert_eq!(Icmpv6Types::RouterAdvertisement, icmp6.msg_type());
@@ -522,7 +521,7 @@ mod tests {
         assert_eq!(0xf50c, icmp6.checksum());
 
         // downcasts to specific message
-        let advert = icmp6.downcast::<RouterAdvertisement<Ipv6>>().unwrap();
+        let advert = icmp6.downcast::<RouterAdvertisement>().unwrap();
         assert_eq!(Icmpv6Types::RouterAdvertisement, advert.msg_type());
         assert_eq!(0, advert.code());
         assert_eq!(0xf50c, advert.checksum());
@@ -535,7 +534,7 @@ mod tests {
 
         // also can one-step parse
         let ip6 = advert.deparse();
-        assert!(ip6.parse::<RouterAdvertisement<Ipv6>>().is_ok());
+        assert!(ip6.parse::<RouterAdvertisement>().is_ok());
     }
 
     #[capsule::test]
@@ -543,18 +542,18 @@ mod tests {
         let packet = Mbuf::from_bytes(&ICMPV6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
-        let icmp6 = ip6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let icmp6 = ip6.parse::<Icmpv6>().unwrap();
 
-        assert!(icmp6.downcast::<EchoReply<Ipv6>>().is_err());
+        assert!(icmp6.downcast::<EchoReply>().is_err());
     }
 
     #[capsule::test]
     fn parse_non_icmpv6_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
 
-        assert!(ip6.parse::<Icmpv6<Ipv6>>().is_err());
+        assert!(ip6.parse::<Icmpv6>().is_err());
     }
 
     #[capsule::test]
@@ -562,7 +561,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut icmp6 = ip6.parse::<Icmpv6<Ipv6>>().unwrap();
+        let mut icmp6 = ip6.parse::<Icmpv6>().unwrap();
 
         let expected = icmp6.checksum();
         // no payload change but force a checksum recompute anyway
@@ -576,6 +575,6 @@ mod tests {
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
 
-        assert!(ip6.push::<Icmpv6<Ipv6>>().is_err());
+        assert!(ip6.push::<Icmpv6>().is_err());
     }
 }

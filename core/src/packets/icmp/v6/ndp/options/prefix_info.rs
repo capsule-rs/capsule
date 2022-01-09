@@ -324,7 +324,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ip6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
@@ -356,7 +356,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
-        let mut advert = ip6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut advert = ip6.push::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut prefix = options.append::<PrefixInformation<'_>>().unwrap();
 

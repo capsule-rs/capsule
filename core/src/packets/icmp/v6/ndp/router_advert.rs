@@ -18,7 +18,7 @@
 
 use super::NdpPacket;
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
-use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet};
 use crate::packets::types::{u16be, u32be};
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -97,7 +97,7 @@ const O_FLAG: u8 = 0b0100_0000;
 ///
 /// [IETF RFC 4861]: https://tools.ietf.org/html/rfc4861#section-4.2
 #[derive(Icmpv6Packet)]
-pub struct RouterAdvertisement<E: Ipv6Packet> {
+pub struct RouterAdvertisement<E: Ipv6Packet = Ipv6> {
     icmp: Icmpv6<E>,
     body: NonNull<RouterAdvertisementBody>,
 }
@@ -302,7 +302,6 @@ struct RouterAdvertisementBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -315,7 +314,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
-        let mut advert = ip6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let mut advert = ip6.push::<RouterAdvertisement>().unwrap();
 
         assert_eq!(4, advert.header_len());
         assert_eq!(RouterAdvertisementBody::size_of(), advert.payload_len());

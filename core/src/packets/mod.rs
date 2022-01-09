@@ -382,11 +382,11 @@ mod tests {
     use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::udp::Udp4;
-    use crate::testils::byte_arrays::IPV4_UDP_PACKET;
+    use crate::testils::byte_arrays::UDP4_PACKET;
 
     #[capsule::test]
     fn parse_and_reset_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let len = packet.data_len();
 
         let ethernet = packet.parse::<Ethernet>().unwrap();
@@ -399,7 +399,7 @@ mod tests {
 
     #[capsule::test]
     fn peek_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
 
         let ethernet = packet.peek::<Ethernet>().unwrap();
         assert_eq!(MacAddr::new(0, 0, 0, 0, 0, 2), ethernet.src());
@@ -411,7 +411,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_and_deparse_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
         ip4.set_ttl(25);
@@ -425,7 +425,7 @@ mod tests {
 
     #[capsule::test]
     fn remove_header_and_payload() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     #[cfg(feature = "compile_failure")]
     fn cannot_mutate_packet_while_peeking_into_payload() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.peek::<Ipv4>().unwrap();
         ethernet.set_src(MacAddr::UNSPECIFIED);
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     #[cfg(feature = "compile_failure")]
     fn cannot_mutate_immutable_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.peek::<Ethernet>().unwrap();
         ethernet.set_src(MacAddr::UNSPECIFIED);
     }

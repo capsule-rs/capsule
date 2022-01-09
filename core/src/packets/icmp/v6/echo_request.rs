@@ -17,7 +17,7 @@
 */
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
-use crate::packets::ip::v6::Ipv6Packet;
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet};
 use crate::packets::types::u16be;
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -48,7 +48,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-4.1
 #[derive(Icmpv6Packet)]
-pub struct EchoRequest<E: Ipv6Packet> {
+pub struct EchoRequest<E: Ipv6Packet = Ipv6> {
     icmp: Icmpv6<E>,
     body: NonNull<EchoRequestBody>,
 }
@@ -219,7 +219,6 @@ struct EchoRequestBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -232,7 +231,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
-        let mut echo = ip6.push::<EchoRequest<Ipv6>>().unwrap();
+        let mut echo = ip6.push::<EchoRequest>().unwrap();
 
         assert_eq!(4, echo.header_len());
         assert_eq!(EchoRequestBody::size_of(), echo.payload_len());

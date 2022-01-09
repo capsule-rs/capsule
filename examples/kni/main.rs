@@ -38,7 +38,7 @@ fn route_pkt(packet: Mbuf, kni0: &Outbox) -> Result<Postmark> {
 
     match ip6.next_header() {
         ProtocolNumbers::Icmpv6 => {
-            let icmp = ip6.parse::<Icmpv6<Ipv6>>()?;
+            let icmp = ip6.parse::<Icmpv6>()?;
             let fmt = format!("to kni0: {}", icmp.msg_type()).cyan();
             info!("{}", fmt);
             let _ = kni0.push(icmp);
@@ -62,7 +62,7 @@ fn from_kni(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     let icmp = packet
         .parse::<Ethernet>()?
         .parse::<Ipv6>()?
-        .parse::<Icmpv6<Ipv6>>()?;
+        .parse::<Icmpv6>()?;
 
     let fmt = format!("from kni0: {}", icmp.msg_type()).green();
     info!("{}", fmt);

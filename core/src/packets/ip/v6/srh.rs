@@ -528,7 +528,7 @@ mod tests {
     use crate::packets::ip::ProtocolNumbers;
     use crate::packets::tcp::{Tcp, Tcp6};
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{IPV6_TCP_PACKET, SR_TCP_PACKET};
+    use crate::testils::byte_arrays::{SR_TCP_PACKET, TCP6_PACKET};
 
     #[test]
     fn size_of_segment_routing_header() {
@@ -558,7 +558,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_non_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
 
@@ -654,7 +654,7 @@ mod tests {
 
     #[capsule::test]
     fn insert_segment_routing_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip6 = ethernet.parse::<Ipv6>().unwrap();
         let ip6_payload_len = ip6.payload_len();

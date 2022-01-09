@@ -17,8 +17,7 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
-use crate::packets::ip::v4::Ipv4Packet;
-use crate::packets::ip::v4::IPV4_MIN_MTU;
+use crate::packets::ip::v4::{Ipv4, Ipv4Packet, IPV4_MIN_MTU};
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
@@ -44,7 +43,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Icmpv4Packet)]
-pub struct Redirect<E: Ipv4Packet> {
+pub struct Redirect<E: Ipv4Packet = Ipv4> {
     icmp: Icmpv4<E>,
     body: NonNull<RedirectBody>,
 }
@@ -219,9 +218,8 @@ impl Default for RedirectBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v4::Ipv4;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::IPV4_TCP_PACKET;
+    use crate::testils::byte_arrays::TCP4_PACKET;
 
     #[test]
     fn size_of_redirect_body() {
@@ -230,12 +228,12 @@ mod tests {
 
     #[capsule::test]
     fn push_and_set_redirect() {
-        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
         let ip4 = ethernet.parse::<Ipv4>().unwrap();
         let tcp_len = ip4.payload_len();
 
-        let mut redirect = ip4.push::<Redirect<Ipv4>>().unwrap();
+        let mut redirect = ip4.push::<Redirect>().unwrap();
 
         assert_eq!(4, redirect.header_len());
         assert_eq!(RedirectBody::size_of() + tcp_len, redirect.payload_len());
@@ -260,7 +258,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&[42; 100]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip4 = ethernet.push::<Ipv4>().unwrap();
-        let mut redirect = ip4.push::<Redirect<Ipv4>>().unwrap();
+        let mut redirect = ip4.push::<Redirect>().unwrap();
         assert!(redirect.data_len() > IPV4_MIN_MTU);
 
         redirect.reconcile_all();
@@ -273,7 +271,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&[42; 50]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip4 = ethernet.push::<Ipv4>().unwrap();
-        let mut redirect = ip4.push::<Redirect<Ipv4>>().unwrap();
+        let mut redirect = ip4.push::<Redirect>().unwrap();
         assert!(redirect.data_len() < IPV4_MIN_MTU);
 
         redirect.reconcile_all();

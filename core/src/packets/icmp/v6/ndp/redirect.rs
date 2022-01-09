@@ -18,7 +18,7 @@
 
 use super::{NdpPacket, RedirectedHeader};
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
-use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet, IPV6_MIN_MTU};
 use crate::packets::types::u32be;
 use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
@@ -68,7 +68,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 4861]: https://tools.ietf.org/html/rfc2461#section-4.5
 #[derive(Icmpv6Packet)]
-pub struct Redirect<E: Ipv6Packet> {
+pub struct Redirect<E: Ipv6Packet = Ipv6> {
     icmp: Icmpv6<E>,
     body: NonNull<RedirectBody>,
 }
@@ -242,7 +242,6 @@ impl Default for RedirectBody {
 mod tests {
     use super::*;
     use crate::packets::ethernet::Ethernet;
-    use crate::packets::ip::v6::Ipv6;
     use crate::packets::Mbuf;
 
     #[test]
@@ -255,7 +254,7 @@ mod tests {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ip6.push::<Redirect<Ipv6>>().unwrap();
+        let mut redirect = ip6.push::<Redirect>().unwrap();
 
         assert_eq!(4, redirect.header_len());
         assert_eq!(RedirectBody::size_of(), redirect.payload_len());
@@ -277,7 +276,7 @@ mod tests {
         let packet = Mbuf::from_bytes(&[42; 1600]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ip6.push::<Redirect<Ipv6>>().unwrap();
+        let mut redirect = ip6.push::<Redirect>().unwrap();
         let mut options = redirect.options_mut();
         let _ = options.prepend::<RedirectedHeader<'_>>().unwrap();
 
