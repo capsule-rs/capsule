@@ -65,6 +65,9 @@ pub mod ProtocolNumbers {
     /// IPv4 encapsulation.
     pub const Ipv4: ProtocolNumber = ProtocolNumber(0x04);
 
+    /// IPv6 encapsulation.
+    pub const Ipv6: ProtocolNumber = ProtocolNumber(0x29);
+
     /// Routing Header for IPv6.
     pub const Ipv6Route: ProtocolNumber = ProtocolNumber(0x2B);
 
@@ -87,6 +90,7 @@ impl fmt::Display for ProtocolNumber {
                 ProtocolNumbers::Tcp => "TCP".to_string(),
                 ProtocolNumbers::Udp => "UDP".to_string(),
                 ProtocolNumbers::Ipv4 => "IPv4".to_string(),
+                ProtocolNumbers::Ipv6 => "IPv6".to_string(),
                 ProtocolNumbers::Ipv6Route => "IPv6 Route".to_string(),
                 ProtocolNumbers::Ipv6Frag => "IPv6 Frag".to_string(),
                 ProtocolNumbers::Icmpv4 => "ICMPv4".to_string(),
@@ -278,6 +282,7 @@ mod tests {
         assert_eq!("TCP", ProtocolNumbers::Tcp.to_string());
         assert_eq!("UDP", ProtocolNumbers::Udp.to_string());
         assert_eq!("IPv4", ProtocolNumbers::Ipv4.to_string());
+        assert_eq!("IPv6", ProtocolNumbers::Ipv6.to_string());
         assert_eq!("IPv6 Route", ProtocolNumbers::Ipv6Route.to_string());
         assert_eq!("IPv6 Frag", ProtocolNumbers::Ipv6Frag.to_string());
         assert_eq!("ICMPv4", ProtocolNumbers::Icmpv4.to_string());

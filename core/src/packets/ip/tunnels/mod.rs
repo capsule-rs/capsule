@@ -18,6 +18,8 @@
 
 //! Various IP in IP tunnels.
 
+mod ip6in4;
 mod ipip;
 
+pub use self::ip6in4::*;
 pub use self::ipip::*;

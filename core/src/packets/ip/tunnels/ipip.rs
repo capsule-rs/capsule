@@ -105,7 +105,7 @@ impl<E: Datalink> Tunnel for IpIp<E> {
     fn decap(delivery: Self::Delivery) -> Result<Self::Payload> {
         ensure!(
             delivery.protocol() == ProtocolNumbers::Ipv4,
-            anyhow!("not an IPIP tunnel.")
+            anyhow!("not an IpIp tunnel.")
         );
 
         let envelope = delivery.remove()?;
@@ -119,7 +119,7 @@ mod tests {
     use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v4::EchoRequest;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::IPIP_PACKET;
+    use crate::testils::byte_arrays::{IP6IN4_PACKET, IPIP_PACKET};
 
     #[capsule::test]
     fn encap_ipip_payload() {
@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[capsule::test]
-    fn encap_0ttl_payload() {
+    fn encap_0_ttl_payload() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
         let ip4 = ethernet.push::<Ipv4>().unwrap();
@@ -168,12 +168,11 @@ mod tests {
 
     #[capsule::test]
     fn decap_not_ipip() {
-        let packet = Mbuf::new().unwrap();
-        let ethernet = packet.push::<Ethernet>().unwrap();
-        let ip4 = ethernet.push::<Ipv4>().unwrap();
-        let notipip = ip4.push::<EchoRequest>().unwrap().deparse();
+        let packet = Mbuf::from_bytes(&IP6IN4_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let notipip = ethernet.parse::<Ipv4>().unwrap();
 
-        // the protocol is icmpv4 not ipv4, not an ipip tunnel
+        // not an ipip tunnel
         assert!(notipip.decap::<IpIp>().is_err());
     }
 }
