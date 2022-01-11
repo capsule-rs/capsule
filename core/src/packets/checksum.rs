@@ -142,10 +142,10 @@ fn v6_csum(src: Ipv6Addr, dst: Ipv6Addr, packet_len: u16, protocol: ProtocolNumb
 ///
 /// [IETF RFC 1071]: https://tools.ietf.org/html/rfc1071
 #[allow(clippy::cast_ptr_alignment)]
-pub fn compute(pseudo_header_sum: u16, payload: &[u8]) -> u16 {
+pub fn ones_complement(base: u16, payload: &[u8]) -> u16 {
     let len = payload.len();
     let mut data = payload;
-    let mut checksum = u32::from(pseudo_header_sum);
+    let mut checksum = u32::from(base);
 
     // odd # of bytes, we add the last byte with padding separately
     if len % 2 > 0 {

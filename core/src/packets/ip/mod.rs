@@ -18,6 +18,7 @@
 
 //! Internet Protocol v4 and v6.
 
+pub mod tunnels;
 pub mod v4;
 pub mod v6;
 
@@ -61,17 +62,26 @@ pub mod ProtocolNumbers {
     /// User Datagram Protocol.
     pub const Udp: ProtocolNumber = ProtocolNumber(0x11);
 
+    /// IPv4 encapsulation.
+    pub const Ipv4: ProtocolNumber = ProtocolNumber(0x04);
+
+    /// IPv6 encapsulation.
+    pub const Ipv6: ProtocolNumber = ProtocolNumber(0x29);
+
     /// Routing Header for IPv6.
     pub const Ipv6Route: ProtocolNumber = ProtocolNumber(0x2B);
 
     /// Fragment Header for IPv6.
     pub const Ipv6Frag: ProtocolNumber = ProtocolNumber(0x2C);
 
+    /// Internet Control Message Protocol for IPv4.
+    pub const Icmpv4: ProtocolNumber = ProtocolNumber(0x01);
+
     /// Internet Control Message Protocol for IPv6.
     pub const Icmpv6: ProtocolNumber = ProtocolNumber(0x3A);
 
-    /// Internet Control Message Protocol for IPv4.
-    pub const Icmpv4: ProtocolNumber = ProtocolNumber(0x01);
+    /// Generic Routing Encapsulation.
+    pub const Gre: ProtocolNumber = ProtocolNumber(0x2F);
 }
 
 impl fmt::Display for ProtocolNumber {
@@ -82,10 +92,13 @@ impl fmt::Display for ProtocolNumber {
             match *self {
                 ProtocolNumbers::Tcp => "TCP".to_string(),
                 ProtocolNumbers::Udp => "UDP".to_string(),
+                ProtocolNumbers::Ipv4 => "IPv4".to_string(),
+                ProtocolNumbers::Ipv6 => "IPv6".to_string(),
                 ProtocolNumbers::Ipv6Route => "IPv6 Route".to_string(),
                 ProtocolNumbers::Ipv6Frag => "IPv6 Frag".to_string(),
-                ProtocolNumbers::Icmpv6 => "ICMPv6".to_string(),
                 ProtocolNumbers::Icmpv4 => "ICMPv4".to_string(),
+                ProtocolNumbers::Icmpv6 => "ICMPv6".to_string(),
+                ProtocolNumbers::Gre => "GRE".to_string(),
                 _ => format!("0x{:02x}", self.0),
             }
         )
@@ -272,10 +285,13 @@ mod tests {
     fn protocol_number_to_string() {
         assert_eq!("TCP", ProtocolNumbers::Tcp.to_string());
         assert_eq!("UDP", ProtocolNumbers::Udp.to_string());
+        assert_eq!("IPv4", ProtocolNumbers::Ipv4.to_string());
+        assert_eq!("IPv6", ProtocolNumbers::Ipv6.to_string());
         assert_eq!("IPv6 Route", ProtocolNumbers::Ipv6Route.to_string());
         assert_eq!("IPv6 Frag", ProtocolNumbers::Ipv6Frag.to_string());
-        assert_eq!("ICMPv6", ProtocolNumbers::Icmpv6.to_string());
         assert_eq!("ICMPv4", ProtocolNumbers::Icmpv4.to_string());
+        assert_eq!("ICMPv6", ProtocolNumbers::Icmpv6.to_string());
+        assert_eq!("GRE", ProtocolNumbers::Gre.to_string());
         assert_eq!("0x00", ProtocolNumber::new(0).to_string());
     }
 }

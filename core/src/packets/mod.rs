@@ -21,6 +21,7 @@
 pub mod arp;
 pub mod checksum;
 pub mod ethernet;
+pub mod gre;
 pub mod icmp;
 pub mod ip;
 mod mbuf;
@@ -300,6 +301,30 @@ pub trait Packet {
         self.reconcile();
         self.envelope_mut().reconcile_all();
     }
+
+    /// Encapsulates the packet in a tunnel.
+    ///
+    /// Returns the delivery packet added by the tunnel. Once encapsulated,
+    /// the current packet and the current payload must not be modified.
+    /// The delivery packet treats the current packet as its opaque payload.
+    #[inline]
+    fn encap<T: Tunnel<Payload = Self>>(self) -> Result<T::Delivery>
+    where
+        Self: Sized,
+    {
+        T::encap(self)
+    }
+
+    /// Decapsulates the tunnel by removing the delivery packet.
+    ///
+    /// Returns the payload packet encapsulated in the tunnel.
+    #[inline]
+    fn decap<T: Tunnel<Delivery = Self>>(self) -> Result<T::Payload>
+    where
+        Self: Sized,
+    {
+        T::decap(self)
+    }
 }
 
 /// A trait datalink layer protocol can implement.
@@ -323,6 +348,39 @@ pub trait Datalink: Packet {
     /// the ethernet type codes. When implementing a datalink with its own
     /// type codes, a translation from ether type is needed.
     fn set_protocol_type(&mut self, ether_type: EtherType);
+}
+
+/// A trait all tunnel protocols must implement.
+///
+/// This trait defines how the entry point should encapsulate the payload
+/// packet, and how the exit point should decapsulate the delivery packet.
+pub trait Tunnel {
+    /// The original packet type before entering the tunnel.
+    type Payload: Packet;
+
+    /// The packet type tunnel uses to deliver the datagram to the tunnel
+    /// exit point.
+    type Delivery: Packet;
+
+    /// Encapsulates the original packet and returns the new delivery packet.
+    ///  
+    /// Once encapsulated, the original packet and its payload becomes the
+    /// opaque payload of the newly prepended delivery packet. The original
+    /// packet cannot be parsed and manipulated until it's decapsulated. The
+    /// encapsulator must construct the payload packet in its entirety before
+    /// invoking this.
+    ///  
+    /// A tunnel protocol, for example GRE, may add multiple delivery packet
+    /// headers to the datagram. The return type should be the first
+    /// prepended packet type in the protocol stack.
+    fn encap(payload: Self::Payload) -> Result<Self::Delivery>;
+
+    /// Decapsulates the delivery packet and returns the original packet.
+    ///
+    /// Once decapsulated, the content of the delivery packet(s) are lost.
+    /// The decapsulator is responsible for caching the information before
+    /// invoking this.
+    fn decap(delivery: Self::Delivery) -> Result<Self::Payload>;
 }
 
 /// Immutable smart pointer to a struct.

@@ -315,7 +315,7 @@ impl Packet for Ethernet {
         // the buffer will cause data corruption because it will write
         // past the 14 bytes we extended the buffer by.
         mbuf.extend(offset, ETH_HEADER_SIZE)?;
-        let _ = mbuf.write_data_slice(offset, &[0; ETH_HEADER_SIZE])?;
+        let _ = mbuf.write_data_slice(offset, &[0u8; ETH_HEADER_SIZE])?;
         let header = mbuf.read_data(offset)?;
 
         Ok(Ethernet {

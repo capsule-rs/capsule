@@ -129,7 +129,7 @@ impl<E: Ipv6Packet> Icmpv6<E> {
                 .envelope()
                 .pseudo_header(data.len() as u16, ProtocolNumbers::Icmpv6)
                 .sum();
-            let checksum = checksum::compute(pseudo_header_sum, data);
+            let checksum = checksum::ones_complement(pseudo_header_sum, data);
             self.header_mut().checksum = checksum.into();
         } else {
             // we are reading till the end of buffer, should never run out

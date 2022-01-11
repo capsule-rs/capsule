@@ -120,7 +120,7 @@ impl<E: Ipv4Packet> Icmpv4<E> {
 
         if let Ok(data) = self.mbuf().read_data_slice(self.offset(), self.len()) {
             let data = unsafe { data.as_ref() };
-            let checksum = checksum::compute(0, data);
+            let checksum = checksum::ones_complement(0, data);
             self.header_mut().checksum = checksum.into();
         } else {
             // we are reading till the end of buffer, should never run out
