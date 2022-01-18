@@ -1,0 +1,489 @@
+/*
+* Copyright 2019 Comcast Cable Communications Management, LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+* SPDX-License-Identifier: Apache-2.0
+*/
+
+//! User Datagram Protocol.
+
+use crate::ensure;
+use crate::packets2::ip::v4::Ipv4;
+//use crate::packets::ip::v6::Ipv6;
+use crate::packets::types::u16be;
+use crate::packets2::ip::{Flow, IpPacket, ProtocolNumbers};
+use crate::packets2::{checksum, Packet, SizeOf};
+use anyhow::Result;
+use std::fmt;
+use std::net::IpAddr;
+use std::ptr::NonNull;
+use thiserror::Error;
+
+/// User Datagram Protocol packet based on [IETF RFC 768].
+///
+/// ```
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |          Source Port          |       Destination Port        |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |             Length            |            Checksum           |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                             data                              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// - *Source Port*: (16 bits)
+///      An  optional field that, when meaningful, indicates the port
+///      of the sending process, and may be assumed to be the port to which a
+///      reply should be addressed in the absence of any other information. If
+///      not used, a value of zero is inserted.
+///
+/// - *Destination Port*: (16 bits)
+///      Has a meaning  within the context of a particular Internet
+///      destination address.
+///
+/// - *Length*: (16 bits)
+///      The length  in octets of this user datagram including its
+///      header and the data. (This means the minimum value of the length is
+///      eight.)
+///
+/// - *Checksum*: (16 bits)
+///      The 16-bit one's complement of the one's complement sum of a
+///      pseudo header of information from the IP header, the UDP header, and
+///      the data, padded with zero octets at the end (if necessary) to make a
+///      multiple of two octets.
+///
+///      The pseudo header conceptually prefixed to the UDP header contains the
+///      source address, the destination address, the protocol, and the UDP
+///      length. This information gives protection against misrouted datagrams.
+///      This checksum procedure is the same as is used in TCP.
+///
+/// [IETF RFC 768]: https://tools.ietf.org/html/rfc768
+pub struct Udp<'env, E: Packet<'env> + IpPacket> {
+    envelope: &'env mut E,
+    header: NonNull<UdpHeader>,
+    offset: usize,
+}
+
+impl<'env, E: Packet<'env> + IpPacket> Udp<'env, E> {
+    #[inline]
+    fn header(&self) -> &UdpHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut UdpHeader {
+        unsafe { self.header.as_mut() }
+    }
+
+    /// Returns the source port.
+    #[inline]
+    pub fn src_port(&self) -> u16 {
+        self.header().src_port.into()
+    }
+
+    /// Sets the source port.
+    #[inline]
+    pub fn set_src_port(&mut self, src_port: u16) {
+        self.header_mut().src_port = src_port.into();
+    }
+
+    /// Returns the destination port.
+    #[inline]
+    pub fn dst_port(&self) -> u16 {
+        self.header().dst_port.into()
+    }
+
+    /// Sets the destination port.
+    #[inline]
+    pub fn set_dst_port(&mut self, dst_port: u16) {
+        self.header_mut().dst_port = dst_port.into();
+    }
+
+    /// Returns the length in octets of this user datagram including this
+    /// header and the data.
+    #[inline]
+    pub fn length(&self) -> u16 {
+        self.header().length.into()
+    }
+
+    #[inline]
+    fn set_length(&mut self, length: u16) {
+        self.header_mut().length = length.into()
+    }
+
+    /// Returns the checksum.
+    #[inline]
+    pub fn checksum(&self) -> u16 {
+        self.header().checksum.into()
+    }
+
+    /// Sets the checksum.
+    #[inline]
+    fn set_checksum(&mut self, checksum: u16) {
+        // For UDP, if the computed checksum is zero, it is transmitted as
+        // all ones. An all zero transmitted checksum value means that the
+        // transmitter generated no checksum. To set the checksum value to
+        // `0`, use `no_checksum` instead of `set_checksum`.
+        self.header_mut().checksum = match checksum {
+            0 => u16be::from(0xFFFF),
+            _ => checksum.into(),
+        }
+    }
+
+    /// Sets checksum to 0 indicating no checksum generated.
+    #[inline]
+    pub fn no_checksum(&mut self) {
+        self.header_mut().checksum = u16be::default();
+    }
+
+    /// Returns the data as a `u8` slice.
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        if let Ok(data) = self
+            .mbuf()
+            .read_data_slice(self.payload_offset(), self.payload_len())
+        {
+            unsafe { &*data.as_ptr() }
+        } else {
+            unreachable!()
+        }
+    }
+
+    /// Returns the 5-tuple that uniquely identifies a UDP connection.
+    #[inline]
+    pub fn flow(&self) -> Flow {
+        Flow::new(
+            self.envelope().src(),
+            self.envelope().dst(),
+            self.src_port(),
+            self.dst_port(),
+            ProtocolNumbers::Udp,
+        )
+    }
+
+    /// Sets the layer-3 source address and recomputes the checksum.
+    ///
+    /// It recomputes the checksum using the incremental method. This is more
+    /// efficient if the only change made is the address. Otherwise should use
+    /// `cascade` to recompute the checksum over all the fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Ipv4Error::InvalidAddress` if `src_ip` address type does not
+    /// match the address type of the envelope. For example, if the UDP packet
+    /// is inside a IPv4 packet, the `src_ip` must be an Ipv4Addr.
+    #[inline]
+    pub fn set_src_ip(&mut self, src_ip: IpAddr) -> Result<()> {
+        let old_ip = self.envelope().src();
+        let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &src_ip)?;
+        self.envelope_mut().set_src(src_ip)?;
+        self.set_checksum(checksum);
+        Ok(())
+    }
+
+    /// Sets the layer-3 destination address and recomputes the checksum.
+    ///
+    /// It recomputes the checksum using the incremental method. This is more
+    /// efficient if the only change made is the address. Otherwise should use
+    /// `cascade` to recompute the checksum over all the fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Ipv4Error::InvalidAddress` if `dst_ip` address type does not
+    /// match the address type of the envelope. For example, if the UDP packet
+    /// is inside a IPv4 packet, the `dst_ip` must be an Ipv4Addr.
+    #[inline]
+    pub fn set_dst_ip(&mut self, dst_ip: IpAddr) -> Result<()> {
+        let old_ip = self.envelope().dst();
+        let checksum = checksum::compute_with_ipaddr(self.checksum(), &old_ip, &dst_ip)?;
+        self.envelope_mut().set_dst(dst_ip)?;
+        self.set_checksum(checksum);
+        Ok(())
+    }
+
+    #[inline]
+    fn compute_checksum(&mut self) {
+        self.no_checksum();
+
+        if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
+            let data = unsafe { data.as_ref() };
+            let pseudo_header_sum = self
+                .envelope()
+                .pseudo_header(data.len() as u16, ProtocolNumbers::Udp)
+                .sum();
+            let checksum = checksum::ones_complement(pseudo_header_sum, data);
+            self.set_checksum(checksum);
+        } else {
+            // we are reading till the end of buffer, should never run out
+            unreachable!()
+        }
+    }
+}
+
+impl<'env, E: Packet<'env> + IpPacket> fmt::Debug for Udp<'env, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("udp")
+            .field("src_port", &self.src_port())
+            .field("dst_port", &self.dst_port())
+            .field("length", &self.length())
+            .field("checksum", &format!("0x{:04x}", self.checksum()))
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
+    }
+}
+
+impl<'env, E: Packet<'env> + IpPacket> Packet<'env> for Udp<'env, E> {
+    /// The preceding packet type for an UDP packet can be either an [IPv4]
+    /// packet, an [IPv6] packet, or any IPv6 extension packets.
+    ///
+    /// [IPv4]: crate::packets::ip::v4::Ipv4
+    /// [IPv6]: crate::packets::ip::v6::Ipv6
+    type Envelope = E;
+
+    #[inline]
+    fn envelope<'local>(&'local self) -> &'local Self::Envelope
+    where
+        'env: 'local,
+    {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut<'local>(&'local mut self) -> &'local mut Self::Envelope
+    where
+        'env: 'local,
+    {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    #[inline]
+    fn header_len(&self) -> usize {
+        UdpHeader::size_of()
+    }
+
+    /// Parses the envelope's payload as an UDP packet.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UdpError::InvalidPacket`
+    ///  * If the envelope is IPv4, and [`Ipv4::protocol`] is not set to
+    /// [`ProtocolNumbers::Udp`].
+    ///  * If the envelope is IPv6 or an extension header, and [`next_header`]
+    /// is not set to `ProtocolNumbers::Udp`.
+    /// Returns `BufferError::OutOfBuffer` if the UDP header is larger than
+    /// the data payload.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+    #[inline]
+    fn try_parse(envelope: &'env mut Self::Envelope) -> Result<Self> {
+        ensure!(
+            envelope.next_header() == ProtocolNumbers::Udp,
+            UdpError::InvalidPacket
+        );
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        Ok(Udp {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    /// Prepends an UDP packet to the beginning of the envelope's payload.
+    ///
+    /// If the envelope is IPv4, then [`Ipv4::protocol`] is set to
+    /// [`ProtocolNumbers::Udp`]. If the envelope is IPv6 or an extension
+    /// header, then [`next_header`] is set to `ProtocolNumbers::Udp`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::OverMaxBuffer` if the buffer does not have
+    /// enough free space for the UDP header.
+    ///
+    /// [`Ipv4::protocol`]: crate::packets::ip::v4::Ipv4::protocol
+    /// [`ProtocolNumbers::Udp`]: crate::packets::ip::ProtocolNumbers::Udp
+    /// [`next_header`]: crate::packets::ip::v6::Ipv6Packet::next_header
+    #[inline]
+    fn try_push(envelope: &'env mut Self::Envelope) -> Result<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, UdpHeader::size_of())?;
+        let header = mbuf.write_data(offset, &UdpHeader::default())?;
+
+        envelope.set_next_header(ProtocolNumbers::Udp);
+
+        Ok(Udp {
+            envelope,
+            header,
+            offset,
+        })
+    }
+
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
+    ///
+    /// * [`length`] is set to the total length of the header and the payload.
+    /// * [`checksum`] is computed based on the [`pseudo-header`] and the
+    /// full packet.
+    ///
+    /// [`length`]: Udp::length
+    /// [`checksum`]: Udp::checksum
+    /// [`pseudo-header`]: crate::packets::checksum::PseudoHeader
+    #[inline]
+    fn reconcile(&mut self) {
+        let len = self.len() as u16;
+        self.set_length(len);
+        self.compute_checksum();
+    }
+}
+
+/// A type alias for an Ethernet IPv4 UDP packet.
+pub type Udp4<'env> = Udp<'env, Ipv4<'env>>;
+
+/// A type alias for an Ethernet IPv6 UDP packet.
+//pub type Udp6 = Udp<'_, Ipv6>;
+
+/// UDP header.
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[repr(C)]
+struct UdpHeader {
+    src_port: u16be,
+    dst_port: u16be,
+    length: u16be,
+    checksum: u16be,
+}
+
+/// IPv4 packet errors.
+#[derive(Debug, Error)]
+pub enum UdpError {
+    /// The envelope's payload is not an UDP packet.
+    #[error("The payload is not an UDP packet.")]
+    InvalidPacket,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packets2::ethernet::Ethernet;
+    use crate::packets2::Mbuf;
+    use crate::testils::byte_arrays::{TCP4_PACKET, UDP4_PACKET};
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn size_of_udp_header() {
+        assert_eq!(8, UdpHeader::size_of());
+    }
+
+    #[capsule::test]
+    fn parse_udp_packet() {
+        let mut packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4<'_>>().unwrap();
+        let udp = ip4.parse::<Udp4<'_>>().unwrap();
+
+        assert_eq!(39376, udp.src_port());
+        assert_eq!(1087, udp.dst_port());
+        assert_eq!(18, udp.length());
+        assert_eq!(0x7228, udp.checksum());
+        assert_eq!(10, udp.data().len());
+    }
+
+    #[capsule::test]
+    fn parse_non_udp_packet() {
+        let mut packet = Mbuf::from_bytes(&TCP4_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4<'_>>().unwrap();
+
+        assert!(ip4.parse::<Udp4<'_>>().is_err());
+    }
+
+    #[capsule::test]
+    fn udp_flow_v4() {
+        let mut packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4<'_>>().unwrap();
+        let udp = ip4.parse::<Udp4<'_>>().unwrap();
+        let flow = udp.flow();
+
+        assert_eq!("139.133.217.110", flow.src_ip().to_string());
+        assert_eq!("139.133.233.2", flow.dst_ip().to_string());
+        assert_eq!(39376, flow.src_port());
+        assert_eq!(1087, flow.dst_port());
+        assert_eq!(ProtocolNumbers::Udp, flow.protocol());
+    }
+
+    #[capsule::test]
+    fn set_src_dst_ip() {
+        let mut packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4<'_>>().unwrap();
+        let mut udp = ip4.parse::<Udp4<'_>>().unwrap();
+
+        let old_checksum = udp.checksum();
+        let new_ip = Ipv4Addr::new(10, 0, 0, 0);
+        assert!(udp.set_src_ip(new_ip.into()).is_ok());
+        assert!(udp.checksum() != old_checksum);
+        assert_eq!(new_ip.to_string(), udp.envelope().src().to_string());
+
+        let old_checksum = udp.checksum();
+        let new_ip = Ipv4Addr::new(20, 0, 0, 0);
+        assert!(udp.set_dst_ip(new_ip.into()).is_ok());
+        assert!(udp.checksum() != old_checksum);
+        assert_eq!(new_ip.to_string(), udp.envelope().dst().to_string());
+
+        // can't set v6 addr on a v4 packet
+        assert!(udp.set_src_ip(Ipv6Addr::UNSPECIFIED.into()).is_err());
+    }
+
+    #[capsule::test]
+    fn compute_checksum() {
+        let mut packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
+        let mut ethernet = packet.parse::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4<'_>>().unwrap();
+        let mut udp = ip4.parse::<Udp4<'_>>().unwrap();
+
+        let expected = udp.checksum();
+        // no payload change but force a checksum recompute anyway
+        udp.reconcile_all();
+        assert_eq!(expected, udp.checksum());
+    }
+
+    #[capsule::test]
+    fn push_udp_packet() {
+        let mut packet = Mbuf::new().unwrap();
+        let mut ethernet = packet.push::<Ethernet<'_>>().unwrap();
+        let mut ip4 = ethernet.push::<Ipv4<'_>>().unwrap();
+        let udp = ip4.push::<Udp4<'_>>().unwrap();
+
+        assert_eq!(UdpHeader::size_of(), udp.len());
+
+        // make sure the next protocol is fixed
+        assert_eq!(ProtocolNumbers::Udp, udp.envelope().next_header());
+    }
+}

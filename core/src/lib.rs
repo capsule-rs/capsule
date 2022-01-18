@@ -129,3 +129,5 @@ pub mod testils;
 #[cfg(any(test, feature = "testils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "testils")))]
 pub use capsule_macros::{bench, test};
+
+pub mod packets2;

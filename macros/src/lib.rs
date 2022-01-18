@@ -154,7 +154,7 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
 /// # Example
 ///
 /// ```
-/// #[capsule::bench(mempool_capcity = 30)]
+/// #[capsule::bench(mempool_capacity = 30)]
 /// fn run_benchmark(c: &mut Criterion) {
 ///     c.bench_function("bench:run_benchmark", |b| {
 ///         b.iter(|| bench_thing());
