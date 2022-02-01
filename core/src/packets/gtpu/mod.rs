@@ -30,6 +30,7 @@ use std::fmt;
 use std::ptr::NonNull;
 
 /// Option bit flags
+const PT: u8 = 0b0001_0000;
 const E:  u8 = 0b0000_0100;
 const S:  u8 = 0b0000_0010;
 const PN: u8 = 0b0000_0001;
@@ -151,6 +152,32 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
         self.mbuf_mut().shrink(offset, 4)?;
 
         Ok(())
+    }
+
+    /// Sets the length of the payload recorded in the header
+    #[inline]
+    pub fn set_payload_length(&mut self, len: usize) {
+        let len: u16 = len as u16;
+        self.header_mut().length = len.into();
+    }
+
+    /// Gets the length of the payload recorded in the header
+    #[inline]
+    pub fn payload_length(&self) -> usize {
+        let len:u16 = self.header().length.into();
+        len as usize
+    }
+
+    /// Sets the TEID (tunnel identifier)
+    #[inline]
+    pub fn set_teid(&mut self, teid: u32) {
+        self.header_mut().teid = teid.into();
+    }
+
+    /// Gets the TEID (tunnel identifier)
+    #[inline]
+    pub fn teid(&self) -> u32 {
+        self.header().teid.into()
     }
 
     /// Returns whether a sequence number is present.
@@ -367,6 +394,7 @@ impl<E: GtpuTunnelPacket> fmt::Debug for Gtpu<E> {
             .field("extension_present", &self.extension_present())
             .field("version", &self.version())
             .field("message_type", &self.message_type())
+            .field("teid", &self.teid())
             .field(
                 "sequence_number",
                 &self
@@ -488,6 +516,12 @@ impl<E: GtpuTunnelPacket> Packet for Gtpu<E> {
     /// Nothing to do for GTP-U
     #[inline]
     fn reconcile(&mut self) {
+        // Protocol Type must be GTP (as opposed to GTP prime)
+        self.header_mut().flags |= PT;
+        // Version bits must be 001
+        self.header_mut().flags &= 0b0001_1111;
+        self.header_mut().flags |= 0b0010_0000;
+        self.set_payload_length(self.payload_len());
     }
 }
 
