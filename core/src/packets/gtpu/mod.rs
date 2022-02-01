@@ -16,608 +16,589 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-// //! Generic Routing Encapsulation
-
-// mod ip4gre;
-
-// pub use self::ip4gre::*;
-
-// use crate::ensure;
-// use crate::packets::ethernet::EtherType;
-// use crate::packets::types::{u16be, u32be};
-// use crate::packets::{checksum, Internal, Packet, SizeOf};
-// use anyhow::{anyhow, Result};
-// use std::fmt;
-// use std::ptr::NonNull;
-
-// /// Option bit flags
-// const C: u8 = 0b1000_0000;
-// const K: u8 = 0b0010_0000;
-// const S: u8 = 0b0001_0000;
-// const FLAGS: u8 = C | K | S;
-
-// /// Generic Routing Encapsulation based on [IETF RFC 2784].
-// ///
-// /// ```
-// ///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-// /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// /// |C| |K|S| Reserved0       | Ver |         Protocol Type         |
-// /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// /// |      Checksum (optional)      |       Reserved1 (Optional)    |
-// /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// /// |                         Key (optional)                        |
-// /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// /// |                 Sequence Number (Optional)                    |
-// /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// /// ```
-// ///
-// /// - *Checksum Present*: (1 bit)
-// ///     If the Checksum Present bit is set to one, then the Checksum and the
-// ///     Reserved1 fields are present and the Checksum field contains valid
-// ///     information.
-// ///
-// /// - *Key Present*: (1 bit)
-// ///     If the Key Present bit is set to 1, then it indicates that the Key
-// ///     field is present in the GRE header. Defined in [IETF RFC 2890].
-// ///
-// /// - *Sequence Number Present*: (1 bit)
-// ///     If the Sequence Number Present bit is set to 1, then it indicates
-// ///     that the Sequence Number field is present. Defined in [IETF RFC 2890].
-// ///
-// /// - *Reserved0*: (9 bits)
-// ///     reserved for future use. These bits MUST be sent as zero and MUST be
-// ///     ignored on receipt.
-// ///
-// /// - *Version Number*: (3 bits)
-// ///     The Version Number field MUST contain the value zero.
-// ///
-// /// - *Protocol Type*: (16 bits)
-// ///     The Protocol Type field contains the protocol type of the payload
-// ///     packet. These Protocol Types are defined as "ETHER TYPES".
-// ///
-// /// - *Checksum*: (16 bits)
-// ///     The Checksum field contains the IP (one's complement) checksum sum of
-// ///     the all the 16 bit words in the GRE header and the payload packet.
-// ///
-// /// - *Reserved1*: (16 bits)
-// ///     The Reserved1 field is reserved for future use, and if present, MUST
-// ///     be transmitted as zero.
-// ///
-// /// - *Key Field*: (32 bits)
-// ///     The Key field is intended to be used for identifying an individual
-// ///     traffic flow within a tunnel. Defined in [IETF RFC 2890].
-// ///
-// /// - *Sequence Number*: (32 bits)
-// ///     The Sequence Number MUST be used by the receiver to establish the
-// ///     order in which packets have been transmitted from the encapsulator to
-// ///     the receiver. The intended use of the Sequence Field is to provide
-// ///     unreliable but in-order delivery.
-// ///
-// /// A GRE encapsulated packet has the form
-// ///
-// /// ```
-// ///     ---------------------------------
-// ///     |                               |
-// ///     |       Delivery Header         |
-// ///     |                               |
-// ///     ---------------------------------
-// ///     |                               |
-// ///     |       GRE Header              |
-// ///     |                               |
-// ///     ---------------------------------
-// ///     |                               |
-// ///     |       Payload packet          |
-// ///     |                               |
-// ///     ---------------------------------
-// /// ```
-// ///
-// /// # Remarks
-// ///
-// /// The implementation of GRE treats the payload as opaque. It cannot be
-// /// parsed or manipulated with type safety. Work with the typed payload
-// /// packet either before encapsulation or after decapsulation like other
-// /// tunnel protocols.
-// ///
-// /// [IETF RFC 2784]: https://datatracker.ietf.org/doc/html/rfc2784
-// /// [IETF RFC 2890]: https://datatracker.ietf.org/doc/html/rfc2890
-// pub struct Gre<E: GreTunnelPacket> {
-//     envelope: E,
-//     header: NonNull<GreHeader>,
-//     checksum: Option<NonNull<u16be>>,
-//     key: Option<NonNull<u32be>>,
-//     seqno: Option<NonNull<u32be>>,
-//     offset: usize,
-// }
-
-// /// A trait for packets that can be a GRE envelope.
-// pub trait GreTunnelPacket: Packet {
-//     /// Returns whether the current payload is GRE.
-//     fn gre_payload(&self) -> bool;
-
-//     /// Marks the envelope to be containing a GRE payload.
-//     fn mark_gre_payload(&mut self);
-// }
-
-// impl<E: GreTunnelPacket> Gre<E> {
-//     #[inline]
-//     fn header(&self) -> &GreHeader {
-//         unsafe { self.header.as_ref() }
-//     }
-
-//     #[inline]
-//     fn header_mut(&mut self) -> &mut GreHeader {
-//         unsafe { self.header.as_mut() }
-//     }
-
-//     /// Returns whether the checksum is present.
-//     ///
-//     /// If the bit is set, `reconcile` will calculate the checksum.
-//     #[inline]
-//     pub fn checksum_present(&self) -> bool {
-//         (self.header().flags_to_res0 & C) != 0
-//     }
-
-//     /// offset of the checksum field if it were present.
-//     #[inline]
-//     fn checksum_offset(&self) -> usize {
-//         self.offset() + 4
-//     }
-
-//     /// Sets the checksum present flag to true.
-//     #[inline]
-//     pub fn set_checksum_present(&mut self) -> Result<()> {
-//         if !self.checksum_present() {
-//             // extend the buffer to add the field
-//             let offset = self.checksum_offset();
-//             self.mbuf_mut().extend(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 |= C;
-//             self.sync_optionals()?;
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Sets the checksum present flag to false and removes the field.
-//     #[inline]
-//     pub fn unset_checksum_present(&mut self) -> Result<()> {
-//         if self.checksum_present() {
-//             // shrink the buffer to remove the field
-//             let offset = self.checksum_offset();
-//             self.mbuf_mut().shrink(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 &= !C;
-//             self.sync_optionals()?;
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Returns the packet checksum or `None` if the option is not set.
-//     #[inline]
-//     pub fn checksum(&self) -> Option<u16> {
-//         self.checksum.map(|ptr| unsafe { *ptr.as_ref() }.into())
-//     }
-
-//     #[inline]
-//     fn set_checksum(&mut self, checksum: u16) {
-//         // no op if the checksum present bit not set.
-//         if let Some(ref mut ptr) = self.checksum {
-//             unsafe { *ptr.as_mut() = checksum.into() };
-//         }
-//     }
-
-//     #[inline]
-//     fn compute_checksum(&mut self) {
-//         self.set_checksum(0);
-
-//         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.len()) {
-//             let data = unsafe { data.as_ref() };
-//             let checksum = checksum::ones_complement(0, data);
-//             self.set_checksum(checksum);
-//         } else {
-//             // we are reading the entire packet, should never run out
-//             unreachable!()
-//         }
-//     }
-
-//     /// Returns whether the key is present.
-//     #[inline]
-//     pub fn key_present(&self) -> bool {
-//         (self.header().flags_to_res0 & K) != 0
-//     }
-
-//     /// offset of the key field if it were present.
-//     #[inline]
-//     fn key_offset(&self) -> usize {
-//         self.offset() + 4 + if self.checksum_present() { 4 } else { 0 }
-//     }
-
-//     /// Sets the key present flag to false and removes the field.
-//     #[inline]
-//     pub fn unset_key_present(&mut self) -> Result<()> {
-//         if self.key_present() {
-//             // shrink the buffer to remove the field
-//             let offset = self.key_offset();
-//             self.mbuf_mut().shrink(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 &= !K;
-//             self.sync_optionals()?;
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Returns the key field or `None` if the option is not set.
-//     #[inline]
-//     pub fn key(&self) -> Option<u32> {
-//         self.key.map(|ptr| unsafe { *ptr.as_ref() }.into())
-//     }
-
-//     /// Sets the key field and key present flag to true.
-//     #[inline]
-//     pub fn set_key(&mut self, key: u32) -> Result<()> {
-//         if !self.key_present() {
-//             // extend the buffer to add the field
-//             let offset = self.key_offset();
-//             self.mbuf_mut().extend(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 |= K;
-//             self.sync_optionals()?;
-//         }
-
-//         // should always match
-//         if let Some(ref mut ptr) = self.key {
-//             unsafe { *ptr.as_mut() = key.into() };
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Returns whether the sequence number is present.
-//     #[inline]
-//     pub fn seqno_present(&self) -> bool {
-//         (self.header().flags_to_res0 & S) != 0
-//     }
-
-//     /// offset of the sequence number field if it were present.
-//     #[inline]
-//     fn seqno_offset(&self) -> usize {
-//         self.offset()
-//             + 4
-//             + if self.checksum_present() { 4 } else { 0 }
-//             + if self.key_present() { 4 } else { 0 }
-//     }
-
-//     /// Sets the sequence number present flag to false and removes the field.
-//     #[inline]
-//     pub fn unset_seqno_present(&mut self) -> Result<()> {
-//         if self.seqno_present() {
-//             // shrink the buffer to remove the field
-//             let offset = self.seqno_offset();
-//             self.mbuf_mut().shrink(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 &= !S;
-//             self.sync_optionals()?;
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Returns the sequence number or `None` if the option is not set.
-//     pub fn seqno(&self) -> Option<u32> {
-//         self.seqno.map(|ptr| unsafe { *ptr.as_ref() }.into())
-//     }
-
-//     /// Sets the sequence number field and sequence number present flag to true.
-//     #[inline]
-//     pub fn set_seqno(&mut self, seqno: u32) -> Result<()> {
-//         if !self.seqno_present() {
-//             // extend the buffer to add the field
-//             let offset = self.seqno_offset();
-//             self.mbuf_mut().extend(offset, u32be::size_of())?;
-//             self.header_mut().flags_to_res0 |= S;
-//             self.sync_optionals()?;
-//         }
-
-//         // should always match
-//         if let Some(ref mut ptr) = self.seqno {
-//             unsafe { *ptr.as_mut() = seqno.into() };
-//         }
-
-//         Ok(())
-//     }
-
-//     /// Returns the version number.
-//     ///
-//     /// # Remarks
-//     ///
-//     /// Version must always be 0.
-//     #[inline]
-//     pub fn version(&self) -> u8 {
-//         self.header().res0_to_ver & 0b111
-//     }
-
-//     /// Returns the protocol type of the payload packet.
-//     #[inline]
-//     pub fn protocol_type(&self) -> EtherType {
-//         EtherType::new(self.header().protocol_type.into())
-//     }
-
-//     /// Sets the protocol type of the payload packet.
-//     #[inline]
-//     pub fn set_protocol_type(&mut self, protocol_type: EtherType) {
-//         self.header_mut().protocol_type = protocol_type.0.into()
-//     }
-
-//     /// Syncs the pointers to optional fields after one of the bits was
-//     /// changed. The underlying buffer should be adjusted accordingly before
-//     /// sync or it will corrupt the packet.
-//     #[inline]
-//     fn sync_optionals(&mut self) -> Result<()> {
-//         let mut offset = self.offset + 4;
-
-//         self.checksum = None;
-//         if self.checksum_present() {
-//             let ptr = self.mbuf().read_data::<u16be>(offset)?;
-//             self.checksum = Some(ptr);
-//             offset += 4;
-//         }
-
-//         self.key = None;
-//         if self.key_present() {
-//             let ptr = self.mbuf().read_data::<u32be>(offset)?;
-//             self.key = Some(ptr);
-//             offset += 4;
-//         }
-
-//         self.seqno = None;
-//         if self.seqno_present() {
-//             let ptr = self.mbuf().read_data::<u32be>(offset)?;
-//             self.seqno = Some(ptr);
-//         }
-
-//         Ok(())
-//     }
-// }
-
-// impl<E: GreTunnelPacket> fmt::Debug for Gre<E> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.debug_struct("gre")
-//             .field("checksum_present", &self.checksum_present())
-//             .field("key_present", &self.key_present())
-//             .field("seqno_present", &self.seqno_present())
-//             .field("version", &self.version())
-//             .field("protocol_type", &self.protocol_type())
-//             .field(
-//                 "checksum",
-//                 &self
-//                     .checksum()
-//                     .map(|checksum| format!("0x{:04x}", checksum))
-//                     .unwrap_or_else(|| "[none]".to_string()),
-//             )
-//             .field(
-//                 "key",
-//                 &self
-//                     .key()
-//                     .map(|key| format!("{}", key))
-//                     .unwrap_or_else(|| "[none]".to_string()),
-//             )
-//             .field(
-//                 "seqno",
-//                 &self
-//                     .seqno()
-//                     .map(|seq| format!("{}", seq))
-//                     .unwrap_or_else(|| "[none]".to_string()),
-//             )
-//             .field("$offset", &self.offset())
-//             .field("$len", &self.len())
-//             .field("$header_len", &self.header_len())
-//             .finish()
-//     }
-// }
-
-// impl<E: GreTunnelPacket> Packet for Gre<E> {
-//     type Envelope = E;
-
-//     #[inline]
-//     fn envelope(&self) -> &Self::Envelope {
-//         &self.envelope
-//     }
-
-//     #[inline]
-//     fn envelope_mut(&mut self) -> &mut Self::Envelope {
-//         &mut self.envelope
-//     }
-
-//     #[inline]
-//     fn offset(&self) -> usize {
-//         self.offset
-//     }
-
-//     /// GRE header is dynamically sized based on the number of set optional
-//     /// fields.
-//     #[inline]
-//     fn header_len(&self) -> usize {
-//         let set_options = (self.header().flags_to_res0 & FLAGS).count_ones();
-//         (set_options as usize + 1) * 4
-//     }
-
-//     #[inline]
-//     unsafe fn clone(&self, internal: Internal) -> Self {
-//         Gre::<E> {
-//             envelope: self.envelope.clone(internal),
-//             header: self.header,
-//             checksum: self.checksum,
-//             key: self.key,
-//             seqno: self.seqno,
-//             offset: self.offset,
-//         }
-//     }
-
-//     /// Parses the envelope's payload as a GRE packet.
-//     ///
-//     /// # Errors
-//     ///
-//     /// Returns an error if the envelope's payload is not GRE.
-//     #[inline]
-//     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
-//         ensure!(envelope.gre_payload(), anyhow!("not a GRE packet."));
-
-//         let mbuf = envelope.mbuf();
-//         let offset = envelope.payload_offset();
-//         let header = mbuf.read_data(offset)?;
-
-//         let mut packet = Gre {
-//             envelope,
-//             header,
-//             checksum: None,
-//             key: None,
-//             seqno: None,
-//             offset,
-//         };
-//         packet.sync_optionals()?;
-
-//         Ok(packet)
-//     }
-
-//     /// Prepends a GRE packet to the beginning of the envelope's payload.
-//     ///
-//     /// # Errors
-//     ///
-//     /// Returns an error if the buffer does not have enough free space.
-//     #[inline]
-//     fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
-//         let offset = envelope.payload_offset();
-//         let mbuf = envelope.mbuf_mut();
-
-//         mbuf.extend(offset, GreHeader::size_of())?;
-//         let header = mbuf.write_data(offset, &GreHeader::default())?;
-
-//         let mut packet = Gre {
-//             envelope,
-//             header,
-//             checksum: None,
-//             key: None,
-//             seqno: None,
-//             offset,
-//         };
-//         packet.envelope_mut().mark_gre_payload();
-
-//         Ok(packet)
-//     }
-
-//     #[inline]
-//     fn deparse(self) -> Self::Envelope {
-//         self.envelope
-//     }
-
-//     /// Reconciles the derivable header fields against the changes made to
-//     /// the packet.
-//     ///
-//     /// * [`checksum`] is computed based on payload.
-//     #[inline]
-//     fn reconcile(&mut self) {
-//         if self.checksum_present() {
-//             self.compute_checksum()
-//         }
-//     }
-// }
-
-// /// GRE header.
-// #[derive(Clone, Copy, Debug, Default, SizeOf)]
-// #[repr(C, packed)]
-// struct GreHeader {
-//     flags_to_res0: u8,
-//     res0_to_ver: u8,
-//     protocol_type: u16be,
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::packets::ethernet::{EtherTypes, Ethernet};
-//     use crate::packets::ip::v4::Ipv4;
-//     use crate::packets::Mbuf;
-//     use crate::testils::byte_arrays::{IP4GRE_PACKET, TCP4_PACKET};
-
-//     #[test]
-//     fn size_of_gre_header() {
-//         assert_eq!(4, GreHeader::size_of());
-//     }
-
-//     #[capsule::test]
-//     fn parse_gre_packet() {
-//         let packet = Mbuf::from_bytes(&IP4GRE_PACKET).unwrap();
-//         let ethernet = packet.parse::<Ethernet>().unwrap();
-//         let ip4 = ethernet.parse::<Ipv4>().unwrap();
-//         let gre = ip4.parse::<Gre<Ipv4>>().unwrap();
-
-//         assert!(!gre.checksum_present());
-//         assert!(!gre.key_present());
-//         assert!(!gre.seqno_present());
-//         assert_eq!(0, gre.version());
-//         assert_eq!(EtherTypes::Ipv4, gre.protocol_type());
-//         assert_eq!(None, gre.checksum());
-//         assert_eq!(None, gre.key());
-//         assert_eq!(None, gre.seqno());
-
-//         // without options, the header length is 4.
-//         assert_eq!(4, gre.header_len());
-//     }
-
-//     #[capsule::test]
-//     fn parse_gre_setter_checks() {
-//         let packet = Mbuf::from_bytes(&IP4GRE_PACKET).unwrap();
-//         let ethernet = packet.parse::<Ethernet>().unwrap();
-//         let ip4 = ethernet.parse::<Ipv4>().unwrap();
-//         let mut gre = ip4.parse::<Gre<Ipv4>>().unwrap();
-
-//         gre.set_checksum_present().unwrap();
-//         gre.set_key(1).unwrap();
-//         gre.set_seqno(2).unwrap();
-//         gre.reconcile();
-
-//         assert!(gre.checksum_present());
-//         assert!(gre.key_present());
-//         assert!(gre.seqno_present());
-//         assert!(gre.checksum() != Some(0));
-//         assert_eq!(Some(1), gre.key());
-//         assert_eq!(Some(2), gre.seqno());
-//         assert_eq!(16, gre.header_len());
-
-//         gre.unset_checksum_present().unwrap();
-
-//         assert!(!gre.checksum_present());
-//         assert!(gre.key_present());
-//         assert!(gre.seqno_present());
-//         assert_eq!(None, gre.checksum());
-//         assert_eq!(Some(1), gre.key());
-//         assert_eq!(Some(2), gre.seqno());
-//         assert_eq!(12, gre.header_len());
-
-//         gre.unset_key_present().unwrap();
-
-//         assert!(!gre.checksum_present());
-//         assert!(!gre.key_present());
-//         assert!(gre.seqno_present());
-//         assert_eq!(None, gre.checksum());
-//         assert_eq!(None, gre.key());
-//         assert_eq!(Some(2), gre.seqno());
-//         assert_eq!(8, gre.header_len());
-
-//         gre.unset_seqno_present().unwrap();
-
-//         assert!(!gre.checksum_present());
-//         assert!(!gre.key_present());
-//         assert!(!gre.seqno_present());
-//         assert_eq!(None, gre.checksum());
-//         assert_eq!(None, gre.key());
-//         assert_eq!(None, gre.seqno());
-//         assert_eq!(4, gre.header_len());
-//     }
-
-//     #[capsule::test]
-//     fn parse_non_gre_packet() {
-//         let packet = Mbuf::from_bytes(&TCP4_PACKET).unwrap();
-//         let ethernet = packet.parse::<Ethernet>().unwrap();
-//         let ip4 = ethernet.parse::<Ipv4>().unwrap();
-
-//         assert!(ip4.parse::<Gre<Ipv4>>().is_err());
-//     }
-// }
+//! GPRS Tunnelling Protocol (GTPv1) (GTP-U variant)
+
+mod ip4gtpu;
+
+pub use self::ip4gtpu::*;
+
+use crate::ensure;
+use crate::packets::types::{u16be, u32be};
+use crate::packets::{Internal, Packet, SizeOf};
+use anyhow::{anyhow, Result};
+use std::fmt;
+use std::ptr::NonNull;
+
+/// Option bit flags
+const E:  u8 = 0b0000_0100;
+const S:  u8 = 0b0000_0010;
+const PN: u8 = 0b0000_0001;
+
+/// GPRS Tunnelling Protocol (GTPv1) (GTP-U variant) [3GPP TS 29.281]
+///
+/// ```
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// | Ver |P| |E|S|N|    Msg Type   |           Length              |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |                  Tunnel Endpoint Identifier                   |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |  Sequence Number (optional)   |   NPDU (opt)  | NextExt (opt) |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// ```
+///
+/// - *Version Number*: (3 bits)
+///     The Version Number field MUST contain the value 1 for GTP-U.
+/// 
+/// - *PT - Protocol Type*: (1 bit)
+///     The Protocol Type field MUST contain the value 1 for GTP-U
+///     Reserved1 fields are present and the Checksum field contains valid
+///     information.
+///
+/// - *E - Extension(s) Present*: (1 bit)
+///     If the Extensions bit is set to 1, then it indicates that the Extensions
+///     field is present in the GTP header.
+///
+/// - *S - Sequence Number Present*: (1 bit)
+///     If the Sequence Number Present bit is set to 1, then it indicates
+///     that the Sequence Number field is present.
+///
+/// - *N/PN - PDU Number Present*: (1 bit)
+///     If the PDU  Number Present bit is set to 1, then it indicates
+///     that the NPDU field is present.
+///
+/// If ANY of the three optional fields are present, all four bytes are
+/// present in the header (even if only a subset are used)
+///
+/// A GTP-U encapsulated packet has the form
+///
+/// ```
+///     ---------------------------------
+///     |                               |
+///     |       Delivery Header         |
+///     |                               |
+///     ---------------------------------
+///     |                               |
+///     |       UDP Header              |
+///     |                               |
+///     ---------------------------------
+///     |                               |
+///     |       GTP-U Header            |
+///     |                               |
+///     ---------------------------------
+///     |                               |
+///     |       Payload packet          |
+///     |                               |
+///     ---------------------------------
+/// ```
+///
+/// # Remarks
+///
+/// The implementation of GTP-U treats the payload as opaque. It cannot be
+/// parsed or manipulated with type safety. Work with the typed payload
+/// packet either before encapsulation or after decapsulation like other
+/// tunnel protocols.
+///
+/// [3GPP TS 29.281]: https://www.etsi.org/deliver/etsi_ts/129200_129299/129281/15.07.00_60/ts_129281v150700p.pdf
+pub struct Gtpu<E: GtpuTunnelPacket> {
+    envelope: E,
+    header: NonNull<GtpuHeader>,
+    sequence_number: Option<NonNull<u16be>>,
+    npdu_number: Option<NonNull<u8>>,
+    offset: usize,
+}
+
+/// A trait for packets that can be a GTP-U envelope (usually UDP)
+pub trait GtpuTunnelPacket: Packet {
+    /// Returns whether the current payload is GTP-U.
+    fn gtpu_payload(&self) -> bool;
+
+    /// Marks the envelope to be containing a GTP-U payload.
+    fn mark_gtpu_payload(&mut self);
+}
+
+impl<E: GtpuTunnelPacket> Gtpu<E> {
+    #[inline]
+    fn header(&self) -> &GtpuHeader {
+        unsafe { self.header.as_ref() }
+    }
+
+    #[inline]
+    fn header_mut(&mut self) -> &mut GtpuHeader {
+        unsafe { self.header.as_mut() }
+    }
+    /// Returns whether any of the optional fields are present (implying that the 4 additional bytes are present in the header)
+    #[inline]
+    fn any_optional_fields_present(&self) -> bool {
+        self.sequence_number_present()
+            || self.npdu_number_present()
+            || self.extension_present()
+    }
+
+    /// Inserts the additional 4 header bytes required if ANY of the optional fields are present
+    #[inline]
+    fn extend_for_optional_fields(&mut self) -> Result<()> {
+        let offset = self.offset + 8;
+        self.mbuf_mut().extend(offset, 4)?;
+
+        Ok(())
+    }
+
+    /// Removes the additional 4 header bytes present if ANY of the optional fields are present
+    #[inline]
+    fn shrink_optional_fields(&mut self) -> Result<()>  {
+        let offset = self.offset + 8;
+        self.mbuf_mut().shrink(offset, 4)?;
+
+        Ok(())
+    }
+
+    /// Returns whether a sequence number is present.
+    #[inline]
+    pub fn sequence_number_present(&self) -> bool {
+        (self.header().flags & S) != 0
+    }
+
+    /// Sets the sequence number present flag to true.
+    #[inline]
+    pub fn set_sequence_number_present(&mut self) -> Result<()> {
+        if !self.sequence_number_present()
+        {
+            if !self.any_optional_fields_present() {
+                self.extend_for_optional_fields()?;
+            }
+            self.header_mut().flags |= S;
+            self.sync_optionals()?;
+        }
+
+        Ok(())
+    }
+
+    /// Sets the sequence number present flag to false and removes the field.
+    #[inline]
+    pub fn unset_sequence_number_present(&mut self) -> Result<()> {
+        if self.sequence_number_present() {
+
+            self.header_mut().flags &= !S;
+            self.sync_optionals()?;
+
+            if !self.any_optional_fields_present() {
+                self.shrink_optional_fields()?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Returns the sequence number or `None` if the option is not set.
+    #[inline]
+    pub fn sequence_number(&self) -> Option<u16> {
+        self.sequence_number.map(|ptr| unsafe { *ptr.as_ref() }.into())
+    }
+
+    /// Sets the sequence number field
+    #[inline]
+    pub fn set_sequence_number(&mut self, sequence_number: u16) {
+        // no op if the sequence number present bit not set.
+        if let Some(ref mut ptr) = self.sequence_number {
+            unsafe { *ptr.as_mut() = sequence_number.into() };
+        }
+    }
+
+    /// Returns whether a npdu number is present.
+    ///
+    #[inline]
+    pub fn npdu_number_present(&self) -> bool {
+        (self.header().flags & PN) != 0
+    }
+
+    /// Sets the npdu number present flag to true.
+    #[inline]
+    pub fn set_npdu_number_present(&mut self) -> Result<()> {
+        if !self.npdu_number_present()
+        {
+            if !self.any_optional_fields_present() {
+                self.extend_for_optional_fields()?;
+            }
+            self.header_mut().flags |= PN;
+            self.sync_optionals()?;
+        }
+
+        Ok(())
+    }
+
+    /// Sets the npdu number present flag to false and removes the field.
+    #[inline]
+    pub fn unset_npdu_number_present(&mut self) -> Result<()> {
+        if self.npdu_number_present() {
+
+            self.header_mut().flags &= !PN;
+            self.sync_optionals()?;
+
+            if !self.any_optional_fields_present() {
+                self.shrink_optional_fields()?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Returns the npdu number or `None` if the option is not set.
+    #[inline]
+    pub fn npdu_number(&self) -> Option<u8> {
+        self.npdu_number.map(|ptr| unsafe { *ptr.as_ref() }.into())
+    }
+
+    /// Sets the npdu number field
+    #[inline]
+    pub fn set_npdu_number(&mut self, npdu_number: u8) {
+        // no op if the npdu number present bit not set.
+        if let Some(ref mut ptr) = self.npdu_number {
+            unsafe { *ptr.as_mut() = npdu_number.into() };
+        }
+    }
+
+
+    /// Returns whether at least one extension is present.
+    #[inline]
+    pub fn extension_present(&self) -> bool {
+        (self.header().flags & E) != 0
+    }
+
+    /// Returns the number of bytes occupied by extensions, excluding the terminating null
+    #[inline]
+    fn extensions_len(&self) -> Result<usize> {
+        if !self.extension_present() { 
+            return Ok(0); 
+        }
+
+        let mut offset = self.offset() + 11;
+        let start = offset;
+        let ptr = self.mbuf().read_data::<u8>(offset)?;
+        let mut extension_type = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(0);
+
+        while extension_type != 0 {
+            let ptr = self.mbuf().read_data::<u8>(offset+1)?;
+            let length = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(1);
+            offset = offset+length*4;
+            let ptr = self.mbuf().read_data::<u8>(offset)?;
+            extension_type = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(0);
+        }
+        Ok(offset-start)
+    }
+
+    /// Returns the version number.
+    ///
+    /// # Remarks
+    ///
+    /// Version must always be 1.
+    #[inline]
+    pub fn version(&self) -> u8 {
+        (self.header().flags & 0b1110_0000)>>5
+    }
+
+    /// Returns the GTP-U message type
+    #[inline]
+    pub fn message_type(&self) -> MessageType {
+        MessageType::new(self.header().message_type.into())
+    }
+
+    /// Sets the GTP-U message type
+    #[inline]
+    pub fn set_message_type(&mut self, message_type: MessageType) {
+        self.header_mut().message_type = message_type.0.into()
+    }
+
+    /// Syncs the pointers to optional fields after one of the bits was
+    /// changed. The underlying buffer should be adjusted accordingly before
+    /// sync or it will corrupt the packet.
+    #[inline]
+    fn sync_optionals(&mut self) -> Result<()> {
+
+        self.sequence_number = None;
+        if self.sequence_number_present() {
+            let ptr = self.mbuf().read_data::<u16be>(self.offset + 8)?;
+            self.sequence_number = Some(ptr);
+        }
+
+        self.npdu_number = None;
+        if self.npdu_number_present() {
+            let ptr = self.mbuf().read_data::<u8>(self.offset + 10)?;
+            self.npdu_number = Some(ptr);
+        }
+
+        Ok(())
+    }
+}
+
+/// The message identifier of the GTP-U message
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[repr(C, packed)]
+pub struct MessageType(pub u8);
+
+impl MessageType {
+    /// Creates an GTP-U message type identifier.
+    pub fn new(value: u8) -> Self {
+        MessageType(value)
+    }
+}
+
+/// Supported GTP-U message types
+#[allow(non_snake_case)]
+#[allow(non_upper_case_globals)]
+pub mod MessageTypes {
+    use super::MessageType;
+
+    /// Echo Request.
+    pub const EchoRequest: MessageType = MessageType(0x01);
+    /// Echo Reply.
+    pub const EchoReply: MessageType = MessageType(0x02);
+    /// Error Indication..
+    pub const ErrorIndication: MessageType = MessageType(0x1a);
+    /// Protocol Data Unit (payload)
+    pub const PDU: MessageType = MessageType(0xff);
+}
+
+impl<E: GtpuTunnelPacket> fmt::Debug for Gtpu<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("gtpu")
+            .field("sequence_number_present", &self.sequence_number_present())
+            .field("npdu_number_present", &self.npdu_number_present())
+            .field("extension_present", &self.extension_present())
+            .field("version", &self.version())
+            .field("message_type", &self.message_type())
+            .field(
+                "sequence_number",
+                &self
+                    .sequence_number()
+                    .map(|sequence_number| format!("0x{:02x}", sequence_number))
+                    .unwrap_or_else(|| "[none]".to_string()),
+            )
+            .field(
+                "npdu_number",
+                &self
+                    .npdu_number()
+                    .map(|npdu_number| format!("0x{:01x}", npdu_number))
+                    .unwrap_or_else(|| "[none]".to_string()),
+            )
+            .field("$offset", &self.offset())
+            .field("$len", &self.len())
+            .field("$header_len", &self.header_len())
+            .finish()
+    }
+}
+
+impl<E: GtpuTunnelPacket> Packet for Gtpu<E> {
+    type Envelope = E;
+
+    #[inline]
+    fn envelope(&self) -> &Self::Envelope {
+        &self.envelope
+    }
+
+    #[inline]
+    fn envelope_mut(&mut self) -> &mut Self::Envelope {
+        &mut self.envelope
+    }
+
+    #[inline]
+    fn offset(&self) -> usize {
+        self.offset
+    }
+
+    /// Gtpu header is dynamically sized based on the number of set optional
+    /// fields.
+    #[inline]
+    fn header_len(&self) -> usize {
+        8 
+        + if self.any_optional_fields_present() { 4 } else { 0 }
+        + if self.extension_present() { self.extensions_len().unwrap_or(0) } else { 0 }
+    }
+
+    #[inline]
+    unsafe fn clone(&self, internal: Internal) -> Self {
+        Gtpu::<E> {
+            envelope: self.envelope.clone(internal),
+            header: self.header,
+            sequence_number: self.sequence_number,
+            npdu_number: self.npdu_number,
+            offset: self.offset,
+        }
+    }
+
+    /// Parses the envelope's payload as a GTP-U packet.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the envelope's payload is not GTP-U.
+    #[inline]
+    fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
+        ensure!(envelope.gtpu_payload(), anyhow!("not a GTP-U packet."));
+
+        let mbuf = envelope.mbuf();
+        let offset = envelope.payload_offset();
+        let header = mbuf.read_data(offset)?;
+
+        let mut packet = Gtpu {
+            envelope,
+            header,
+            sequence_number: None,
+            npdu_number: None,
+            // seqno: None,
+            offset,
+        };
+        packet.sync_optionals()?;
+
+        Ok(packet)
+    }
+
+    /// Prepends a GTP-U packet to the beginning of the envelope's payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not have enough free space.
+    #[inline]
+    fn try_push(mut envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
+        let offset = envelope.payload_offset();
+        let mbuf = envelope.mbuf_mut();
+
+        mbuf.extend(offset, GtpuHeader::size_of())?;
+        let header = mbuf.write_data(offset, &GtpuHeader::default())?;
+
+        let mut packet = Gtpu {
+            envelope,
+            header,
+            sequence_number: None,
+            npdu_number: None,
+            offset,
+        };
+        packet.envelope_mut().mark_gtpu_payload();
+
+        Ok(packet)
+    }
+
+    #[inline]
+    fn deparse(self) -> Self::Envelope {
+        self.envelope
+    }
+
+    /// Reconciles the derivable header fields against the changes made to
+    /// the packet.
+    ///
+    /// Nothing to do for GTP-U
+    #[inline]
+    fn reconcile(&mut self) {
+    }
+}
+
+/// GTP-U header.
+#[derive(Clone, Copy, Debug, Default, SizeOf)]
+#[repr(C, packed)]
+struct GtpuHeader {
+    flags: u8,
+    message_type: u8,
+    length: u16be,
+    teid: u32be
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packets::ethernet::{Ethernet};
+    use crate::packets::ip::v4::Ipv4;
+    use crate::packets::udp::Udp;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::{UDP4_PACKET, IP4GTPU_PACKET, IP4GTPU_PACKET_EXT};
+
+    #[test]
+    fn size_of_gtpu_header() {
+        assert_eq!(8, GtpuHeader::size_of());
+    }
+
+    #[capsule::test]
+    fn parse_gtpu_packet() {
+        let packet = Mbuf::from_bytes(&IP4GTPU_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = ip4.parse::<Udp<Ipv4>>().unwrap();
+        let gtpu = udp.parse::<Gtpu<Udp<Ipv4>>>().unwrap();
+
+        assert!(gtpu.sequence_number_present());
+        assert!(!gtpu.npdu_number_present());
+        assert!(!gtpu.extension_present());
+        assert_eq!(1, gtpu.version());
+        assert_eq!(MessageTypes::PDU, gtpu.message_type());
+        assert_eq!(10459, gtpu.sequence_number().unwrap());
+        assert_eq!(None, gtpu.npdu_number());
+
+        // for the test packet, the header length is 12.
+        assert_eq!(12, gtpu.header_len());
+    }
+
+    #[capsule::test]
+    fn parse_gtpu_packet_ext() {
+        let packet = Mbuf::from_bytes(&IP4GTPU_PACKET_EXT).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = ip4.parse::<Udp<Ipv4>>().unwrap();
+        let gtpu = udp.parse::<Gtpu<Udp<Ipv4>>>().unwrap();
+
+        assert!(gtpu.sequence_number_present());
+        assert!(!gtpu.npdu_number_present());
+        assert!(gtpu.extension_present());
+        assert_eq!(1, gtpu.version());
+        assert_eq!(MessageTypes::PDU, gtpu.message_type());
+        assert_eq!(10459, gtpu.sequence_number().unwrap());
+        assert_eq!(None, gtpu.npdu_number());
+
+        // for the test packet, the header length is 16.
+        assert_eq!(16, gtpu.header_len());
+    }
+
+    #[capsule::test]
+    fn parse_gtpu_setter_checks() {
+        let packet = Mbuf::from_bytes(&IP4GTPU_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = ip4.parse::<Udp<Ipv4>>().unwrap();
+        let mut gtpu = udp.parse::<Gtpu<Udp<Ipv4>>>().unwrap();
+
+        gtpu.set_sequence_number_present().unwrap();
+        gtpu.set_npdu_number_present().unwrap();
+        gtpu.set_sequence_number(1);
+        gtpu.set_npdu_number(2);
+        gtpu.reconcile();
+
+        assert!(gtpu.sequence_number_present());
+        assert!(gtpu.npdu_number_present());
+        assert_eq!(Some(1), gtpu.sequence_number());
+        assert_eq!(Some(2), gtpu.npdu_number());
+        assert_eq!(12, gtpu.header_len());
+
+        gtpu.unset_sequence_number_present().unwrap();
+
+        assert!(!gtpu.sequence_number_present());
+        assert!(gtpu.npdu_number_present());
+        assert_eq!(None, gtpu.sequence_number());
+        assert_eq!(Some(2), gtpu.npdu_number());
+        assert_eq!(12, gtpu.header_len());
+
+        gtpu.unset_npdu_number_present().unwrap();
+
+        assert!(!gtpu.sequence_number_present());
+        assert!(!gtpu.npdu_number_present());
+        assert_eq!(None, gtpu.sequence_number());
+        assert_eq!(None, gtpu.npdu_number());
+        assert_eq!(8, gtpu.header_len());
+    }
+
+    #[capsule::test]
+    fn parse_non_gtpu_packet() {
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
+        let ethernet = packet.parse::<Ethernet>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let udp = ip4.parse::<Udp<Ipv4>>().unwrap();
+
+        assert!(udp.parse::<Gtpu<Udp<Ipv4>>>().is_err());
+    }
+}

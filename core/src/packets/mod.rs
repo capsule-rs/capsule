@@ -22,6 +22,7 @@ pub mod arp;
 pub mod checksum;
 pub mod ethernet;
 pub mod gre;
+pub mod gtpu;
 pub mod icmp;
 pub mod ip;
 mod mbuf;
