@@ -521,7 +521,8 @@ impl<E: GtpuTunnelPacket> Packet for Gtpu<E> {
         // Version bits must be 001
         self.header_mut().flags &= 0b0001_1111;
         self.header_mut().flags |= 0b0010_0000;
-        self.set_payload_length(self.payload_len());
+        let payload_len = self.payload_len() + self.header_len() - 8;
+        self.set_payload_length(payload_len);
     }
 }
 
