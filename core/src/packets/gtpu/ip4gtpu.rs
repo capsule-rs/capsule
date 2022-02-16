@@ -65,8 +65,11 @@ impl<P: Packet<Envelope = D>, D: Datalink> Tunnel for Ip4Gtpu<P, D> {
         let gtpu = delivery.parse::<Gtpu<Self::Delivery>>()?;
         let message_type = gtpu.message_type();
 
-        if message_type!=MessageTypes::PDU {
-            return Err(anyhow!("Can only decapsulate payment from Message Type PDU - not {:?}",message_type))
+        if message_type != MessageTypes::PDU {
+            return Err(anyhow!(
+                "Can only decapsulate payment from Message Type PDU - not {:?}",
+                message_type
+            ));
         }
 
         let envelope = gtpu.remove()?.remove()?.remove()?;
@@ -78,7 +81,7 @@ impl<P: Packet<Envelope = D>, D: Datalink> Tunnel for Ip4Gtpu<P, D> {
 /// port numbers of the UDP wrapper being the well-known port 2152
 impl<D: Datalink> GtpuTunnelPacket for Udp<Ipv4<D>> {
     fn gtpu_payload(&self) -> bool {
-        self.src_port()==GTPU_PORT && self.dst_port()==GTPU_PORT
+        self.src_port() == GTPU_PORT && self.dst_port() == GTPU_PORT
     }
 
     fn mark_gtpu_payload(&mut self) {
@@ -91,9 +94,9 @@ impl<D: Datalink> GtpuTunnelPacket for Udp<Ipv4<D>> {
 mod tests {
     use super::*;
     use crate::packets::ethernet::EtherTypes;
-    use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::icmp::v4::{EchoRequest, EchoReply};
+    use crate::packets::icmp::v4::{EchoReply, EchoRequest};
     use crate::packets::ip::v4::Ipv4;
+    use crate::packets::ip::ProtocolNumbers;
     use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IP4GTPU_PACKET, UDP4_PACKET};
 
@@ -113,7 +116,10 @@ mod tests {
         gtpu.set_sequence_number(1234);
         let transport = gtpu.deparse();
 
-        assert_eq!(EtherTypes::Ipv4, transport.envelope().envelope().protocol_type());
+        assert_eq!(
+            EtherTypes::Ipv4,
+            transport.envelope().envelope().protocol_type()
+        );
         assert_eq!(ProtocolNumbers::Udp, transport.envelope().protocol());
         assert_eq!(GTPU_PORT, transport.src_port());
         assert_eq!(GTPU_PORT, transport.dst_port());

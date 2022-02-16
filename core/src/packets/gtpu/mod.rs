@@ -31,8 +31,8 @@ use std::ptr::NonNull;
 
 /// Option bit flags
 const PT: u8 = 0b0001_0000;
-const E:  u8 = 0b0000_0100;
-const S:  u8 = 0b0000_0010;
+const E: u8 = 0b0000_0100;
+const S: u8 = 0b0000_0010;
 const PN: u8 = 0b0000_0001;
 
 /// GPRS Tunnelling Protocol (GTPv1) (GTP-U variant) [3GPP TS 29.281]
@@ -50,7 +50,7 @@ const PN: u8 = 0b0000_0001;
 ///
 /// - *Version Number*: (3 bits)
 ///     The Version Number field MUST contain the value 1 for GTP-U.
-/// 
+///
 /// - *PT - Protocol Type*: (1 bit)
 ///     The Protocol Type field MUST contain the value 1 for GTP-U
 ///     Reserved1 fields are present and the Checksum field contains valid
@@ -131,9 +131,7 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Returns whether any of the optional fields are present (implying that the 4 additional bytes are present in the header)
     #[inline]
     fn any_optional_fields_present(&self) -> bool {
-        self.sequence_number_present()
-            || self.npdu_number_present()
-            || self.extension_present()
+        self.sequence_number_present() || self.npdu_number_present() || self.extension_present()
     }
 
     /// Inserts the additional 4 header bytes required if ANY of the optional fields are present
@@ -147,7 +145,7 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
 
     /// Removes the additional 4 header bytes present if ANY of the optional fields are present
     #[inline]
-    fn shrink_optional_fields(&mut self) -> Result<()>  {
+    fn shrink_optional_fields(&mut self) -> Result<()> {
         let offset = self.offset + 8;
         self.mbuf_mut().shrink(offset, 4)?;
 
@@ -164,7 +162,7 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Gets the length of the payload recorded in the header
     #[inline]
     pub fn payload_length(&self) -> usize {
-        let len:u16 = self.header().length.into();
+        let len: u16 = self.header().length.into();
         len as usize
     }
 
@@ -189,8 +187,7 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Sets the sequence number present flag to true.
     #[inline]
     pub fn set_sequence_number_present(&mut self) -> Result<()> {
-        if !self.sequence_number_present()
-        {
+        if !self.sequence_number_present() {
             if !self.any_optional_fields_present() {
                 self.extend_for_optional_fields()?;
             }
@@ -205,7 +202,6 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     #[inline]
     pub fn unset_sequence_number_present(&mut self) -> Result<()> {
         if self.sequence_number_present() {
-
             self.header_mut().flags &= !S;
             self.sync_optionals()?;
 
@@ -220,7 +216,8 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Returns the sequence number or `None` if the option is not set.
     #[inline]
     pub fn sequence_number(&self) -> Option<u16> {
-        self.sequence_number.map(|ptr| unsafe { *ptr.as_ref() }.into())
+        self.sequence_number
+            .map(|ptr| unsafe { *ptr.as_ref() }.into())
     }
 
     /// Sets the sequence number field
@@ -242,8 +239,7 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Sets the npdu number present flag to true.
     #[inline]
     pub fn set_npdu_number_present(&mut self) -> Result<()> {
-        if !self.npdu_number_present()
-        {
+        if !self.npdu_number_present() {
             if !self.any_optional_fields_present() {
                 self.extend_for_optional_fields()?;
             }
@@ -258,7 +254,6 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     #[inline]
     pub fn unset_npdu_number_present(&mut self) -> Result<()> {
         if self.npdu_number_present() {
-
             self.header_mut().flags &= !PN;
             self.sync_optionals()?;
 
@@ -285,7 +280,6 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
         }
     }
 
-
     /// Returns whether at least one extension is present.
     #[inline]
     pub fn extension_present(&self) -> bool {
@@ -295,23 +289,29 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Returns the number of bytes occupied by extensions, excluding the terminating null
     #[inline]
     fn extensions_len(&self) -> Result<usize> {
-        if !self.extension_present() { 
-            return Ok(0); 
+        if !self.extension_present() {
+            return Ok(0);
         }
 
         let mut offset = self.offset() + 11;
         let start = offset;
         let ptr = self.mbuf().read_data::<u8>(offset)?;
-        let mut extension_type = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(0);
+        let mut extension_type = Some(ptr)
+            .map(|ptr| unsafe { *ptr.as_ref() }.into())
+            .unwrap_or(0);
 
         while extension_type != 0 {
-            let ptr = self.mbuf().read_data::<u8>(offset+1)?;
-            let length = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(1);
-            offset = offset+length*4;
+            let ptr = self.mbuf().read_data::<u8>(offset + 1)?;
+            let length = Some(ptr)
+                .map(|ptr| unsafe { *ptr.as_ref() }.into())
+                .unwrap_or(1);
+            offset = offset + length * 4;
             let ptr = self.mbuf().read_data::<u8>(offset)?;
-            extension_type = Some(ptr).map(|ptr| unsafe { *ptr.as_ref() }.into()).unwrap_or(0);
+            extension_type = Some(ptr)
+                .map(|ptr| unsafe { *ptr.as_ref() }.into())
+                .unwrap_or(0);
         }
-        Ok(offset-start)
+        Ok(offset - start)
     }
 
     /// Returns the version number.
@@ -321,19 +321,19 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// Version must always be 1.
     #[inline]
     pub fn version(&self) -> u8 {
-        (self.header().flags & 0b1110_0000)>>5
+        (self.header().flags & 0b1110_0000) >> 5
     }
 
     /// Returns the GTP-U message type
     #[inline]
     pub fn message_type(&self) -> MessageType {
-        MessageType::new(self.header().message_type.into())
+        MessageType::new(self.header().message_type)
     }
 
     /// Sets the GTP-U message type
     #[inline]
     pub fn set_message_type(&mut self, message_type: MessageType) {
-        self.header_mut().message_type = message_type.0.into()
+        self.header_mut().message_type = message_type.0
     }
 
     /// Syncs the pointers to optional fields after one of the bits was
@@ -341,7 +341,6 @@ impl<E: GtpuTunnelPacket> Gtpu<E> {
     /// sync or it will corrupt the packet.
     #[inline]
     fn sync_optionals(&mut self) -> Result<()> {
-
         self.sequence_number = None;
         if self.sequence_number_present() {
             let ptr = self.mbuf().read_data::<u16be>(self.offset + 8)?;
@@ -438,9 +437,15 @@ impl<E: GtpuTunnelPacket> Packet for Gtpu<E> {
     /// fields.
     #[inline]
     fn header_len(&self) -> usize {
-        8 
-        + if self.any_optional_fields_present() { 4 } else { 0 }
-        + if self.extension_present() { self.extensions_len().unwrap_or(0) } else { 0 }
+        8 + if self.any_optional_fields_present() {
+            4
+        } else {
+            0
+        } + if self.extension_present() {
+            self.extensions_len().unwrap_or(0)
+        } else {
+            0
+        }
     }
 
     #[inline]
@@ -533,17 +538,17 @@ struct GtpuHeader {
     flags: u8,
     message_type: u8,
     length: u16be,
-    teid: u32be
+    teid: u32be,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ethernet::{Ethernet};
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
     use crate::packets::udp::Udp;
     use crate::packets::Mbuf;
-    use crate::testils::byte_arrays::{UDP4_PACKET, IP4GTPU_PACKET, IP4GTPU_PACKET_EXT};
+    use crate::testils::byte_arrays::{IP4GTPU_PACKET, IP4GTPU_PACKET_EXT, UDP4_PACKET};
 
     #[test]
     fn size_of_gtpu_header() {
