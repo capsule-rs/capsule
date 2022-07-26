@@ -17,63 +17,62 @@
 */
 
 use anyhow::Result;
-use capsule::batch::{Batch, Pipeline};
-use capsule::config::load_config;
-use capsule::metrics;
+use async_io::Timer;
 use capsule::net::MacAddr;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Packet, Tcp4};
-use capsule::{batch, Mbuf, PortQueue, Runtime};
-use metrics_core::{Builder, Drain, Observe};
-use metrics_observer_yaml::YamlBuilder;
-use std::collections::HashMap;
+use capsule::packets::tcp::Tcp4;
+use capsule::packets::{Mbuf, Packet};
+use capsule::runtime::{self, Outbox, Runtime};
+use futures_lite::stream::StreamExt;
+use signal_hook::consts;
+use signal_hook::flag;
 use std::net::Ipv4Addr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::fmt;
 
-fn install(qs: HashMap<String, PortQueue>) -> impl Pipeline {
-    let src_mac = qs["eth1"].mac_addr();
-    let dst_ip = Ipv4Addr::new(10, 100, 1, 255);
+async fn syn_flood(src_mac: MacAddr, cap0: Outbox, term: Arc<AtomicBool>) {
+    let dst_ip = Ipv4Addr::new(10, 100, 1, 254);
     let dst_mac = MacAddr::new(0x02, 0x00, 0x00, 0xff, 0xff, 0xff);
 
-    // starts the src ip at 10.0.0.0
-    let mut next_ip = 10u32 << 24;
+    // 50ms delay between batches.
+    let mut timer = Timer::interval(Duration::from_millis(50));
 
-    batch::poll_fn(|| {
-        Mbuf::alloc_bulk(128).unwrap_or_else(|err| {
-            error!(?err);
-            vec![]
-        })
-    })
-    .map(move |packet| {
-        let mut ethernet = packet.push::<Ethernet>()?;
-        ethernet.set_src(src_mac);
-        ethernet.set_dst(dst_mac);
+    while !term.load(Ordering::Relaxed) {
+        let _ = timer.next().await;
+        info!("generating 128 SYN packets.");
 
-        // +1 to gen the next ip
-        next_ip += 1;
+        match Mbuf::alloc_bulk(128) {
+            Ok(mbufs) => mbufs
+                .into_iter()
+                .map(|mbuf| -> Result<Mbuf> {
+                    let mut ethernet = mbuf.push::<Ethernet>()?;
+                    ethernet.set_src(src_mac);
+                    ethernet.set_dst(dst_mac);
 
-        let mut v4 = ethernet.push::<Ipv4>()?;
-        v4.set_src(next_ip.into());
-        v4.set_dst(dst_ip);
+                    let mut ip4 = ethernet.push::<Ipv4>()?;
+                    ip4.set_src(rand::random::<u32>().into());
+                    ip4.set_dst(dst_ip);
 
-        let mut tcp = v4.push::<Tcp4>()?;
-        tcp.set_syn();
-        tcp.set_seq_no(1);
-        tcp.set_window(10);
-        tcp.set_dst_port(80);
-        tcp.reconcile_all();
+                    let mut tcp = ip4.push::<Tcp4>()?;
+                    tcp.set_syn();
+                    tcp.set_seq_no(1);
+                    tcp.set_window(10);
+                    tcp.set_dst_port(80);
+                    tcp.reconcile_all();
 
-        Ok(tcp)
-    })
-    .send(qs["eth1"].clone())
-}
-
-fn print_stats() {
-    let mut observer = YamlBuilder::new().build();
-    metrics::global().controller().observe(&mut observer);
-    println!("{}", observer.drain());
+                    Ok(tcp.reset())
+                })
+                .filter_map(|res| res.ok())
+                .for_each(|mbuf| {
+                    let _ = cap0.push(mbuf);
+                }),
+            Err(err) => error!(?err),
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -82,11 +81,25 @@ fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = load_config()?;
-    debug!(?config);
+    let config = runtime::load_config()?;
+    let runtime = Runtime::from_config(config)?;
 
-    Runtime::build(config)?
-        .add_periodic_pipeline_to_core(1, install, Duration::from_millis(10))?
-        .add_periodic_task_to_core(0, print_stats, Duration::from_secs(1))?
-        .execute()
+    let term = Arc::new(AtomicBool::new(false));
+
+    let cap0 = runtime.ports().get("cap0")?;
+    let outbox = cap0.outbox()?;
+    let src_mac = cap0.mac_addr();
+
+    runtime
+        .lcores()
+        .get(1)?
+        .spawn(syn_flood(src_mac, outbox, term.clone()));
+
+    let _guard = runtime.execute()?;
+
+    flag::register(consts::SIGINT, Arc::clone(&term))?;
+    info!("ctrl-c to quit ...");
+    while !term.load(Ordering::Relaxed) {}
+
+    Ok(())
 }

@@ -26078,6 +26078,10 @@ extern "C" {
     pub fn _rte_errno() -> ::std::os::raw::c_int;
 }
 extern "C" {
+    #[doc = " Return the Application thread ID of the execution unit."]
+    pub fn _rte_lcore_id() -> ::std::os::raw::c_uint;
+}
+extern "C" {
     #[doc = " Allocate a new mbuf from a mempool."]
     pub fn _rte_pktmbuf_alloc(mp: *mut rte_mempool) -> *mut rte_mbuf;
 }

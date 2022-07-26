@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
-use crate::packets::Internal;
-use crate::{ensure, Mbuf, SizeOf};
+use crate::packets::{Internal, Mbuf, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -190,9 +190,10 @@ impl Default for LinkLayerAddressFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::{NdpPacket, RouterAdvertisement};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet};
+    use crate::packets::Packet;
     use crate::testils::byte_arrays::ROUTER_ADVERT_PACKET;
 
     #[test]
@@ -204,8 +205,8 @@ mod tests {
     fn parse_link_layer_address() {
         let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let mut advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut advert = ip6.parse::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut iter = options.iter();
 
@@ -228,8 +229,8 @@ mod tests {
     fn push_and_set_link_layer_address() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut advert = ipv6.push::<RouterAdvertisement<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut advert = ip6.push::<RouterAdvertisement>().unwrap();
         let mut options = advert.options_mut();
         let mut lla = options.append::<LinkLayerAddress<'_>>().unwrap();
 

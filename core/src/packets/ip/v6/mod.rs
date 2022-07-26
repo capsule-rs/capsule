@@ -24,11 +24,12 @@ mod srh;
 pub use self::fragment::*;
 pub use self::srh::*;
 
+use crate::ensure;
 use crate::packets::checksum::PseudoHeader;
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Datalink, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -95,13 +96,13 @@ const FLOW: u32be = u32be(u32::to_be(0xfffff));
 /// [IETF RFC 8200]: https://tools.ietf.org/html/rfc8200#section-3
 /// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
 /// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
-pub struct Ipv6 {
-    envelope: Ethernet,
+pub struct Ipv6<E: Datalink = Ethernet> {
+    envelope: E,
     header: NonNull<Ipv6Header>,
     offset: usize,
 }
 
-impl Ipv6 {
+impl<E: Datalink> Ipv6<E> {
     #[inline]
     fn header(&self) -> &Ipv6Header {
         unsafe { self.header.as_ref() }
@@ -209,7 +210,7 @@ impl Ipv6 {
     }
 }
 
-impl fmt::Debug for Ipv6 {
+impl<E: Datalink> fmt::Debug for Ipv6<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ipv6")
             .field("src", &format!("{}", self.src()))
@@ -227,9 +228,8 @@ impl fmt::Debug for Ipv6 {
     }
 }
 
-impl Packet for Ipv6 {
-    /// The preceding type for IPv6 packet must be Ethernet.
-    type Envelope = Ethernet;
+impl<E: Datalink> Packet for Ipv6<E> {
+    type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -273,7 +273,7 @@ impl Packet for Ipv6 {
     #[inline]
     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
-            envelope.ether_type() == EtherTypes::Ipv6,
+            envelope.protocol_type() == EtherTypes::Ipv6,
             anyhow!("not an IPv6 packet.")
         );
 
@@ -306,7 +306,7 @@ impl Packet for Ipv6 {
         mbuf.extend(offset, Ipv6Header::size_of())?;
         let header = mbuf.write_data(offset, &Ipv6Header::default())?;
 
-        envelope.set_ether_type(EtherTypes::Ipv6);
+        envelope.set_protocol_type(EtherTypes::Ipv6);
 
         Ok(Ipv6 {
             envelope,
@@ -334,7 +334,7 @@ impl Packet for Ipv6 {
     }
 }
 
-impl IpPacket for Ipv6 {
+impl<E: Datalink> IpPacket for Ipv6<E> {
     #[inline]
     fn next_protocol(&self) -> ProtocolNumber {
         self.next_header()
@@ -417,7 +417,7 @@ impl IpPacket for Ipv6 {
     }
 }
 
-impl Ipv6Packet for Ipv6 {
+impl<E: Datalink> Ipv6Packet for Ipv6<E> {
     #[inline]
     fn next_header(&self) -> ProtocolNumber {
         ProtocolNumber::new(self.header().next_header)
@@ -467,8 +467,8 @@ impl Default for Ipv6Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
-    use crate::Mbuf;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::{TCP6_PACKET, UDP4_PACKET};
 
     #[test]
     fn size_of_ipv6_header() {
@@ -477,24 +477,24 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv6_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
 
-        assert_eq!(6, ipv6.version());
-        assert_eq!(0, ipv6.dscp());
-        assert_eq!(0, ipv6.ecn());
-        assert_eq!(0, ipv6.flow_label());
-        assert_eq!(24, ipv6.payload_len());
-        assert_eq!(ProtocolNumbers::Tcp, ipv6.next_header());
-        assert_eq!(2, ipv6.hop_limit());
-        assert_eq!("2001:db8:85a3::1", ipv6.src().to_string());
-        assert_eq!("2001:db8:85a3::8a2e:370:7334", ipv6.dst().to_string());
+        assert_eq!(6, ip6.version());
+        assert_eq!(0, ip6.dscp());
+        assert_eq!(0, ip6.ecn());
+        assert_eq!(0, ip6.flow_label());
+        assert_eq!(24, ip6.payload_len());
+        assert_eq!(ProtocolNumbers::Tcp, ip6.next_header());
+        assert_eq!(2, ip6.hop_limit());
+        assert_eq!("2001:db8:85a3::1", ip6.src().to_string());
+        assert_eq!("2001:db8:85a3::8a2e:370:7334", ip6.dst().to_string());
     }
 
     #[capsule::test]
     fn parse_non_ipv6_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert!(ethernet.parse::<Ipv6>().is_err());
@@ -502,33 +502,33 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv6_setter_checks() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ipv6 = ethernet.parse::<Ipv6>().unwrap();
+        let mut ip6 = ethernet.parse::<Ipv6>().unwrap();
 
-        assert_eq!(6, ipv6.version());
-        assert_eq!(0, ipv6.dscp());
-        assert_eq!(0, ipv6.ecn());
-        assert_eq!(0, ipv6.flow_label());
-        ipv6.set_dscp(10);
-        ipv6.set_ecn(3);
-        assert_eq!(6, ipv6.version());
-        assert_eq!(10, ipv6.dscp());
-        assert_eq!(3, ipv6.ecn());
-        assert_eq!(0, ipv6.flow_label());
+        assert_eq!(6, ip6.version());
+        assert_eq!(0, ip6.dscp());
+        assert_eq!(0, ip6.ecn());
+        assert_eq!(0, ip6.flow_label());
+        ip6.set_dscp(10);
+        ip6.set_ecn(3);
+        assert_eq!(6, ip6.version());
+        assert_eq!(10, ip6.dscp());
+        assert_eq!(3, ip6.ecn());
+        assert_eq!(0, ip6.flow_label());
     }
 
     #[capsule::test]
     fn push_ipv6_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
 
-        assert_eq!(6, ipv6.version());
-        assert_eq!(Ipv6Header::size_of(), ipv6.len());
+        assert_eq!(6, ip6.version());
+        assert_eq!(Ipv6Header::size_of(), ip6.len());
 
         // make sure ether type is fixed
-        assert_eq!(EtherTypes::Ipv6, ipv6.envelope().ether_type());
+        assert_eq!(EtherTypes::Ipv6, ip6.envelope().ether_type());
     }
 
     #[capsule::test]
@@ -538,13 +538,13 @@ mod tests {
         let _ = packet.extend(0, 1800);
 
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let mut ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let mut ip6 = ethernet.push::<Ipv6>().unwrap();
 
         // can't truncate to less than minimum MTU.
-        assert!(ipv6.truncate(1200).is_err());
+        assert!(ip6.truncate(1200).is_err());
 
-        assert!(ipv6.len() > 1500);
-        let _ = ipv6.truncate(1500);
-        assert_eq!(1500, ipv6.len());
+        assert!(ip6.len() > 1500);
+        let _ = ip6.truncate(1500);
+        assert_eq!(1500, ip6.len());
     }
 }

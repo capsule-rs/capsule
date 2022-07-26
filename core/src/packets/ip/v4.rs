@@ -18,11 +18,12 @@
 
 //! Internet Protocol v4.
 
+use crate::ensure;
 use crate::packets::checksum::{self, PseudoHeader};
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::ip::{IpPacket, ProtocolNumber, DEFAULT_IP_TTL};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Datalink, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
@@ -142,13 +143,13 @@ const FLAGS_MF: u16be = u16be(u16::to_be(0b0010_0000_0000_0000));
 /// [IETF RFC 791]: https://tools.ietf.org/html/rfc791#section-3.1
 /// [IETF RFC 2474]: https://tools.ietf.org/html/rfc2474
 /// [IETF RFC 3168]: https://tools.ietf.org/html/rfc3168
-pub struct Ipv4 {
-    envelope: Ethernet,
+pub struct Ipv4<E: Datalink = Ethernet> {
+    envelope: E,
     header: NonNull<Ipv4Header>,
     offset: usize,
 }
 
-impl Ipv4 {
+impl<E: Datalink> Ipv4<E> {
     #[inline]
     fn header(&self) -> &Ipv4Header {
         unsafe { self.header.as_ref() }
@@ -324,7 +325,7 @@ impl Ipv4 {
 
         if let Ok(data) = self.mbuf().read_data_slice(self.offset, self.header_len()) {
             let data = unsafe { data.as_ref() };
-            let checksum = checksum::compute(0, data);
+            let checksum = checksum::ones_complement(0, data);
             self.set_checksum(checksum);
         } else {
             // we are reading the entire header, should never run out
@@ -357,7 +358,7 @@ impl Ipv4 {
     }
 }
 
-impl fmt::Debug for Ipv4 {
+impl<E: Datalink> fmt::Debug for Ipv4<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ipv4")
             .field("src", &format!("{}", self.src()))
@@ -380,9 +381,8 @@ impl fmt::Debug for Ipv4 {
     }
 }
 
-impl Packet for Ipv4 {
-    /// The preceding type for an IPv4 packet must be Ethernet.
-    type Envelope = Ethernet;
+impl<E: Datalink> Packet for Ipv4<E> {
+    type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -426,7 +426,7 @@ impl Packet for Ipv4 {
     #[inline]
     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
-            envelope.ether_type() == EtherTypes::Ipv4,
+            envelope.protocol_type() == EtherTypes::Ipv4,
             anyhow!("not an IPv4 packet.")
         );
 
@@ -459,7 +459,7 @@ impl Packet for Ipv4 {
         mbuf.extend(offset, Ipv4Header::size_of())?;
         let header = mbuf.write_data(offset, &Ipv4Header::default())?;
 
-        envelope.set_ether_type(EtherTypes::Ipv4);
+        envelope.set_protocol_type(EtherTypes::Ipv4);
 
         Ok(Ipv4 {
             envelope,
@@ -489,7 +489,7 @@ impl Packet for Ipv4 {
     }
 }
 
-impl IpPacket for Ipv4 {
+impl<E: Datalink> IpPacket for Ipv4<E> {
     #[inline]
     fn next_protocol(&self) -> ProtocolNumber {
         self.protocol()
@@ -572,6 +572,13 @@ impl IpPacket for Ipv4 {
     }
 }
 
+impl<E: Datalink> Ipv4Packet for Ipv4<E> {}
+
+/// A marker trait for Ipv4 packet.
+///
+/// Used as a trait bound for packets succeding Ipv4.
+pub trait Ipv4Packet: IpPacket {}
+
 /// IPv4 header.
 ///
 /// The header only include the fixed portion of the IPv4 header.
@@ -612,8 +619,8 @@ impl Default for Ipv4Header {
 mod tests {
     use super::*;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, IPV6_TCP_PACKET};
-    use crate::Mbuf;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::{TCP6_PACKET, UDP4_PACKET};
 
     #[test]
     fn size_of_ipv4_header() {
@@ -622,29 +629,29 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv4_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
 
-        assert_eq!(4, ipv4.version());
-        assert_eq!(5, ipv4.ihl());
-        assert_eq!(38, ipv4.total_length());
-        assert_eq!(43849, ipv4.identification());
-        assert_eq!(true, ipv4.dont_fragment());
-        assert_eq!(false, ipv4.more_fragments());
-        assert_eq!(0, ipv4.fragment_offset());
-        assert_eq!(0, ipv4.dscp());
-        assert_eq!(0, ipv4.ecn());
-        assert_eq!(255, ipv4.ttl());
-        assert_eq!(ProtocolNumbers::Udp, ipv4.protocol());
-        assert_eq!(0xf700, ipv4.checksum());
-        assert_eq!("139.133.217.110", ipv4.src().to_string());
-        assert_eq!("139.133.233.2", ipv4.dst().to_string());
+        assert_eq!(4, ip4.version());
+        assert_eq!(5, ip4.ihl());
+        assert_eq!(38, ip4.total_length());
+        assert_eq!(43849, ip4.identification());
+        assert_eq!(true, ip4.dont_fragment());
+        assert_eq!(false, ip4.more_fragments());
+        assert_eq!(0, ip4.fragment_offset());
+        assert_eq!(0, ip4.dscp());
+        assert_eq!(0, ip4.ecn());
+        assert_eq!(255, ip4.ttl());
+        assert_eq!(ProtocolNumbers::Udp, ip4.protocol());
+        assert_eq!(0xf700, ip4.checksum());
+        assert_eq!("139.133.217.110", ip4.src().to_string());
+        assert_eq!("139.133.233.2", ip4.dst().to_string());
     }
 
     #[capsule::test]
     fn parse_non_ipv4_packet() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert!(ethernet.parse::<Ipv4>().is_err());
@@ -652,50 +659,50 @@ mod tests {
 
     #[capsule::test]
     fn parse_ipv4_setter_checks() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 
         // Fields
-        ipv4.set_ihl(ipv4.ihl());
+        ip4.set_ihl(ip4.ihl());
 
         // Flags
-        assert_eq!(true, ipv4.dont_fragment());
-        assert_eq!(false, ipv4.more_fragments());
+        assert_eq!(true, ip4.dont_fragment());
+        assert_eq!(false, ip4.more_fragments());
 
-        ipv4.unset_dont_fragment();
-        assert_eq!(false, ipv4.dont_fragment());
-        ipv4.set_dont_fragment();
-        assert_eq!(true, ipv4.dont_fragment());
+        ip4.unset_dont_fragment();
+        assert_eq!(false, ip4.dont_fragment());
+        ip4.set_dont_fragment();
+        assert_eq!(true, ip4.dont_fragment());
 
-        ipv4.set_more_fragments();
-        assert_eq!(true, ipv4.more_fragments());
-        ipv4.unset_more_fragments();
-        assert_eq!(false, ipv4.more_fragments());
+        ip4.set_more_fragments();
+        assert_eq!(true, ip4.more_fragments());
+        ip4.unset_more_fragments();
+        assert_eq!(false, ip4.more_fragments());
 
-        ipv4.set_fragment_offset(5);
-        assert_eq!(5, ipv4.fragment_offset());
+        ip4.set_fragment_offset(5);
+        assert_eq!(5, ip4.fragment_offset());
 
         // DSCP & ECN
-        assert_eq!(0, ipv4.dscp());
-        assert_eq!(0, ipv4.ecn());
-        ipv4.set_dscp(10);
-        ipv4.set_ecn(3);
-        assert_eq!(10, ipv4.dscp());
-        assert_eq!(3, ipv4.ecn());
+        assert_eq!(0, ip4.dscp());
+        assert_eq!(0, ip4.ecn());
+        ip4.set_dscp(10);
+        ip4.set_ecn(3);
+        assert_eq!(10, ip4.dscp());
+        assert_eq!(3, ip4.ecn());
     }
 
     #[capsule::test]
     fn push_ipv4_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv4 = ethernet.push::<Ipv4>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
 
-        assert_eq!(4, ipv4.version());
-        assert_eq!(Ipv4Header::size_of(), ipv4.len());
+        assert_eq!(4, ip4.version());
+        assert_eq!(Ipv4Header::size_of(), ip4.len());
 
         // make sure ether type is fixed
-        assert_eq!(EtherTypes::Ipv4, ipv4.envelope().ether_type());
+        assert_eq!(EtherTypes::Ipv4, ip4.envelope().ether_type());
     }
 
     #[capsule::test]
@@ -705,25 +712,25 @@ mod tests {
         let _ = packet.extend(0, 2000);
 
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let mut ipv4 = ethernet.push::<Ipv4>().unwrap();
+        let mut ip4 = ethernet.push::<Ipv4>().unwrap();
 
         // can't truncate to less than minimum MTU.
-        assert!(ipv4.truncate(60).is_err());
+        assert!(ip4.truncate(60).is_err());
 
-        assert!(ipv4.len() > 1000);
-        let _ = ipv4.truncate(1000);
-        assert_eq!(1000, ipv4.len());
+        assert!(ip4.len() > 1000);
+        let _ = ip4.truncate(1000);
+        assert_eq!(1000, ip4.len());
     }
 
     #[capsule::test]
     fn compute_checksum() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let mut ipv4 = ethernet.parse::<Ipv4>().unwrap();
+        let mut ip4 = ethernet.parse::<Ipv4>().unwrap();
 
-        let expected = ipv4.checksum();
+        let expected = ip4.checksum();
         // no payload change but force a checksum recompute anyway
-        ipv4.reconcile_all();
-        assert_eq!(expected, ipv4.checksum());
+        ip4.reconcile_all();
+        assert_eq!(expected, ip4.checksum());
     }
 }

@@ -18,10 +18,11 @@
 
 //! Address Resolution Protocol.
 
+use crate::ensure;
 use crate::net::MacAddr;
+use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Datalink, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::Ipv4Addr;
@@ -83,13 +84,13 @@ use std::ptr::NonNull;
 ///      defined by *P Length*.
 ///
 /// [IETF RFC 826]: https://tools.ietf.org/html/rfc826
-pub struct Arp<H: HardwareAddr, P: ProtocolAddr> {
-    envelope: Ethernet,
+pub struct Arp<E: Datalink = Ethernet, H: HardwareAddr = MacAddr, P: ProtocolAddr = Ipv4Addr> {
+    envelope: E,
     header: NonNull<ArpHeader<H, P>>,
     offset: usize,
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> Arp<E, H, P> {
     #[inline]
     fn header(&self) -> &ArpHeader<H, P> {
         unsafe { self.header.as_ref() }
@@ -113,14 +114,20 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
     }
 
     /// Returns the protocol type.
+    ///
+    /// [IANA] assigned Protocol type numbers share the same space as
+    /// [`EtherTypes`].
+    ///
+    /// [IANA]: https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
+    /// [`EtherTypes`]: crate::packets::ethernet::EtherTypes
     #[inline]
-    pub fn protocol_type(&self) -> ProtocolType {
-        ProtocolType::new(self.header().protocol_type.into())
+    pub fn protocol_type(&self) -> EtherType {
+        EtherType::new(self.header().protocol_type.into())
     }
 
     /// Sets the protocol type.
     #[inline]
-    fn set_protocol_type(&mut self, protocol_type: ProtocolType) {
+    fn set_protocol_type(&mut self, protocol_type: EtherType) {
         self.header_mut().protocol_type = protocol_type.0.into()
     }
 
@@ -209,7 +216,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Arp<H, P> {
     }
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<H, P> {
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<E, H, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("arp")
             .field("hardware_type", &format!("{}", self.hardware_type()))
@@ -240,9 +247,8 @@ impl<H: HardwareAddr, P: ProtocolAddr> fmt::Debug for Arp<H, P> {
     }
 }
 
-impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
-    /// The preceding type for ARP must be `Ethernet`.
-    type Envelope = Ethernet;
+impl<E: Datalink, H: HardwareAddr, P: ProtocolAddr> Packet for Arp<E, H, P> {
+    type Envelope = E;
 
     #[inline]
     fn envelope(&self) -> &Self::Envelope {
@@ -273,7 +279,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         }
     }
 
-    /// Parses the Ethernet payload as an ARP packet.
+    /// Parses the payload as an ARP packet.
     ///
     /// # Errors
     ///
@@ -291,7 +297,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
     #[inline]
     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         ensure!(
-            envelope.ether_type() == EtherTypes::Arp,
+            envelope.protocol_type() == EtherTypes::Arp,
             anyhow!("not an ARP packet.")
         );
 
@@ -361,7 +367,7 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         mbuf.extend(offset, ArpHeader::<H, P>::size_of())?;
         let header = mbuf.write_data(offset, &ArpHeader::<H, P>::default())?;
 
-        envelope.set_ether_type(EtherTypes::Arp);
+        envelope.set_protocol_type(EtherTypes::Arp);
 
         let mut packet = Arp {
             envelope,
@@ -417,49 +423,6 @@ impl fmt::Display for HardwareType {
             "{}",
             match *self {
                 HardwareTypes::Ethernet => "Ethernet".to_string(),
-                _ => {
-                    let t = self.0;
-                    format!("0x{:04x}", t)
-                }
-            }
-        )
-    }
-}
-
-/// [IANA] assigned protocol type.
-///
-/// See [`ProtocolTypes`] for which are current supported.
-///
-/// [IANA]: https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
-/// [`ProtocolTypes`]: crate::packets::arp::ProtocolTypes
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[repr(C, packed)]
-pub struct ProtocolType(u16);
-
-impl ProtocolType {
-    /// Creates a new protocol type.
-    pub fn new(value: u16) -> Self {
-        ProtocolType(value)
-    }
-}
-
-/// Supported protocol types.
-#[allow(non_snake_case)]
-#[allow(non_upper_case_globals)]
-pub mod ProtocolTypes {
-    use super::ProtocolType;
-
-    /// Internet protocol version 4.
-    pub const Ipv4: ProtocolType = ProtocolType(0x0800);
-}
-
-impl fmt::Display for ProtocolType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                ProtocolTypes::Ipv4 => "IPv4".to_string(),
                 _ => {
                     let t = self.0;
                     format!("0x{:04x}", t)
@@ -533,12 +496,6 @@ pub trait HardwareAddr: SizeOf + Copy + fmt::Display {
     fn default() -> Self;
 }
 
-impl SizeOf for MacAddr {
-    fn size_of() -> usize {
-        6
-    }
-}
-
 impl HardwareAddr for MacAddr {
     fn addr_type() -> HardwareType {
         HardwareTypes::Ethernet
@@ -552,7 +509,7 @@ impl HardwareAddr for MacAddr {
 /// A trait implemented by ARP protocol address types.
 pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
     /// Returns the associated protocol type of the given address.
-    fn addr_type() -> ProtocolType;
+    fn addr_type() -> EtherType;
 
     /// Returns the default value.
     ///
@@ -561,24 +518,15 @@ pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
     fn default() -> Self;
 }
 
-impl SizeOf for Ipv4Addr {
-    fn size_of() -> usize {
-        4
-    }
-}
-
 impl ProtocolAddr for Ipv4Addr {
-    fn addr_type() -> ProtocolType {
-        ProtocolTypes::Ipv4
+    fn addr_type() -> EtherType {
+        EtherTypes::Ipv4
     }
 
     fn default() -> Self {
         Ipv4Addr::UNSPECIFIED
     }
 }
-
-/// A type alias for an IPv4 ARP packet.
-pub type Arp4 = Arp<MacAddr, Ipv4Addr>;
 
 /// ARP header.
 #[allow(missing_debug_implementations)]
@@ -631,8 +579,8 @@ impl<H: HardwareAddr, P: ProtocolAddr> Default for ArpHeader<H, P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testils::byte_arrays::ARP4_PACKET;
-    use crate::Mbuf;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::ARP_PACKET;
 
     #[test]
     fn size_of_arp_header() {
@@ -641,48 +589,48 @@ mod tests {
 
     #[capsule::test]
     fn parse_arp_packet() {
-        let packet = Mbuf::from_bytes(&ARP4_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&ARP_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let arp4 = ethernet.parse::<Arp4>().unwrap();
+        let arp = ethernet.parse::<Arp>().unwrap();
 
-        assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
-        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
-        assert_eq!(6, arp4.hardware_addr_len());
-        assert_eq!(4, arp4.protocol_addr_len());
-        assert_eq!(OperationCodes::Request, arp4.operation_code());
-        assert_eq!("00:00:00:00:00:01", arp4.sender_hardware_addr().to_string());
-        assert_eq!("139.133.217.110", arp4.sender_protocol_addr().to_string());
-        assert_eq!("00:00:00:00:00:00", arp4.target_hardware_addr().to_string());
-        assert_eq!("139.133.233.2", arp4.target_protocol_addr().to_string());
+        assert_eq!(HardwareTypes::Ethernet, arp.hardware_type());
+        assert_eq!(EtherTypes::Ipv4, arp.protocol_type());
+        assert_eq!(6, arp.hardware_addr_len());
+        assert_eq!(4, arp.protocol_addr_len());
+        assert_eq!(OperationCodes::Request, arp.operation_code());
+        assert_eq!("00:00:00:00:00:01", arp.sender_hardware_addr().to_string());
+        assert_eq!("139.133.217.110", arp.sender_protocol_addr().to_string());
+        assert_eq!("00:00:00:00:00:00", arp.target_hardware_addr().to_string());
+        assert_eq!("139.133.233.2", arp.target_protocol_addr().to_string());
     }
 
     #[capsule::test]
     fn push_arp_packet() {
         let packet = Mbuf::new().unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let mut arp4 = ethernet.push::<Arp4>().unwrap();
+        let mut arp = ethernet.push::<Arp>().unwrap();
 
-        assert_eq!(ArpHeader::<MacAddr, Ipv4Addr>::size_of(), arp4.len());
+        assert_eq!(ArpHeader::<MacAddr, Ipv4Addr>::size_of(), arp.len());
 
         // make sure types are set properly
-        assert_eq!(HardwareTypes::Ethernet, arp4.hardware_type());
-        assert_eq!(ProtocolTypes::Ipv4, arp4.protocol_type());
-        assert_eq!(6, arp4.hardware_addr_len());
-        assert_eq!(4, arp4.protocol_addr_len());
+        assert_eq!(HardwareTypes::Ethernet, arp.hardware_type());
+        assert_eq!(EtherTypes::Ipv4, arp.protocol_type());
+        assert_eq!(6, arp.hardware_addr_len());
+        assert_eq!(4, arp.protocol_addr_len());
 
         // check the setters
-        arp4.set_operation_code(OperationCodes::Reply);
-        assert_eq!(OperationCodes::Reply, arp4.operation_code());
-        arp4.set_sender_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 1));
-        assert_eq!("00:00:00:00:00:01", arp4.sender_hardware_addr().to_string());
-        arp4.set_sender_protocol_addr(Ipv4Addr::new(10, 0, 0, 1));
-        assert_eq!("10.0.0.1", arp4.sender_protocol_addr().to_string());
-        arp4.set_target_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 2));
-        assert_eq!("00:00:00:00:00:02", arp4.target_hardware_addr().to_string());
-        arp4.set_target_protocol_addr(Ipv4Addr::new(10, 0, 0, 2));
-        assert_eq!("10.0.0.2", arp4.target_protocol_addr().to_string());
+        arp.set_operation_code(OperationCodes::Reply);
+        assert_eq!(OperationCodes::Reply, arp.operation_code());
+        arp.set_sender_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 1));
+        assert_eq!("00:00:00:00:00:01", arp.sender_hardware_addr().to_string());
+        arp.set_sender_protocol_addr(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!("10.0.0.1", arp.sender_protocol_addr().to_string());
+        arp.set_target_hardware_addr(MacAddr::new(0, 0, 0, 0, 0, 2));
+        assert_eq!("00:00:00:00:00:02", arp.target_hardware_addr().to_string());
+        arp.set_target_protocol_addr(Ipv4Addr::new(10, 0, 0, 2));
+        assert_eq!("10.0.0.2", arp.target_protocol_addr().to_string());
 
         // make sure the ether type is fixed
-        assert_eq!(EtherTypes::Arp, arp4.envelope().ether_type());
+        assert_eq!(EtherTypes::Arp, arp.envelope().ether_type());
     }
 }

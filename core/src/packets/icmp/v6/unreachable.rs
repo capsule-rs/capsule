@@ -17,10 +17,9 @@
 */
 
 use crate::packets::icmp::v6::{Icmpv6, Icmpv6Message, Icmpv6Packet, Icmpv6Type, Icmpv6Types};
-use crate::packets::ip::v6::{Ipv6Packet, IPV6_MIN_MTU};
+use crate::packets::ip::v6::{Ipv6, Ipv6Packet, IPV6_MIN_MTU};
 use crate::packets::types::u32be;
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -42,7 +41,7 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 4443]: https://tools.ietf.org/html/rfc4443#section-3.1
 #[derive(Icmpv6Packet)]
-pub struct DestinationUnreachable<E: Ipv6Packet> {
+pub struct DestinationUnreachable<E: Ipv6Packet = Ipv6> {
     icmp: Icmpv6<E>,
     body: NonNull<DestinationUnreachableBody>,
 }
@@ -164,10 +163,9 @@ struct DestinationUnreachableBody {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
-    use crate::testils::byte_arrays::IPV6_TCP_PACKET;
-    use crate::Mbuf;
+    use crate::packets::ethernet::Ethernet;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::TCP6_PACKET;
 
     #[test]
     fn size_of_destination_unreachable_body() {
@@ -176,12 +174,12 @@ mod tests {
 
     #[capsule::test]
     fn push_and_set_destination_unreachable() {
-        let packet = Mbuf::from_bytes(&IPV6_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP6_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv6 = ethernet.parse::<Ipv6>().unwrap();
-        let tcp_len = ipv6.payload_len();
+        let ip6 = ethernet.parse::<Ipv6>().unwrap();
+        let tcp_len = ip6.payload_len();
 
-        let mut unreachable = ipv6.push::<DestinationUnreachable<Ipv6>>().unwrap();
+        let mut unreachable = ip6.push::<DestinationUnreachable>().unwrap();
 
         assert_eq!(4, unreachable.header_len());
         assert_eq!(
@@ -204,12 +202,12 @@ mod tests {
         // starts with a buffer larger than min MTU.
         let packet = Mbuf::from_bytes(&[42; 1600]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
 
         // the max packet len is MTU + Ethernet header
         let max_len = IPV6_MIN_MTU + 14;
 
-        let mut unreachable = ipv6.push::<DestinationUnreachable<Ipv6>>().unwrap();
+        let mut unreachable = ip6.push::<DestinationUnreachable>().unwrap();
         assert!(unreachable.mbuf().data_len() > max_len);
 
         unreachable.reconcile_all();

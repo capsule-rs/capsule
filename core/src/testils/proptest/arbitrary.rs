@@ -19,8 +19,8 @@
 //! Implementations of `proptest.arbitrary.Arbitrary` trait for
 //! various types.
 
-use crate::dpdk::Mbuf;
 use crate::net::MacAddr;
+use crate::packets::Mbuf;
 use proptest::arbitrary::{any, Arbitrary, StrategyFor};
 use proptest::strategy::{MapInto, Strategy};
 

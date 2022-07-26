@@ -21,10 +21,11 @@
 //! # Example
 //!
 //! A configuration from our [`pktdump`] example:
+//!
 //! ```
 //! app_name = "pktdump"
-//! master_core = 0
-//! duration = 5
+//! main_core = 0
+//! worker_cores = [0]
 //!
 //! [mempool]
 //!     capacity = 65535
@@ -34,100 +35,26 @@
 //!     name = "eth1"
 //!     device = "net_pcap0"
 //!     args = "rx_pcap=tcp4.pcap,tx_iface=lo"
-//!     cores = [0]
+//!     rx_core = [0]
+//!     tx_core = [0]
 //!
 //! [[ports]]
 //!     name = "eth2"
 //!     device = "net_pcap1"
 //!     args = "rx_pcap=tcp6.pcap,tx_iface=lo"
-//!     cores = [0]
+//!     rx_core = [0]
+//!     tx_core = [0]
 //! ```
 //!
 //! [`pktdump`]: https://github.com/capsule-rs/capsule/tree/master/examples/pktdump
 
-use crate::dpdk::CoreId;
-use crate::net::{Ipv4Cidr, Ipv6Cidr, MacAddr};
 use anyhow::Result;
+use capsule_ffi as cffi;
 use clap::{clap_app, crate_version};
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer};
+use serde::Deserialize;
 use std::fmt;
 use std::fs;
-use std::str::FromStr;
-use std::time::Duration;
-
-// make `CoreId` serde deserializable.
-impl<'de> Deserialize<'de> for CoreId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let i = usize::deserialize(deserializer)?;
-        Ok(CoreId::new(i))
-    }
-}
-
-// make `MacAddr` serde deserializable.
-impl<'de> Deserialize<'de> for MacAddr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        MacAddr::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-// make `Ipv4Cidr` serde deserializable.
-impl<'de> Deserialize<'de> for Ipv4Cidr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ipv4Cidr::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-// make `Ipv6Cidr` serde deserializable.
-impl<'de> Deserialize<'de> for Ipv6Cidr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ipv6Cidr::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-/// Deserializes a duration from seconds expressed as `u64`.
-pub fn duration_from_secs<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let secs = u64::deserialize(deserializer)?;
-    Ok(Duration::from_secs(secs))
-}
-
-/// Deserializes an option of duration from seconds expressed as `u64`.
-pub fn duration_option_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    // for now this is the cleanest way to deserialize an option, till a better
-    // way is implemented, https://github.com/serde-rs/serde/issues/723
-    #[derive(Deserialize)]
-    struct Wrapper(#[serde(deserialize_with = "duration_from_secs")] Duration);
-
-    let option = Option::deserialize(deserializer)?.and_then(|Wrapper(dur)| {
-        if dur.as_secs() > 0 {
-            Some(dur)
-        } else {
-            None
-        }
-    });
-    Ok(option)
-}
 
 /// Runtime configuration settings.
 #[derive(Clone, Deserialize)]
@@ -151,16 +78,19 @@ pub struct RuntimeConfig {
     #[serde(default)]
     pub app_group: Option<String>,
 
-    /// The identifier of the master core. This is the core the main thread
+    /// The identifier of the main core. This is the core the main thread
     /// will run on.
-    pub master_core: CoreId,
+    pub main_core: usize,
 
-    /// Additional cores that are available to the application, and can be
-    /// used for running general tasks. Packet pipelines cannot be run on
-    /// these cores unless the core is also assigned to a port separately.
-    /// Defaults to empty list.
+    /// Worker cores used for packet processing and general async task
+    /// execution.
+    pub worker_cores: Vec<usize>,
+
+    /// The root data directory the application writes to.
+    ///
+    /// If unset, the default is `/var/capsule/{app_name}`.
     #[serde(default)]
-    pub cores: Vec<CoreId>,
+    pub data_dir: Option<String>,
 
     /// Per mempool settings. On a system with multiple sockets, aka NUMA
     /// nodes, one mempool will be allocated for each socket the apllication
@@ -177,25 +107,23 @@ pub struct RuntimeConfig {
     /// [`parameters`]: https://doc.dpdk.org/guides/linux_gsg/linux_eal_parameters.html
     #[serde(default)]
     pub dpdk_args: Option<String>,
-
-    /// If set, the application will stop after the duration expires. Useful
-    /// for setting a timeout for integration tests.
-    #[serde(default, deserialize_with = "duration_option_from_secs")]
-    pub duration: Option<Duration>,
 }
 
 impl RuntimeConfig {
-    /// Returns all the cores assigned to the runtime.
-    pub(crate) fn all_cores(&self) -> Vec<CoreId> {
+    fn other_cores(&self) -> Vec<usize> {
         let mut cores = vec![];
-        cores.push(self.master_core);
-        cores.extend(self.cores.iter());
+        cores.extend(&self.worker_cores);
 
         self.ports.iter().for_each(|port| {
-            cores.extend(port.cores.iter());
+            if !port.rx_cores.is_empty() {
+                cores.extend(&port.rx_cores);
+            }
+            if !port.tx_cores.is_empty() {
+                cores.extend(&port.tx_cores);
+            }
         });
 
-        cores.sort();
+        cores.sort_unstable();
         cores.dedup();
         cores
     }
@@ -204,29 +132,28 @@ impl RuntimeConfig {
     pub(crate) fn to_eal_args(&self) -> Vec<String> {
         let mut eal_args = vec![];
 
-        // adds the app name
+        // adds the app name.
         eal_args.push(self.app_name.clone());
 
+        // adds the proc type.
         let proc_type = if self.secondary {
-            "secondary".to_owned()
+            "secondary"
         } else {
-            "primary".to_owned()
+            "primary"
         };
+        eal_args.push("--proc-type".into());
+        eal_args.push(proc_type.into());
 
-        // adds the proc type
-        eal_args.push("--proc-type".to_owned());
-        eal_args.push(proc_type);
-
-        // adds the mem file prefix
+        // adds the mem file prefix.
         let prefix = self.app_group.as_ref().unwrap_or(&self.app_name);
-        eal_args.push("--file-prefix".to_owned());
+        eal_args.push("--file-prefix".into());
         eal_args.push(prefix.clone());
 
-        // adds all the ports
+        // adds all the ports.
         let pcie = Regex::new(r"^\d{4}:\d{2}:\d{2}\.\d$").unwrap();
         self.ports.iter().for_each(|port| {
             if pcie.is_match(port.device.as_str()) {
-                eal_args.push("--pci-whitelist".to_owned());
+                eal_args.push("--pci-whitelist".into());
                 eal_args.push(port.device.clone());
             } else {
                 let vdev = if let Some(args) = &port.args {
@@ -234,52 +161,73 @@ impl RuntimeConfig {
                 } else {
                     port.device.clone()
                 };
-                eal_args.push("--vdev".to_owned());
+                eal_args.push("--vdev".into());
                 eal_args.push(vdev);
             }
         });
 
-        // adds the master core
-        eal_args.push("--master-lcore".to_owned());
-        eal_args.push(self.master_core.raw().to_string());
+        let mut main = self.main_core;
+        let others = self.other_cores();
 
-        // limits the EAL to only the master core. actual threads are
-        // managed by the runtime not the EAL.
-        eal_args.push("-l".to_owned());
-        eal_args.push(self.master_core.raw().to_string());
+        // if the main lcore is also used for other tasks, we will assign
+        // another lcore to be the main, and set the affinity to the same
+        // physical core/cpu. this is necessary because we need to be able
+        // to run an executor for other tasks without blocking the main
+        // application thread.
+        if others.contains(&main) {
+            main = cffi::RTE_MAX_LCORE as usize - 1;
+        }
 
-        // adds additional DPDK args
+        // adds the main core.
+        eal_args.push("--master-lcore".into());
+        eal_args.push(main.to_string());
+
+        // adds all the lcores.
+        let mut cores = others
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        cores.push_str(&format!(",{}@{}", main, self.main_core));
+        eal_args.push("--lcores".to_owned());
+        eal_args.push(cores);
+
+        // adds additional DPDK args.
         if let Some(args) = &self.dpdk_args {
-            eal_args.extend(args.split_ascii_whitespace().map(str::to_owned));
+            eal_args.extend(args.split_ascii_whitespace().map(ToString::to_string));
         }
 
         eal_args
     }
 
-    /// Returns the number of KNI enabled ports
-    pub(crate) fn num_knis(&self) -> usize {
-        self.ports.iter().filter(|p| p.kni).count()
+    /// Returns the data directory.
+    #[allow(dead_code)]
+    pub(crate) fn data_dir(&self) -> String {
+        self.data_dir.clone().unwrap_or_else(|| {
+            let base_dir = "/var/capsule";
+            match &self.app_group {
+                Some(group) => format!("{}/{}/{}", base_dir, group, self.app_name),
+                None => format!("{}/{}", base_dir, self.app_name),
+            }
+        })
     }
 }
 
 impl fmt::Debug for RuntimeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct("runtime");
+        let mut d = f.debug_struct("RuntimeConfig");
         d.field("app_name", &self.app_name)
             .field("secondary", &self.secondary)
             .field(
                 "app_group",
                 self.app_group.as_ref().unwrap_or(&self.app_name),
             )
-            .field("master_core", &self.master_core)
-            .field("cores", &self.cores)
+            .field("main_core", &self.main_core)
+            .field("worker_cores", &self.worker_cores)
             .field("mempool", &self.mempool)
             .field("ports", &self.ports);
         if let Some(dpdk_args) = &self.dpdk_args {
             d.field("dpdk_args", dpdk_args);
-        }
-        if let Some(duration) = &self.duration {
-            d.field("duration", duration);
         }
         d.finish()
     }
@@ -321,7 +269,7 @@ impl Default for MempoolConfig {
 
 impl fmt::Debug for MempoolConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("mempool")
+        f.debug_struct("MempoolConfig")
             .field("capacity", &self.capacity)
             .field("cache_size", &self.cache_size)
             .finish()
@@ -347,40 +295,44 @@ pub struct PortConfig {
     #[serde(default)]
     pub args: Option<String>,
 
-    /// The cores assigned to the port for running the pipelines. The values
-    /// can overlap with the runtime cores.
-    pub cores: Vec<CoreId>,
-
-    /// The receive queue capacity. Defaults to `128`.
-    #[serde(default = "default_port_rxd")]
-    pub rxd: usize,
-
-    /// The transmit queue capacity. Defaults to `128`.
-    #[serde(default = "default_port_txd")]
-    pub txd: usize,
-
-    /// Whether promiscuous mode is enabled for this port. Defaults to `false`.
+    /// The lcores to receive packets on. When no lcore specified, the port
+    /// will be TX only.
     #[serde(default)]
+    pub rx_cores: Vec<usize>,
+
+    /// The lcores to transmit packets on. When no lcore specified, the port
+    /// will be RX only.
+    #[serde(default)]
+    pub tx_cores: Vec<usize>,
+
+    /// The receive queue size. Defaults to `128`.
+    #[serde(default = "default_port_rxqs")]
+    pub rxqs: usize,
+
+    /// The transmit queue size. Defaults to `128`.
+    #[serde(default = "default_port_txqs")]
+    pub txqs: usize,
+
+    /// Whether promiscuous mode is enabled for this port. Defaults to `true`.
+    #[serde(default = "default_promiscuous_mode")]
     pub promiscuous: bool,
 
     /// Whether multicast packet reception is enabled for this port. Defaults
     /// to `true`.
     #[serde(default = "default_multicast_mode")]
     pub multicast: bool,
-
-    /// Whether kernel NIC interface is enabled for this port. with KNI, this
-    /// port can exchange packets with the kernel networking stack. Defaults
-    /// to `false`.
-    #[serde(default)]
-    pub kni: bool,
 }
 
-fn default_port_rxd() -> usize {
+fn default_port_rxqs() -> usize {
     128
 }
 
-fn default_port_txd() -> usize {
+fn default_port_txqs() -> usize {
     128
+}
+
+fn default_promiscuous_mode() -> bool {
+    true
 }
 
 fn default_multicast_mode() -> bool {
@@ -389,18 +341,22 @@ fn default_multicast_mode() -> bool {
 
 impl fmt::Debug for PortConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct("port");
+        let mut d = f.debug_struct("PortConfig");
         d.field("name", &self.name);
         d.field("device", &self.device);
         if let Some(args) = &self.args {
             d.field("args", args);
         }
-        d.field("cores", &self.cores)
-            .field("rxd", &self.rxd)
-            .field("txd", &self.txd)
+        if !self.rx_cores.is_empty() {
+            d.field("rx_cores", &self.rx_cores);
+        }
+        if !self.tx_cores.is_empty() {
+            d.field("tx_cores", &self.tx_cores);
+        }
+        d.field("rxqs", &self.rxqs)
+            .field("txqs", &self.txqs)
             .field("promiscuous", &self.promiscuous)
             .field("multicast", &self.multicast)
-            .field("kni", &self.kni)
             .finish()
     }
 }
@@ -429,64 +385,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_defaults() {
+    fn config_defaults() -> Result<()> {
         const CONFIG: &str = r#"
             app_name = "myapp"
-            master_core = 0
-
+            main_core = 0
+            worker_cores = [1, 2]
             [[ports]]
                 name = "eth0"
                 device = "0000:00:01.0"
-                cores = [2, 3]
         "#;
 
-        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
+        let config: RuntimeConfig = toml::from_str(CONFIG)?;
 
         assert_eq!(false, config.secondary);
         assert_eq!(None, config.app_group);
-        assert!(config.cores.is_empty());
+        assert_eq!(None, config.data_dir);
         assert_eq!(None, config.dpdk_args);
         assert_eq!(default_capacity(), config.mempool.capacity);
         assert_eq!(default_cache_size(), config.mempool.cache_size);
         assert_eq!(None, config.ports[0].args);
-        assert_eq!(default_port_rxd(), config.ports[0].rxd);
-        assert_eq!(default_port_txd(), config.ports[0].txd);
-        assert_eq!(false, config.ports[0].promiscuous);
+        assert!(config.ports[0].rx_cores.is_empty());
+        assert!(config.ports[0].tx_cores.is_empty());
+        assert_eq!(default_port_rxqs(), config.ports[0].rxqs);
+        assert_eq!(default_port_txqs(), config.ports[0].txqs);
+        assert_eq!(default_promiscuous_mode(), config.ports[0].promiscuous);
         assert_eq!(default_multicast_mode(), config.ports[0].multicast);
-        assert_eq!(false, config.ports[0].kni);
+
+        assert_eq!("/var/capsule/myapp", &config.data_dir());
+
+        Ok(())
     }
 
     #[test]
-    fn config_to_eal_args() {
+    fn config_to_eal_args() -> Result<()> {
         const CONFIG: &str = r#"
             app_name = "myapp"
             secondary = false
             app_group = "mygroup"
-            master_core = 0
-            cores = [1]
+            main_core = 0
+            worker_cores = [1, 2]
             dpdk_args = "-v --log-level eal:8"
-
             [mempool]
                 capacity = 255
                 cache_size = 16
-
             [[ports]]
                 name = "eth0"
                 device = "0000:00:01.0"
-                cores = [2, 3]
-                rxd = 32
-                txd = 32
-
+                rx_cores = [3]
+                tx_cores = [0]
+                rxqs = 32
+                txqs = 32
             [[ports]]
                 name = "eth1"
                 device = "net_pcap0"
                 args = "rx=lo,tx=lo"
-                cores = [0, 4]
-                rxd = 32
-                txd = 32
+                tx_cores = [4]
+                rxqs = 32
+                txqs = 32
         "#;
 
-        let config: RuntimeConfig = toml::from_str(CONFIG).unwrap();
+        let config: RuntimeConfig = toml::from_str(CONFIG)?;
 
         assert_eq!(
             &[
@@ -500,14 +458,16 @@ mod tests {
                 "--vdev",
                 "net_pcap0,rx=lo,tx=lo",
                 "--master-lcore",
-                "0",
-                "-l",
-                "0",
+                "127",
+                "--lcores",
+                "0,1,2,3,4,127@0",
                 "-v",
                 "--log-level",
                 "eal:8"
             ],
             config.to_eal_args().as_slice(),
-        )
+        );
+
+        Ok(())
     }
 }

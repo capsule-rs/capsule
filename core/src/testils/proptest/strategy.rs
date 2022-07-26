@@ -19,12 +19,14 @@
 //! Proptest strategies.
 
 use crate::net::MacAddr;
+use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{EtherType, EtherTypes, Ethernet, Packet, Tcp, Udp};
+use crate::packets::tcp::Tcp;
+use crate::packets::udp::Udp;
+use crate::packets::{Mbuf, Packet};
 use crate::testils::Rvg;
-use crate::Mbuf;
 use proptest::arbitrary::{any, Arbitrary};
 use proptest::collection::vec;
 use proptest::prop_oneof;
@@ -217,7 +219,7 @@ fn ethernet(ether_type: EtherType, map: &StrategyMap) -> impl Strategy<Value = E
     })
 }
 
-fn ipv4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv4> {
+fn ip4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv4> {
     (
         ethernet(EtherTypes::Ipv4, map),
         map.ipv4_addr(&field::ipv4_src),
@@ -263,7 +265,7 @@ fn ipv4(protocol: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ip
         )
 }
 
-fn ipv6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv6> {
+fn ip6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value = Ipv6> {
     (
         ethernet(EtherTypes::Ipv6, map),
         map.ipv6_addr(&field::ipv6_src),
@@ -288,7 +290,7 @@ fn ipv6(next_header: ProtocolNumber, map: &StrategyMap) -> impl Strategy<Value =
         )
 }
 
-fn srh<E: Debug + Ipv6Packet>(
+fn sr<E: Debug + Ipv6Packet>(
     envelope: impl Strategy<Value = E>,
     next_header: ProtocolNumber,
     map: &StrategyMap,
@@ -405,13 +407,13 @@ fn udp<E: Debug + IpPacket>(
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv4` and `next_header` is always
 /// `ProtocolNumbers::Tcp`.
-pub fn v4_tcp() -> impl Strategy<Value = Mbuf> {
-    v4_tcp_with(fieldmap! {})
+pub fn tcp4() -> impl Strategy<Value = Mbuf> {
+    tcp4_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv4 TCP packets.
 ///
-/// Similar to `v4_tcp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `tcp4`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -419,21 +421,21 @@ pub fn v4_tcp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn v4_tcp_packet() {
-///     proptest!(|(packet in v4_tcp_with(fieldmap! {
+/// fn tcp4_packet() {
+///     proptest!(|(packet in tcp4_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
 ///         field::tcp_dst_port => 80
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let v4 = packet.parse::<Ipv4>().unwrap();
-///         assert_eq!("127.0.0.1".parse(), v4.src());
-///         let tcp = v4.parse::<Tcp4>().unwrap();
+///         let ip4 = packet.parse::<Ipv4>().unwrap();
+///         assert_eq!("127.0.0.1".parse(), ip4.src());
+///         let tcp = ip4.parse::<Tcp4>().unwrap();
 ///         assert_eq!(80, tcp.dst_port());
 ///     });
 /// }
 /// ```
-pub fn v4_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
-    let envelope = ipv4(ProtocolNumbers::Tcp, &map);
+pub fn tcp4_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+    let envelope = ip4(ProtocolNumbers::Tcp, &map);
     tcp(envelope, &map)
 }
 
@@ -443,13 +445,13 @@ pub fn v4_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv4` and `next_header` is always
 /// `ProtocolNumbers::Udp`.
-pub fn v4_udp() -> impl Strategy<Value = Mbuf> {
-    v4_udp_with(fieldmap! {})
+pub fn udp4() -> impl Strategy<Value = Mbuf> {
+    udp4_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv4 UDP packets.
 ///
-/// Similar to `v4_udp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `udp4`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -457,21 +459,21 @@ pub fn v4_udp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn v4_udp_packet() {
-///     proptest!(|(packet in v4_udp_with(fieldmap! {
+/// fn udp4_packet() {
+///     proptest!(|(packet in udp4_with(fieldmap! {
 ///         field::ipv4_src => "127.0.0.1".parse(),
 ///         field::udp_dst_port => 53,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let v4 = packet.parse::<Ipv4>().unwrap();
-///         prop_assert_eq!("127.0.0.1".parse(), v4.src());
-///         let udp = v4.parse::<Udp4>().unwrap();
+///         let ip4 = packet.parse::<Ipv4>().unwrap();
+///         prop_assert_eq!("127.0.0.1".parse(), ip4.src());
+///         let udp = ip4.parse::<Udp4>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
 ///     });
 /// }
 /// ```
-pub fn v4_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
-    let envelope = ipv4(ProtocolNumbers::Udp, &map);
+pub fn udp4_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+    let envelope = ip4(ProtocolNumbers::Udp, &map);
     udp(envelope, &map)
 }
 
@@ -481,13 +483,13 @@ pub fn v4_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv6` and `next_header` is always
 /// `ProtocolNumbers::Tcp`.
-pub fn v6_tcp() -> impl Strategy<Value = Mbuf> {
-    v6_tcp_with(fieldmap! {})
+pub fn tcp6() -> impl Strategy<Value = Mbuf> {
+    tcp6_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv6 TCP packets.
 ///
-/// Similar to `v6_tcp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `tcp6`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -495,21 +497,21 @@ pub fn v6_tcp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn v6_tcp_packet() {
-///     proptest!(|(packet in v6_tcp_with(fieldmap! {
+/// fn tcp6_packet() {
+///     proptest!(|(packet in tcp6_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
 ///         field::tcp_dst_port => 80,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let v6 = packet.parse::<Ipv6>().unwrap();
-///         prop_assert_eq!("::1".parse(), v6.src());
-///         let tcp = v6.parse::<Tcp6>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
+///         prop_assert_eq!("::1".parse(), ip6.src());
+///         let tcp = ip6.parse::<Tcp6>().unwrap();
 ///         prop_assert_eq!(80, tcp.dst_port());
 ///     });
 /// }
 /// ```
-pub fn v6_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
-    let envelope = ipv6(ProtocolNumbers::Tcp, &map);
+pub fn tcp6_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+    let envelope = ip6(ProtocolNumbers::Tcp, &map);
     tcp(envelope, &map)
 }
 
@@ -519,13 +521,13 @@ pub fn v6_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 /// in order for the packet to be internally consistent. For example,
 /// `ether_type` is always `EtherTypes::Ipv6` and `next_header` is always
 /// `ProtocolNumbers::Udp`.
-pub fn v6_udp() -> impl Strategy<Value = Mbuf> {
-    v6_udp_with(fieldmap! {})
+pub fn udp6() -> impl Strategy<Value = Mbuf> {
+    udp6_with(fieldmap! {})
 }
 
 /// Returns a strategy to generate IPv6 UDP packets.
 ///
-/// Similar to `v6_udp`. Some fields can be explicitly set through `fieldmap!`.
+/// Similar to `udp6`. Some fields can be explicitly set through `fieldmap!`.
 /// All other fields are randomly generated. See the `field` enum for a list
 /// of fields that can be set explicitly.
 ///
@@ -533,21 +535,21 @@ pub fn v6_udp() -> impl Strategy<Value = Mbuf> {
 ///
 /// ```
 /// #[capsule::test]
-/// fn v6_udp_packet() {
-///     proptest!(|(packet in v6_udp_with(fieldmap! {
+/// fn udp6_packet() {
+///     proptest!(|(packet in udp6_with(fieldmap! {
 ///         field::ipv6_src => "::1".parse(),
 ///         field::udp_dst_port => 53,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let v6 = packet.parse::<Ipv6>().unwrap();
-///         prop_assert_eq!("::1".parse(), v6.src());
-///         let udp = v6.parse::<Udp6>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
+///         prop_assert_eq!("::1".parse(), ip6.src());
+///         let udp = ip6.parse::<Udp6>().unwrap();
 ///         prop_assert_eq!(53, udp.dst_port());
 ///     });
 /// }
 /// ```
-pub fn v6_udp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
-    let envelope = ipv6(ProtocolNumbers::Udp, &map);
+pub fn udp6_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
+    let envelope = ip6(ProtocolNumbers::Udp, &map);
     udp(envelope, &map)
 }
 
@@ -578,18 +580,18 @@ pub fn sr_tcp() -> impl Strategy<Value = Mbuf> {
 ///         field::tcp_dst_port => 80,
 ///     }))| {
 ///         let packet = packet.parse::<Ethernet>().unwrap();
-///         let v6 = packet.parse::<Ipv6>().unwrap();
-///         prop_assert_eq!("::1".parse(), v6.src());
-///         let srh = v6.parse::<SegmentRouting<Ipv6>>().unwrap();
-///         prop_assert_eq!(2, srh.segments().len());
-///         let tcp = srh.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
+///         let ip6 = packet.parse::<Ipv6>().unwrap();
+///         prop_assert_eq!("::1".parse(), ip6.src());
+///         let sr = ip6.parse::<SegmentRouting<Ipv6>>().unwrap();
+///         prop_assert_eq!(2, sr.segments().len());
+///         let tcp = sr.parse::<Tcp<SegmentRouting<Ipv6>>>().unwrap();
 ///         prop_assert_eq!(80, tcp.dst_port());
 ///     });
 /// }
 /// ```
 pub fn sr_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
-    let envelope = ipv6(ProtocolNumbers::Ipv6Route, &map);
-    let envelope = srh(envelope, ProtocolNumbers::Tcp, &map);
+    let envelope = ip6(ProtocolNumbers::Ipv6Route, &map);
+    let envelope = sr(envelope, ProtocolNumbers::Tcp, &map);
     tcp(envelope, &map)
 }
 
@@ -597,7 +599,7 @@ pub fn sr_tcp_with(map: StrategyMap) -> impl Strategy<Value = Mbuf> {
 ///
 /// The IP addresses and ports are random. The protocol can be
 /// either TCP, UDP or ICMP.
-pub fn v4_flow() -> impl Strategy<Value = Flow> {
+pub fn ip4_flow() -> impl Strategy<Value = Flow> {
     (
         any::<Ipv4Addr>(),
         any::<Ipv4Addr>(),
@@ -624,7 +626,7 @@ pub fn v4_flow() -> impl Strategy<Value = Flow> {
 ///
 /// The IP addresses and ports are random. The protocol can be
 /// either TCP, UDP or ICMP.
-pub fn v6_flow() -> impl Strategy<Value = Flow> {
+pub fn ip6_flow() -> impl Strategy<Value = Flow> {
     (
         any::<Ipv6Addr>(),
         any::<Ipv6Addr>(),

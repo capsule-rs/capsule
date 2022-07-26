@@ -16,12 +16,13 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-use crate::dpdk::BufferError;
+//! Ethernet Protocol.
+
+use crate::ensure;
 use crate::net::MacAddr;
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet};
-use crate::{ensure, Mbuf, SizeOf};
-use anyhow::Result;
+use crate::packets::{Datalink, Internal, Mbuf, Packet, SizeOf};
+use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
 
@@ -293,7 +294,7 @@ impl Packet for Ethernet {
         // header will cause a panic.
         ensure!(
             packet.mbuf().data_len() >= packet.header_len(),
-            BufferError::OutOfBuffer(packet.header_len(), packet.mbuf().data_len())
+            anyhow!("header size exceeds remaining buffer size.")
         );
 
         Ok(packet)
@@ -314,7 +315,7 @@ impl Packet for Ethernet {
         // the buffer will cause data corruption because it will write
         // past the 14 bytes we extended the buffer by.
         mbuf.extend(offset, ETH_HEADER_SIZE)?;
-        let _ = mbuf.write_data_slice(offset, &[0; ETH_HEADER_SIZE])?;
+        let _ = mbuf.write_data_slice(offset, &[0u8; ETH_HEADER_SIZE])?;
         let header = mbuf.read_data(offset)?;
 
         Ok(Ethernet {
@@ -327,6 +328,18 @@ impl Packet for Ethernet {
     #[inline]
     fn deparse(self) -> Self::Envelope {
         self.envelope
+    }
+}
+
+impl Datalink for Ethernet {
+    #[inline]
+    fn protocol_type(&self) -> EtherType {
+        self.ether_type()
+    }
+
+    #[inline]
+    fn set_protocol_type(&mut self, ether_type: EtherType) {
+        self.set_ether_type(ether_type)
     }
 }
 
@@ -478,7 +491,7 @@ impl SizeOf for EthernetHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testils::byte_arrays::{IPV4_UDP_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
+    use crate::testils::byte_arrays::{UDP4_PACKET, VLAN_DOT1Q_PACKET, VLAN_QINQ_PACKET};
 
     #[test]
     fn size_of_ethernet_header() {
@@ -495,7 +508,7 @@ mod tests {
 
     #[capsule::test]
     fn parse_ethernet_packet() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
 
         assert_eq!("00:00:00:00:00:01", ethernet.dst().to_string());
@@ -529,7 +542,7 @@ mod tests {
 
     #[capsule::test]
     fn swap_addresses() {
-        let packet = Mbuf::from_bytes(&IPV4_UDP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&UDP4_PACKET).unwrap();
         let mut ethernet = packet.parse::<Ethernet>().unwrap();
         ethernet.swap_addresses();
 

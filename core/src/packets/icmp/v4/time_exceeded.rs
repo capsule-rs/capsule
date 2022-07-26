@@ -17,10 +17,9 @@
 */
 
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
-use crate::packets::ip::v4::IPV4_MIN_MTU;
+use crate::packets::ip::v4::{Ipv4, Ipv4Packet, IPV4_MIN_MTU};
 use crate::packets::types::u32be;
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -40,12 +39,12 @@ use std::ptr::NonNull;
 ///
 /// [IETF RFC 792]: https://tools.ietf.org/html/rfc792
 #[derive(Icmpv4Packet)]
-pub struct TimeExceeded {
-    icmp: Icmpv4,
+pub struct TimeExceeded<E: Ipv4Packet = Ipv4> {
+    icmp: Icmpv4<E>,
     body: NonNull<TimeExceededBody>,
 }
 
-impl TimeExceeded {
+impl<E: Ipv4Packet> TimeExceeded<E> {
     /// Returns the offset where the data field in the message body starts.
     #[inline]
     fn data_offset(&self) -> usize {
@@ -73,7 +72,7 @@ impl TimeExceeded {
     }
 }
 
-impl fmt::Debug for TimeExceeded {
+impl<E: Ipv4Packet> fmt::Debug for TimeExceeded<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TimeExceeded")
             .field("type", &format!("{}", self.msg_type()))
@@ -86,24 +85,26 @@ impl fmt::Debug for TimeExceeded {
     }
 }
 
-impl Icmpv4Message for TimeExceeded {
+impl<E: Ipv4Packet> Icmpv4Message for TimeExceeded<E> {
+    type Envelope = E;
+
     #[inline]
     fn msg_type() -> Icmpv4Type {
         Icmpv4Types::TimeExceeded
     }
 
     #[inline]
-    fn icmp(&self) -> &Icmpv4 {
+    fn icmp(&self) -> &Icmpv4<Self::Envelope> {
         &self.icmp
     }
 
     #[inline]
-    fn icmp_mut(&mut self) -> &mut Icmpv4 {
+    fn icmp_mut(&mut self) -> &mut Icmpv4<Self::Envelope> {
         &mut self.icmp
     }
 
     #[inline]
-    fn into_icmp(self) -> Icmpv4 {
+    fn into_icmp(self) -> Icmpv4<Self::Envelope> {
         self.icmp
     }
 
@@ -122,7 +123,7 @@ impl Icmpv4Message for TimeExceeded {
     /// Returns an error if the payload does not have sufficient data for
     /// the time exceeded message body.
     #[inline]
-    fn try_parse(icmp: Icmpv4, _internal: Internal) -> Result<Self> {
+    fn try_parse(icmp: Icmpv4<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let mbuf = icmp.mbuf();
         let offset = icmp.payload_offset();
         let body = mbuf.read_data(offset)?;
@@ -137,7 +138,7 @@ impl Icmpv4Message for TimeExceeded {
     ///
     /// Returns an error if the buffer does not have enough free space.
     #[inline]
-    fn try_push(mut icmp: Icmpv4, _internal: Internal) -> Result<Self> {
+    fn try_push(mut icmp: Icmpv4<Self::Envelope>, _internal: Internal) -> Result<Self> {
         let offset = icmp.payload_offset();
         let mbuf = icmp.mbuf_mut();
 
@@ -180,10 +181,9 @@ struct TimeExceededBody {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Ethernet;
-    use crate::testils::byte_arrays::IPV4_TCP_PACKET;
-    use crate::Mbuf;
+    use crate::packets::ethernet::Ethernet;
+    use crate::packets::Mbuf;
+    use crate::testils::byte_arrays::TCP4_PACKET;
 
     #[test]
     fn size_of_time_exceeded_body() {
@@ -192,12 +192,12 @@ mod tests {
 
     #[capsule::test]
     fn push_and_set_time_exceeded() {
-        let packet = Mbuf::from_bytes(&IPV4_TCP_PACKET).unwrap();
+        let packet = Mbuf::from_bytes(&TCP4_PACKET).unwrap();
         let ethernet = packet.parse::<Ethernet>().unwrap();
-        let ipv4 = ethernet.parse::<Ipv4>().unwrap();
-        let tcp_len = ipv4.payload_len();
+        let ip4 = ethernet.parse::<Ipv4>().unwrap();
+        let tcp_len = ip4.payload_len();
 
-        let mut exceeded = ipv4.push::<TimeExceeded>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded>().unwrap();
 
         assert_eq!(4, exceeded.header_len());
         assert_eq!(
@@ -220,8 +220,8 @@ mod tests {
         // starts with a buffer with a message body larger than min MTU.
         let packet = Mbuf::from_bytes(&[42; 100]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv4 = ethernet.push::<Ipv4>().unwrap();
-        let mut exceeded = ipv4.push::<TimeExceeded>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded>().unwrap();
         assert!(exceeded.data_len() > IPV4_MIN_MTU);
 
         exceeded.reconcile_all();
@@ -233,8 +233,8 @@ mod tests {
         // starts with a buffer with a message body smaller than min MTU.
         let packet = Mbuf::from_bytes(&[42; 50]).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv4 = ethernet.push::<Ipv4>().unwrap();
-        let mut exceeded = ipv4.push::<TimeExceeded>().unwrap();
+        let ip4 = ethernet.push::<Ipv4>().unwrap();
+        let mut exceeded = ip4.push::<TimeExceeded>().unwrap();
         assert!(exceeded.data_len() < IPV4_MIN_MTU);
 
         exceeded.reconcile_all();

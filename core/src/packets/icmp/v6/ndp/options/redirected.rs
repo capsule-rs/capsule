@@ -16,10 +16,10 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::packets::icmp::v6::ndp::{NdpOption, NdpOptionType, NdpOptionTypes};
 use crate::packets::types::{u16be, u32be};
-use crate::packets::Internal;
-use crate::{ensure, Mbuf, SizeOf};
+use crate::packets::{Internal, Mbuf, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -70,7 +70,7 @@ use std::ptr::NonNull;
 /// ```
 /// let ethernet = orig_ipv6.deparse();
 /// let ipv6 = ethernet.push::<Ipv6>()?;
-/// let mut redirect = ipv6.push::<Redirect<Ipv6>>()?;
+/// let mut redirect = ipv6.push::<Redirect>()?;
 /// let mut options = redirect.options_mut();
 /// let _ = options.prepend::<RedirectedHeader<'_>>();
 /// redirect.reconcile();
@@ -232,9 +232,10 @@ impl Default for RedirectedHeaderFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::{NdpPacket, Redirect};
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::{Ethernet, Packet};
+    use crate::packets::Packet;
 
     #[test]
     fn size_of_redirected_header_fields() {
@@ -248,8 +249,8 @@ mod tests {
 
         let packet = Mbuf::from_bytes(&data).unwrap();
         let ethernet = packet.push::<Ethernet>().unwrap();
-        let ipv6 = ethernet.push::<Ipv6>().unwrap();
-        let mut redirect = ipv6.push::<Redirect<Ipv6>>().unwrap();
+        let ip6 = ethernet.push::<Ipv6>().unwrap();
+        let mut redirect = ip6.push::<Redirect>().unwrap();
         let mut options = redirect.options_mut();
         let mut header = options.prepend::<RedirectedHeader<'_>>().unwrap();
 

@@ -82,6 +82,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             fn try_push(mut envelope: Self::Envelope, internal: Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v6::{Icmpv6, Icmpv6Header, Icmpv6Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
+                use ::capsule::packets::SizeOf;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
@@ -121,7 +122,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
     let name = input.ident;
 
     let expanded = quote! {
-        impl ::capsule::packets::icmp::v4::Icmpv4Packet for #name {
+        impl<E: ::capsule::packets::ip::v4::Ipv4Packet> ::capsule::packets::icmp::v4::Icmpv4Packet for #name<E> {
             #[inline]
             fn msg_type(&self) -> ::capsule::packets::icmp::v4::Icmpv4Type {
                 self.icmp().msg_type()
@@ -143,8 +144,8 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             }
         }
 
-        impl ::capsule::packets::Packet for #name {
-            type Envelope = ::capsule::packets::ip::v4::Ipv4;
+        impl<E: ::capsule::packets::ip::v4::Ipv4Packet> ::capsule::packets::Packet for #name<E> {
+            type Envelope = E;
 
             #[inline]
             fn envelope(&self) -> &Self::Envelope {
@@ -173,13 +174,14 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
 
             #[inline]
             fn try_parse(envelope: Self::Envelope, _internal: ::capsule::packets::Internal) -> ::anyhow::Result<Self> {
-                envelope.parse::<::capsule::packets::icmp::v4::Icmpv4>()?.downcast::<#name>()
+                envelope.parse::<::capsule::packets::icmp::v4::Icmpv4<E>>()?.downcast::<#name<E>>()
             }
 
             #[inline]
             fn try_push(mut envelope: Self::Envelope, internal: ::capsule::packets::Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v4::{Icmpv4, Icmpv4Header, Icmpv4Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
+                use ::capsule::packets::SizeOf;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
@@ -193,11 +195,11 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
                     offset,
                 };
 
-                icmp.header_mut().msg_type = <#name as Icmpv4Message>::msg_type().0;
+                icmp.header_mut().msg_type = <#name<E> as Icmpv4Message>::msg_type().0;
                 icmp.envelope_mut()
                     .set_next_protocol(ProtocolNumbers::Icmpv4);
 
-                <#name as Icmpv4Message>::try_push(icmp, internal)
+                <#name<E> as Icmpv4Message>::try_push(icmp, internal)
             }
 
             #[inline]

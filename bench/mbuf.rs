@@ -17,7 +17,7 @@
 */
 
 use anyhow::Result;
-use capsule::Mbuf;
+use capsule::packets::Mbuf;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 const BATCH_SIZE: usize = 100;

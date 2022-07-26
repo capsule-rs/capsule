@@ -84,11 +84,11 @@ mod tests {
     use std::net::Ipv6Addr;
 
     #[capsule::test]
-    fn gen_v4_packet() {
+    fn gen_ip4_packet() {
         let mut gen = Rvg::new();
-        let packet = gen.generate(&v4_udp());
-        let v4 = packet.into_v4();
-        assert_eq!(ProtocolNumbers::Udp, v4.protocol());
+        let packet = gen.generate(&udp4());
+        let ip4 = packet.into_ip4();
+        assert_eq!(ProtocolNumbers::Udp, ip4.protocol());
     }
 
     #[capsule::test]
