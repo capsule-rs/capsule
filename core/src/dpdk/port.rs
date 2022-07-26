@@ -31,6 +31,7 @@ use std::fmt;
 use std::os::raw;
 use std::ptr;
 use thiserror::Error;
+use std::mem::MaybeUninit;
 
 const DEFAULT_RSS_HF: u64 =
     (ffi::ETH_RSS_IP | ffi::ETH_RSS_TCP | ffi::ETH_RSS_UDP | ffi::ETH_RSS_SCTP) as u64;
@@ -214,6 +215,29 @@ impl PortQueue {
         self.kni = Some(kni);
     }
 
+    /// Gets the MTU of the interface
+    pub fn get_mtu(&self) -> std::io::Result<u16> {
+        let mut result = MaybeUninit::uninit();
+        unsafe {
+            let errno = ffi::rte_eth_dev_get_mtu(self.port_id.raw(), result.as_mut_ptr());
+            if errno == 0 {
+                Ok(result.assume_init())
+            } else {
+                Err(std::io::Error::from_raw_os_error(errno))
+            }
+        }
+    }
+    /// Sets the MTU of the interface
+    pub fn set_mtu(&mut self, mtu: u16) -> std::io::Result<()> {
+        unsafe {
+            let errno = ffi::rte_eth_dev_set_mtu(self.port_id.raw(), mtu);
+            if errno == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::from_raw_os_error(errno))
+            }
+        }
+    }
     /// Sets the per queue counters. Some device drivers don't track TX
     /// and RX packets per queue. Instead we will track them here for all
     /// devices. Additionally we also track the TX packet drops when the
