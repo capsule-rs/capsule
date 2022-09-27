@@ -40,7 +40,7 @@ pub fn derive_size_of(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     let expanded = quote! {
-        impl #impl_generics SizeOf for #name #ty_generics #where_clause {
+        impl #impl_generics ::capsule::packets::SizeOf for #name #ty_generics #where_clause {
             fn size_of() -> usize {
                 std::mem::size_of::<Self>()
             }

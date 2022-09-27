@@ -18,25 +18,25 @@
 
 //! Internet Control Message Protocol for IPv6.
 
-mod destination_unreachable;
 mod echo_reply;
 mod echo_request;
 pub mod ndp;
 mod time_exceeded;
 mod too_big;
+mod unreachable;
 
-pub use self::destination_unreachable::*;
 pub use self::echo_reply::*;
 pub use self::echo_request::*;
 pub use self::time_exceeded::*;
 pub use self::too_big::*;
+pub use self::unreachable::*;
 pub use capsule_macros::Icmpv6Packet;
 
+use crate::ensure;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::ProtocolNumbers;
 use crate::packets::types::u16be;
-use crate::packets::{checksum, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{checksum, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::ptr::NonNull;
@@ -498,11 +498,11 @@ pub trait Icmpv6Packet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::icmp::v6::ndp::RouterAdvertisement;
     use crate::packets::ip::v6::Ipv6;
-    use crate::packets::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{ICMPV6_PACKET, IPV6_TCP_PACKET, ROUTER_ADVERT_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_icmpv6_header() {

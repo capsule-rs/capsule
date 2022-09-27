@@ -24,7 +24,11 @@
 #include <rte_eal.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
+#include <rte_launch.h>
+#include <rte_lcore.h>
 #include <rte_kni.h>
+#include <rte_mbuf.h>
+#include <rte_mempool.h>
 
 // libnuma functions and types
 #include <numa.h>
@@ -40,6 +44,11 @@
  * calls to certain functions to determine why those functions failed.
  */
 int _rte_errno(void);
+
+/**
+ * Return the Application thread ID of the execution unit.
+ */
+unsigned _rte_lcore_id(void);
 
 /**
  * Allocate a new mbuf from a mempool.

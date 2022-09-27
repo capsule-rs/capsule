@@ -16,12 +16,12 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+use crate::ensure;
 use crate::packets::checksum::PseudoHeader;
 use crate::packets::ip::v6::Ipv6Packet;
 use crate::packets::ip::{IpPacket, ProtocolNumber, ProtocolNumbers};
 use crate::packets::types::u16be;
-use crate::packets::{Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr};
@@ -523,11 +523,12 @@ impl Default for SegmentRoutingHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v6::Ipv6;
     use crate::packets::ip::ProtocolNumbers;
-    use crate::packets::{Ethernet, Tcp, Tcp6};
+    use crate::packets::tcp::{Tcp, Tcp6};
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV6_TCP_PACKET, SR_TCP_PACKET};
-    use crate::Mbuf;
 
     #[test]
     fn size_of_segment_routing_header() {

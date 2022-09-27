@@ -17,19 +17,21 @@
 */
 
 use anyhow::Result;
-use capsule::config::load_config;
-use capsule::Runtime;
+use capsule::runtime::{self, Runtime};
 use tracing::{debug, Level};
 use tracing_subscriber::fmt;
 
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = load_config()?;
+    let config = runtime::load_config()?;
     debug!(?config);
 
-    Runtime::build(config)?.execute()
+    let runtime = Runtime::from_config(config)?;
+    let _guard = runtime.execute()?;
+
+    Ok(())
 }

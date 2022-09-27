@@ -18,10 +18,11 @@
 
 //! Address Resolution Protocol.
 
+use crate::ensure;
 use crate::net::MacAddr;
+use crate::packets::ethernet::{EtherTypes, Ethernet};
 use crate::packets::types::u16be;
-use crate::packets::{EtherTypes, Ethernet, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::Ipv4Addr;
@@ -533,12 +534,6 @@ pub trait HardwareAddr: SizeOf + Copy + fmt::Display {
     fn default() -> Self;
 }
 
-impl SizeOf for MacAddr {
-    fn size_of() -> usize {
-        6
-    }
-}
-
 impl HardwareAddr for MacAddr {
     fn addr_type() -> HardwareType {
         HardwareTypes::Ethernet
@@ -559,12 +554,6 @@ pub trait ProtocolAddr: SizeOf + Copy + fmt::Display {
     /// This is synonymous with `Default::default`, but is necessary when
     /// an external crate type doesn't implement the `Default` trait.
     fn default() -> Self;
-}
-
-impl SizeOf for Ipv4Addr {
-    fn size_of() -> usize {
-        4
-    }
 }
 
 impl ProtocolAddr for Ipv4Addr {
@@ -631,8 +620,8 @@ impl<H: HardwareAddr, P: ProtocolAddr> Default for ArpHeader<H, P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::ARP4_PACKET;
-    use crate::Mbuf;
 
     #[test]
     fn size_of_arp_header() {

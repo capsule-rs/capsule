@@ -17,16 +17,19 @@
 */
 
 use anyhow::Result;
-use capsule::batch::{Batch, Pipeline, Poll};
-use capsule::config::load_config;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::icmp::v4::{EchoReply, EchoRequest};
 use capsule::packets::ip::v4::Ipv4;
-use capsule::packets::{Ethernet, Packet};
-use capsule::{Mbuf, PortQueue, Runtime};
-use tracing::{debug, Level};
+use capsule::packets::{Mbuf, Packet, Postmark};
+use capsule::runtime::{self, Outbox, Runtime};
+use signal_hook::consts;
+use signal_hook::flag;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tracing::{info, Level};
 use tracing_subscriber::fmt;
 
-fn reply_echo(packet: &Mbuf) -> Result<EchoReply> {
+fn reply_echo(packet: Mbuf, cap0: &Outbox) -> Result<Postmark> {
     let reply = Mbuf::new()?;
 
     let ethernet = packet.peek::<Ethernet>()?;
@@ -47,26 +50,32 @@ fn reply_echo(packet: &Mbuf) -> Result<EchoReply> {
     reply.set_data(request.data())?;
     reply.reconcile_all();
 
-    debug!(?request);
-    debug!(?reply);
+    info!(?request);
+    info!(?reply);
 
-    Ok(reply)
-}
+    let _ = cap0.push(reply);
 
-fn install(q: PortQueue) -> impl Pipeline {
-    Poll::new(q.clone()).replace(reply_echo).send(q)
+    Ok(Postmark::Drop(packet))
 }
 
 fn main() -> Result<()> {
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = load_config()?;
-    debug!(?config);
+    let config = runtime::load_config()?;
+    let runtime = Runtime::from_config(config)?;
 
-    Runtime::build(config)?
-        .add_pipeline_to_port("eth1", install)?
-        .execute()
+    let outbox = runtime.ports().get("cap0")?.outbox()?;
+    runtime.set_port_pipeline("cap0", move |packet| reply_echo(packet, &outbox))?;
+
+    let _guard = runtime.execute()?;
+
+    let term = Arc::new(AtomicBool::new(false));
+    flag::register(consts::SIGINT, Arc::clone(&term))?;
+    info!("ctrl-c to quit ...");
+    while !term.load(Ordering::Relaxed) {}
+
+    Ok(())
 }

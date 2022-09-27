@@ -82,6 +82,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             fn try_push(mut envelope: Self::Envelope, internal: Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v6::{Icmpv6, Icmpv6Header, Icmpv6Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
+                use ::capsule::packets::SizeOf;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();
@@ -180,6 +181,7 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             fn try_push(mut envelope: Self::Envelope, internal: ::capsule::packets::Internal) -> ::anyhow::Result<Self> {
                 use ::capsule::packets::icmp::v4::{Icmpv4, Icmpv4Header, Icmpv4Message};
                 use ::capsule::packets::ip::{IpPacket, ProtocolNumbers};
+                use ::capsule::packets::SizeOf;
 
                 let offset = envelope.payload_offset();
                 let mbuf = envelope.mbuf_mut();

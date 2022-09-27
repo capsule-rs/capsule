@@ -17,13 +17,15 @@
 */
 
 use anyhow::Result;
+use capsule::fieldmap;
+use capsule::packets::ethernet::Ethernet;
 use capsule::packets::ip::v4::Ipv4;
 use capsule::packets::ip::v6::{Ipv6, SegmentRouting};
-use capsule::packets::{Ethernet, Packet, Udp4};
+use capsule::packets::udp::Udp4;
+use capsule::packets::{Mbuf, Packet};
 use capsule::testils::criterion::BencherExt;
 use capsule::testils::proptest::*;
 use capsule::testils::{PacketExt, Rvg};
-use capsule::{fieldmap, Mbuf};
 use criterion::{criterion_group, criterion_main, Criterion};
 use proptest::prelude::*;
 use std::net::Ipv6Addr;

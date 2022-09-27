@@ -19,12 +19,14 @@
 //! Proptest strategies.
 
 use crate::net::MacAddr;
+use crate::packets::ethernet::{EtherType, EtherTypes, Ethernet};
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::{Ipv6, Ipv6Packet, SegmentRouting};
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumber, ProtocolNumbers};
-use crate::packets::{EtherType, EtherTypes, Ethernet, Packet, Tcp, Udp};
+use crate::packets::tcp::Tcp;
+use crate::packets::udp::Udp;
+use crate::packets::{Mbuf, Packet};
 use crate::testils::Rvg;
-use crate::Mbuf;
 use proptest::arbitrary::{any, Arbitrary};
 use proptest::collection::vec;
 use proptest::prop_oneof;
@@ -112,7 +114,7 @@ impl StrategyMap {
     }
 
     fn checked_value<T: Arbitrary + Clone + 'static>(&self, key: &field) -> Option<T> {
-        if let Some(ref v) = self.0.get(key) {
+        if let Some(v) = self.0.get(key) {
             let v = v
                 .downcast_ref::<T>()
                 .unwrap_or_else(|| panic!("value doesn't match type for field '{:?}'", key));

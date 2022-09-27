@@ -160,7 +160,7 @@ impl FromStr for Ipv6Cidr {
                 let address =
                     Ipv6Addr::from_str(addr).map_err(|e| CidrError::Malformed(e.to_string()))?;
 
-                if let Ok(len) = usize::from_str_radix(len_or_netmask, 10) {
+                if let Ok(len) = len_or_netmask.parse::<usize>() {
                     Ipv6Cidr::new(address, len)
                 } else {
                     let netmask = Ipv6Addr::from_str(len_or_netmask)

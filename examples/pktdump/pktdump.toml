@@ -1,19 +1,19 @@
 app_name = "pktdump"
-master_core = 0
-duration = 5
+main_core = 0
+worker_cores = []
 
 [mempool]
     capacity = 65535
     cache_size = 256
 
 [[ports]]
-    name = "eth1"
+    name = "cap0"
     device = "net_pcap0"
-    args = "rx_pcap=tcp4.pcap,tx_iface=lo"
-    cores = [0]
+    args = "rx_pcap=tcp4.pcap"
+    rx_cores = [0]
 
 [[ports]]
-    name = "eth2"
+    name = "cap1"
     device = "net_pcap1"
-    args = "rx_pcap=tcp6.pcap,tx_iface=lo"
-    cores = [0]
+    args = "rx_pcap=tcp6.pcap"
+    rx_cores = [0]

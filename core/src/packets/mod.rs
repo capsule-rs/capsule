@@ -20,18 +20,19 @@
 
 pub mod arp;
 pub mod checksum;
-mod ethernet;
+pub mod ethernet;
 pub mod icmp;
 pub mod ip;
-mod tcp;
+mod mbuf;
+mod size_of;
+pub mod tcp;
 pub mod types;
-mod udp;
+pub mod udp;
 
-pub use self::ethernet::*;
-pub use self::tcp::*;
-pub use self::udp::*;
+pub use self::mbuf::*;
+pub use self::size_of::*;
+pub use capsule_macros::SizeOf;
 
-use crate::Mbuf;
 use anyhow::{Context, Result};
 use std::fmt;
 use std::marker::PhantomData;
@@ -336,11 +337,27 @@ impl<T> Deref for Immutable<'_, T> {
     }
 }
 
+/// Mark of the packet as either `Emit` or `Drop`.
+///
+/// Together, a `Result<Postmark>` represents all three possible outcome
+/// of packet processing. A packet can either be emitted through port TX,
+/// intentionally dropped, or aborted due to an error.
+#[derive(Debug)]
+pub enum Postmark {
+    /// Packet emitted through a port TX.
+    Emit,
+
+    /// Packet intentionally dropped.
+    Drop(Mbuf),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::net::MacAddr;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
+    use crate::packets::udp::Udp4;
     use crate::testils::byte_arrays::IPV4_UDP_PACKET;
 
     #[capsule::test]

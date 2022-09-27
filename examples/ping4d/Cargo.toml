@@ -1,6 +1,6 @@
 [package]
 name = "ping4d"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Capsule Developers <capsule-dev@googlegroups.com>"]
 license = "Apache-2.0"
 edition = "2018"
@@ -17,6 +17,7 @@ doctest = false
 
 [dependencies]
 anyhow = "1.0"
-capsule = { version = "0.1", path = "../../core" }
+capsule = { version = "0.2", path = "../../core" }
+signal-hook = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.2"

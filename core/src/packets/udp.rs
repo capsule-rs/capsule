@@ -16,12 +16,14 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
+//! User Datagram Protocol.
+
+use crate::ensure;
 use crate::packets::ip::v4::Ipv4;
 use crate::packets::ip::v6::Ipv6;
 use crate::packets::ip::{Flow, IpPacket, ProtocolNumbers};
 use crate::packets::types::u16be;
-use crate::packets::{checksum, Internal, Packet};
-use crate::{ensure, SizeOf};
+use crate::packets::{checksum, Internal, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::net::IpAddr;
@@ -144,6 +146,19 @@ impl<E: IpPacket> Udp<E> {
     #[inline]
     pub fn no_checksum(&mut self) {
         self.header_mut().checksum = u16be::default();
+    }
+
+    /// Returns the data as a `u8` slice.
+    #[inline]
+    pub fn data(&self) -> &[u8] {
+        if let Ok(data) = self
+            .mbuf()
+            .read_data_slice(self.payload_offset(), self.payload_len())
+        {
+            unsafe { &*data.as_ptr() }
+        } else {
+            unreachable!()
+        }
     }
 
     /// Returns the 5-tuple that uniquely identifies a UDP connection.
@@ -373,9 +388,9 @@ struct UdpHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packets::Ethernet;
+    use crate::packets::ethernet::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::{IPV4_TCP_PACKET, IPV4_UDP_PACKET};
-    use crate::Mbuf;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
@@ -394,6 +409,7 @@ mod tests {
         assert_eq!(1087, udp.dst_port());
         assert_eq!(18, udp.length());
         assert_eq!(0x7228, udp.checksum());
+        assert_eq!(10, udp.data().len());
     }
 
     #[capsule::test]

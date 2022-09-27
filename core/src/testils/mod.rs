@@ -27,10 +27,12 @@ mod rvg;
 pub use self::packet::*;
 pub use self::rvg::*;
 
-use crate::dpdk::{self, Mempool, SocketId, MEMPOOL};
-use crate::metrics;
+use crate::ffi::dpdk::{self, SocketId};
+use crate::runtime::{Mempool, MEMPOOL};
+use std::ops::DerefMut;
 use std::ptr;
 use std::sync::Once;
+use std::thread;
 
 static TEST_INIT: Once = Once::new();
 
@@ -38,21 +40,35 @@ static TEST_INIT: Once = Once::new();
 pub fn cargo_test_init() {
     TEST_INIT.call_once(|| {
         dpdk::eal_init(vec![
-            "capsule_test".to_owned(),
-            "--no-huge".to_owned(),
-            "--iova-mode=va".to_owned(),
+            "capsule_test",
+            "--master-lcore",
+            "127",
+            "--lcores",
+            // 2 logical worker cores, pins master core to physical core 0
+            "0,1,127@0",
+            // allows tests to run without hugepages
+            "--no-huge",
+            // allows tests to run without root privilege
+            "--iova-mode=va",
+            "--vdev",
+            // a null device for RX and TX tests
+            "net_null0",
+            "--vdev",
+            // a ring-based device that can be used with assertions
+            "net_ring0",
+            "--vdev",
+            // a TAP device for supported device feature tests
+            "net_tap0",
         ])
         .unwrap();
-        let _ = metrics::init();
     });
 }
 
-/// A handle that keeps the mempool in scope for the duration of the test. It
-/// will unset the thread-bound mempool on drop.
+/// A RAII guard that keeps the mempool in scope for the duration of the
+/// test. It will unset the thread-bound mempool on drop.
 #[derive(Debug)]
 pub struct MempoolGuard {
-    #[allow(dead_code)]
-    inner: Mempool,
+    _inner: Mempool,
 }
 
 impl Drop for MempoolGuard {
@@ -64,7 +80,8 @@ impl Drop for MempoolGuard {
 /// Creates a new mempool for test that automatically cleans up after the
 /// test completes.
 pub fn new_mempool(capacity: usize, cache_size: usize) -> MempoolGuard {
-    let mut mempool = Mempool::new(capacity, cache_size, SocketId::ANY).unwrap();
-    MEMPOOL.with(|tls| tls.set(mempool.raw_mut()));
-    MempoolGuard { inner: mempool }
+    let name = format!("test-mp-{:?}", thread::current().id());
+    let mut mempool = Mempool::new(name, capacity, cache_size, SocketId::ANY).unwrap();
+    MEMPOOL.with(|tls| tls.set(mempool.ptr_mut().deref_mut()));
+    MempoolGuard { _inner: mempool }
 }

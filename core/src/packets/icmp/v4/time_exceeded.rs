@@ -19,8 +19,7 @@
 use crate::packets::icmp::v4::{Icmpv4, Icmpv4Message, Icmpv4Packet, Icmpv4Type, Icmpv4Types};
 use crate::packets::ip::v4::IPV4_MIN_MTU;
 use crate::packets::types::u32be;
-use crate::packets::{Internal, Packet};
-use crate::SizeOf;
+use crate::packets::{Internal, Packet, SizeOf};
 use anyhow::Result;
 use std::fmt;
 use std::ptr::NonNull;
@@ -180,10 +179,10 @@ struct TimeExceededBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packets::ethernet::Ethernet;
     use crate::packets::ip::v4::Ipv4;
-    use crate::packets::Ethernet;
+    use crate::packets::Mbuf;
     use crate::testils::byte_arrays::IPV4_TCP_PACKET;
-    use crate::Mbuf;
 
     #[test]
     fn size_of_time_exceeded_body() {
