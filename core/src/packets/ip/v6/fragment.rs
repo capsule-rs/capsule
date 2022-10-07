@@ -164,15 +164,6 @@ impl<E: Ipv6Packet> Packet for Fragment<E> {
         FragmentHeader::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Fragment::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as an IPv6 fragment packet.
     ///
     /// # Errors

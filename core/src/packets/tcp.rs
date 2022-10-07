@@ -534,15 +534,6 @@ impl<E: IpPacket> Packet for Tcp<E> {
         TcpHeader::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Tcp::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as a TCP packet.
     ///
     /// # Errors

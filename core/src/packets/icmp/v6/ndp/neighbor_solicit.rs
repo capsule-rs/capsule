@@ -119,14 +119,6 @@ impl<E: Ipv6Packet> Icmpv6Message for NeighborSolicitation<E> {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        NeighborSolicitation {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv6 packet's payload as neighbor solicitation.
     ///
     /// # Errors

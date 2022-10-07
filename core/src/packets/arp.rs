@@ -265,15 +265,6 @@ impl<H: HardwareAddr, P: ProtocolAddr> Packet for Arp<H, P> {
         ArpHeader::<H, P>::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Arp {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the Ethernet payload as an ARP packet.
     ///
     /// # Errors

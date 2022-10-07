@@ -460,14 +460,6 @@ impl Packet for Mbuf {
     }
 
     #[inline]
-    unsafe fn clone(&self, _internal: Internal) -> Self {
-        let raw = self.inner.ptr();
-        Mbuf {
-            inner: MbufInner::Clone(*raw),
-        }
-    }
-
-    #[inline]
     fn try_parse(envelope: Self::Envelope, _internal: Internal) -> Result<Self> {
         Ok(envelope)
     }

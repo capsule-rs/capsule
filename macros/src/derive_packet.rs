@@ -67,12 +67,7 @@ pub fn gen_icmpv6(input: syn::DeriveInput) -> TokenStream {
             fn header_len(&self) -> usize {
                 self.icmp().header_len()
             }
-
-            #[inline]
-            unsafe fn clone(&self, internal: Internal) -> Self {
-                ::capsule::packets::icmp::v6::Icmpv6Message::clone(self, internal)
-            }
-
+            
             #[inline]
             fn try_parse(envelope: Self::Envelope, _internal: Internal) -> ::anyhow::Result<Self> {
                 envelope.parse::<::capsule::packets::icmp::v6::Icmpv6<E>>()?.downcast::<#name<E>>()
@@ -165,11 +160,6 @@ pub fn gen_icmpv4(input: syn::DeriveInput) -> TokenStream {
             #[inline]
             fn header_len(&self) -> usize {
                 self.icmp().header_len()
-            }
-
-            #[inline]
-            unsafe fn clone(&self, internal: Internal) -> Self {
-                ::capsule::packets::icmp::v4::Icmpv4Message::clone(self, internal)
             }
 
             #[inline]

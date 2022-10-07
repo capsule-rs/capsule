@@ -182,15 +182,6 @@ impl Packet for Icmpv4 {
         Icmpv4Header::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Icmpv4 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as an ICMPv4 packet.
     ///
     /// # Errors
@@ -347,16 +338,6 @@ pub trait Icmpv4Message {
 
     /// Converts the message back to the generic ICMPv4 packet.
     fn into_icmp(self) -> Icmpv4;
-
-    /// Returns a copy of the message.
-    ///
-    /// # Safety
-    ///
-    /// This function cannot be invoked directly. It is internally used by
-    /// [`Packet::clone`].
-    ///
-    /// [`Packet::clone`]: Packet::clone
-    unsafe fn clone(&self, internal: Internal) -> Self;
 
     /// Parses the ICMPv4 packet's payload as this message type.
     ///

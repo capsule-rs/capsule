@@ -252,15 +252,6 @@ impl Packet for Ipv6 {
         Ipv6Header::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ipv6 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the Ethernet's payload as an IPv6 packet.
     ///
     /// # Errors

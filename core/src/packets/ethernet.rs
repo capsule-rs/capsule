@@ -261,15 +261,6 @@ impl Packet for Ethernet {
         }
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ethernet {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the mbuf's payload as `Ethernet`.
     ///
     /// # Errors

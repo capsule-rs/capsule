@@ -122,14 +122,6 @@ impl<E: Ipv6Packet> Icmpv6Message for PacketTooBig<E> {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        PacketTooBig {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv6 packet's payload as too big.
     ///
     /// # Errors

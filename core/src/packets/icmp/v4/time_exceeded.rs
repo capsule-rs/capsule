@@ -106,14 +106,6 @@ impl Icmpv4Message for TimeExceeded {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        TimeExceeded {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv4 packet's payload as time exceeded.
     ///
     /// # Errors

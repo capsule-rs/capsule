@@ -405,15 +405,6 @@ impl Packet for Ipv4 {
         Ipv4Header::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Ipv4 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the Ethernet's payload as an IPv4 packet.
     ///
     /// # Errors

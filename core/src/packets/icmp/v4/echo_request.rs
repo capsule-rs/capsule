@@ -164,14 +164,6 @@ impl Icmpv4Message for EchoRequest {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        EchoRequest {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv4 packet's payload as echo request.
     ///
     /// # Errors

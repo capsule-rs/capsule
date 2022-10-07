@@ -34,9 +34,6 @@ pub use self::size_of::*;
 pub use capsule_macros::SizeOf;
 
 use anyhow::{Context, Result};
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops::Deref;
 
 /// An argument to restrict users from calling functions on the [`Packet`]
 /// trait.
@@ -128,27 +125,6 @@ pub trait Packet {
         self.len() - self.header_len()
     }
 
-    /// Returns a copy of the packet.
-    ///
-    /// # Remarks
-    ///
-    /// This function cannot be invoked directly. It is internally used by
-    /// [`peek`].
-    ///
-    /// # Safety
-    ///
-    /// The underlying byte buffer is not cloned. The original and the clone
-    /// will share the same buffer. Both copies are independently mutable.
-    /// Changes made through one copy could completely invalidate the other.
-    ///
-    /// [`peek`] addresses this safety issue by wrapping the clone in an
-    /// [`Immutable`] and making the clone behave as an immutable borrow of
-    /// the original.
-    ///
-    /// [`peek`]: Packet::peek
-    /// [`Immutable`]: Immutable
-    unsafe fn clone(&self, internal: Internal) -> Self;
-
     /// Parses the envelope's payload as this packet type.
     ///
     /// The implementation should perform the necessary buffer boundary
@@ -181,19 +157,6 @@ pub trait Packet {
         Self: Sized,
     {
         T::try_parse(self, Internal(()))
-    }
-
-    /// Peeks into the packet's payload as a packet of type `T`.
-    ///
-    /// `peek` returns an immutable reference to the payload. The caller
-    /// retains full ownership of the packet.
-    #[inline]
-    fn peek<T: Packet<Envelope = Self>>(&self) -> Result<Immutable<'_, T>>
-    where
-        Self: Sized,
-    {
-        let clone = unsafe { self.clone(Internal(())) };
-        clone.parse::<T>().map(Immutable::new)
     }
 
     /// Prepends a new packet to the beginning of the envelope's payload.
@@ -298,42 +261,6 @@ pub trait Packet {
     fn reconcile_all(&mut self) {
         self.reconcile();
         self.envelope_mut().reconcile_all();
-    }
-}
-
-/// Immutable smart pointer to a struct.
-///
-/// A smart pointer that prevents the struct from being modified. The main
-/// use is allow safe lookahead of packet payload while retaining ownership
-/// of the original packet. The lifetime of the smart pointer is constrained
-/// by the original packet. The pointer can be generally used on all structs
-/// other than packets as well.
-pub struct Immutable<'a, T> {
-    value: T,
-    phantom: PhantomData<&'a T>,
-}
-
-impl<T: fmt::Debug> fmt::Debug for Immutable<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.value.fmt(f)
-    }
-}
-
-impl<T> Immutable<'_, T> {
-    /// Creates a new immutable smart pointer to a struct `T`.
-    pub fn new(value: T) -> Self {
-        Immutable {
-            value,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<T> Deref for Immutable<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
     }
 }
 

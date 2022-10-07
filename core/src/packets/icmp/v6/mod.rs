@@ -194,15 +194,6 @@ impl<E: Ipv6Packet> Packet for Icmpv6<E> {
         Icmpv6Header::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Icmpv6 {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as an ICMPv6 packet.
     ///
     /// # Errors
@@ -399,16 +390,6 @@ pub trait Icmpv6Message {
 
     /// Converts the message back to the generic ICMPv6 packet.
     fn into_icmp(self) -> Icmpv6<Self::Envelope>;
-
-    /// Returns a copy of the message.
-    ///
-    /// # Safety
-    ///
-    /// This function cannot be invoked directly. It is internally used by
-    /// [`Packet::clone`].
-    ///
-    /// [`Packet::clone`]: Packet::clone
-    unsafe fn clone(&self, internal: Internal) -> Self;
 
     /// Parses the ICMPv6 packet's payload as this message type.
     ///

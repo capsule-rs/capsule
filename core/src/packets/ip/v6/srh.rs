@@ -275,16 +275,6 @@ impl<E: Ipv6Packet> Packet for SegmentRouting<E> {
         SegmentRoutingHeader::size_of() + self.segments().len() * Ipv6Addr::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        SegmentRouting::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            segments: self.segments,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as an IPv6 segment routing packet.
     ///
     /// # Errors

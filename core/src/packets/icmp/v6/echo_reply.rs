@@ -166,14 +166,6 @@ impl<E: Ipv6Packet> Icmpv6Message for EchoReply<E> {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        EchoReply {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv6 packet's payload as echo reply.
     ///
     /// # Errors

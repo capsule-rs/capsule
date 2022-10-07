@@ -44,7 +44,7 @@ pub use self::router_advert::*;
 pub use self::router_solicit::*;
 
 use crate::ensure;
-use crate::packets::{Immutable, Internal, Mbuf, Packet, SizeOf};
+use crate::packets::{Internal, Mbuf, Packet, SizeOf};
 use anyhow::{anyhow, Result};
 use std::fmt;
 use std::marker::PhantomData;
@@ -54,33 +54,6 @@ use std::ptr::NonNull;
 pub trait NdpPacket: Packet {
     /// Returns the buffer offset where the options begin.
     fn options_offset(&self) -> usize;
-
-    /// Returns an iterator to read the options in the packet.
-    ///
-    /// The options cannot be modified. To modify the values while iterating
-    /// over the options, use [`options_mut().iter()`] instead.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
-    /// let mut iter = advert.options_iter();
-    ///
-    /// while let Some(option) = iter.next()? {
-    ///     println!("{:?}", option);
-    /// }
-    /// ```
-    ///
-    /// [`options_mut().iter()`]: NdpOptions::iter
-    #[inline]
-    fn options_iter(&self) -> ImmutableNdpOptionsIterator<'_> {
-        let mbuf = unsafe { self.mbuf().clone(Internal(())) };
-        ImmutableNdpOptionsIterator {
-            mbuf,
-            offset: self.options_offset(),
-            _phantom: PhantomData,
-        }
-    }
 
     /// Returns a mutable reference to the options in the packet.
     #[inline]
@@ -158,129 +131,6 @@ impl fmt::Display for NdpOptionType {
 struct TypeLengthTuple {
     option_type: u8,
     length: u8,
-}
-
-/// An immutable generic NDP option that can be casted to a more specific
-/// option.
-pub struct ImmutableNdpOption<'a> {
-    mbuf: &'a mut Mbuf,
-    tuple: NonNull<TypeLengthTuple>,
-    offset: usize,
-}
-
-impl<'a> ImmutableNdpOption<'a> {
-    /// Creates a new immutable untyped NDP option.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the buffer does not have enough free space.
-    #[inline]
-    fn new(mbuf: &'a mut Mbuf, offset: usize) -> Result<Self> {
-        let tuple = mbuf.read_data(offset)?;
-        let option = ImmutableNdpOption {
-            mbuf,
-            tuple,
-            offset,
-        };
-
-        // makes sure that there's enough data for the whole option as
-        // indicated by the length field stored in the option itself
-        ensure!(
-            option.mbuf.len() >= option.end_offset(),
-            anyhow!("option size exceeds remaining buffer size.")
-        );
-
-        Ok(option)
-    }
-
-    #[inline]
-    fn tuple(&self) -> &TypeLengthTuple {
-        unsafe { self.tuple.as_ref() }
-    }
-
-    /// Returns the option type.
-    #[inline]
-    pub fn option_type(&self) -> NdpOptionType {
-        NdpOptionType(self.tuple().option_type)
-    }
-
-    /// Returns the length of the option in units of 8 octets.
-    #[inline]
-    pub fn length(&self) -> u8 {
-        self.tuple().length
-    }
-
-    #[inline]
-    fn end_offset(&self) -> usize {
-        self.offset + self.length() as usize * 8
-    }
-
-    /// Casts the immutable generic option to a specific option `T`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
-    /// let mut iter = advert.options();
-    ///
-    /// while let Some(option) = iter.next()? {
-    ///     let prefix = option.downcast::<PrefixInformation<'_>>()?;
-    ///     println!("{:?}", prefix);
-    /// }
-    /// ```
-    #[inline]
-    pub fn downcast<'b, T: NdpOption<'b>>(&'b mut self) -> Result<Immutable<'b, T>> {
-        T::try_parse(self.mbuf, self.offset, Internal(())).map(Immutable::new)
-    }
-}
-
-impl fmt::Debug for ImmutableNdpOption<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ImmutableNdpOption")
-            .field("option_type", &self.option_type())
-            .field("length", &self.length())
-            .field("$offset", &self.offset)
-            .field("$len", &(self.length() * 8))
-            .finish()
-    }
-}
-
-/// An iterator that iterates through the options in the NDP message body
-/// immutably.
-pub struct ImmutableNdpOptionsIterator<'a> {
-    mbuf: Mbuf,
-    offset: usize,
-    _phantom: PhantomData<&'a Mbuf>,
-}
-
-impl ImmutableNdpOptionsIterator<'_> {
-    /// Advances the iterator and returns the next value.
-    ///
-    /// Returns `Ok(None)` when iteration is finished; returns `Err` when a
-    /// parse error is encountered during iteration.
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<ImmutableNdpOption<'_>>> {
-        if self.mbuf.data_len() > self.offset {
-            match ImmutableNdpOption::new(&mut self.mbuf, self.offset) {
-                Ok(option) => {
-                    // advances the offset to the next option
-                    self.offset = option.end_offset();
-                    Ok(Some(option))
-                }
-                Err(e) => Err(e),
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-impl fmt::Debug for ImmutableNdpOptionsIterator<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ImmutableNdpOptionsIterator")
-            .field("offset", &self.offset)
-            .finish()
-    }
 }
 
 /// A mutable generic NDP option that can be casted to a more specific option.
@@ -462,36 +312,36 @@ impl NdpOptions<'_> {
         T::try_push(self.mbuf, self.mbuf.data_len(), Internal(()))
     }
 
-    /// Retains only the options specified by the predicate.
-    ///
-    /// In other words, remove all options `o` such that `f(o)` returns false.
-    /// If an error occurs, all removals done prior to the error cannot be
-    /// undone.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
-    /// let mut options = advert.options_mut();
-    /// let _ = options.retain(|option| option.option_type() == NdpOptionTypes::PrefixInformation);
-    /// ```
-    pub fn retain<F>(&mut self, mut f: F) -> Result<()>
-    where
-        F: FnMut(&mut ImmutableNdpOption<'_>) -> bool,
-    {
-        let mut offset = self.offset;
-        while self.mbuf.data_len() > offset {
-            let mut option = ImmutableNdpOption::new(self.mbuf, offset)?;
-            if !f(&mut option) {
-                let len = option.length() * 8;
-                self.mbuf.shrink(offset, len as usize)?;
-            } else {
-                offset = option.end_offset();
-            }
-        }
+    // /// Retains only the options specified by the predicate.
+    // ///
+    // /// In other words, remove all options `o` such that `f(o)` returns false.
+    // /// If an error occurs, all removals done prior to the error cannot be
+    // /// undone.
+    // ///
+    // /// # Example
+    // ///
+    // /// ```
+    // /// let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>()?;
+    // /// let mut options = advert.options_mut();
+    // /// let _ = options.retain(|option| option.option_type() == NdpOptionTypes::PrefixInformation);
+    // /// ```
+    // pub fn retain<F>(&mut self, mut f: F) -> Result<()>
+    // where
+    //     F: FnMut(&mut ImmutableNdpOption<'_>) -> bool,
+    // {
+    //     let mut offset = self.offset;
+    //     while self.mbuf.data_len() > offset {
+    //         let mut option = ImmutableNdpOption::new(self.mbuf, offset)?;
+    //         if !f(&mut option) {
+    //             let len = option.length() * 8;
+    //             self.mbuf.shrink(offset, len as usize)?;
+    //         } else {
+    //             offset = option.end_offset();
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
 impl fmt::Debug for NdpOptions<'_> {
@@ -592,24 +442,6 @@ mod tests {
         let advert = ipv6.parse::<RouterAdvertisement<Ipv6>>().unwrap();
 
         assert!(advert.options_iter().next().is_err());
-    }
-
-    #[capsule::test]
-    fn downcast_immutable_ndp_option() {
-        let packet = Mbuf::from_bytes(&ROUTER_ADVERT_PACKET).unwrap();
-        let ethernet = packet.peek::<Ethernet>().unwrap();
-        let ipv6 = ethernet.peek::<Ipv6>().unwrap();
-        let advert = ipv6.peek::<RouterAdvertisement<Ipv6>>().unwrap();
-
-        let mut iter = advert.options_iter();
-
-        // first one is the prefix information option.
-        let mut prefix = iter.next().unwrap().unwrap();
-        assert!(prefix.downcast::<PrefixInformation<'_>>().is_ok());
-
-        // next one is the MTU option.
-        let mut mtu = iter.next().unwrap().unwrap();
-        assert!(mtu.downcast::<PrefixInformation<'_>>().is_err());
     }
 
     #[capsule::test]

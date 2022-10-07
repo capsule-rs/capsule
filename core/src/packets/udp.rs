@@ -276,15 +276,6 @@ impl<E: IpPacket> Packet for Udp<E> {
         UdpHeader::size_of()
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        Udp::<E> {
-            envelope: self.envelope.clone(internal),
-            header: self.header,
-            offset: self.offset,
-        }
-    }
-
     /// Parses the envelope's payload as an UDP packet.
     ///
     /// # Errors

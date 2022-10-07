@@ -87,14 +87,6 @@ impl<E: Ipv6Packet> Icmpv6Message for RouterSolicitation<E> {
         self.icmp
     }
 
-    #[inline]
-    unsafe fn clone(&self, internal: Internal) -> Self {
-        RouterSolicitation {
-            icmp: self.icmp.clone(internal),
-            body: self.body,
-        }
-    }
-
     /// Parses the ICMPv6 packet's payload as router solicitation.
     ///
     /// # Errors
